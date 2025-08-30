@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>图片快捷下载器</title>
+  <style>
+    body {
+      width: 300px;
+      padding: 20px;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      margin: 0;
+    }
+    
+    .header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    
+    .header h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+    }
+    
+    .feature-list {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 20px;
+    }
+    
+    .feature-item {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+    
+    .feature-item:last-child {
+      margin-bottom: 0;
+    }
+    
+    .feature-icon {
+      width: 20px;
+      height: 20px;
+      margin-right: 10px;
+      background: #4CAF50;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      color: white;
+    }
+    
+    .usage {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 15px;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+    
+    .usage h3 {
+      margin: 0 0 10px 0;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    
+    .usage ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+    
+    .usage li {
+      margin-bottom: 5px;
+    }
+    
+    .hotkey {
+      background: rgba(255, 255, 255, 0.2);
+      padding: 3px 6px;
+      border-radius: 3px;
+      font-family: monospace;
+      font-weight: bold;
+    }
+    
+    .settings {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 15px;
+      margin-top: 20px;
+    }
+    
+    .settings h3 {
+      margin: 0 0 15px 0;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    
+    .setting-item {
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .setting-item label {
+      font-size: 12px;
+      min-width: 80px;
+    }
+    
+    .setting-item input[type="text"] {
+      flex: 1;
+      padding: 5px 8px;
+      border: none;
+      border-radius: 4px;
+      font-size: 12px;
+      background: rgba(255, 255, 255, 0.9);
+      color: #333;
+    }
+    
+    .setting-item button {
+      padding: 5px 10px;
+      border: none;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    
+    .setting-item button:hover {
+      opacity: 0.8;
+    }
+    
+    #selectFolder {
+      background: #2196F3;
+      color: white;
+    }
+    
+    .save-btn {
+      background: #4CAF50;
+      color: white;
+      margin-right: 10px;
+    }
+    
+    .reset-btn {
+      background: #f44336;
+      color: white;
+    }
+    
+         .setting-item input[type="checkbox"] {
+       width: 16px;
+       height: 16px;
+       accent-color: #4CAF50;
+     }
+     
+     .fixed-path-info {
+       flex: 1;
+       display: flex;
+       flex-direction: column;
+       gap: 5px;
+     }
+     
+     .path-display {
+       background: rgba(255, 255, 255, 0.9);
+       color: #333;
+       padding: 8px 12px;
+       border-radius: 4px;
+       font-family: monospace;
+       font-size: 11px;
+       border: 2px solid #4CAF50;
+       font-weight: bold;
+     }
+     
+     .path-note {
+       font-size: 10px;
+       color: #ccc;
+       text-align: center;
+       font-style: italic;
+     }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🖼️ 图片快捷下载器</h1>
+  </div>
+  
+  <div class="feature-list">
+    <div class="feature-item">
+      <div class="feature-icon">✓</div>
+      <span>保留原始格式和尺寸</span>
+    </div>
+          <div class="feature-item">
+        <div class="feature-icon">✓</div>
+        <span>下载完成后尝试打开</span>
+      </div>
+    <div class="feature-item">
+      <div class="feature-icon">✓</div>
+      <span>支持右键菜单下载</span>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon">✓</div>
+      <span>支持双击快速下载</span>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon">✓</div>
+      <span>支持悬停+D键下载</span>
+    </div>
+  </div>
+  
+  <div class="usage">
+    <h3>使用方法：</h3>
+    <ul>
+      <li>右键点击图片 → 选择"快捷下载图片"</li>
+      <li>双击图片即可快速下载</li>
+      <li><span class="hotkey">悬停图片 + 按D键</span> → 超快速下载</li>
+      <li>图片将保存到指定文件夹</li>
+      <li>下载完成后尝试使用默认应用打开</li>
+    </ul>
+  </div>
+  
+  <div class="settings">
+    <h3>⚙️ 下载设置</h3>
+         <div class="setting-item">
+       <label for="downloadPath">下载路径：</label>
+       <div class="fixed-path-info">
+         <span class="path-display">C:\Users\ADMIN\Desktop\ImageDownloader</span>
+         <span class="path-note">固定路径，无需修改</span>
+       </div>
+     </div>
+    <div class="setting-item">
+             <label for="autoOpen">下载完成后尝试打开：</label>
+      <input type="checkbox" id="autoOpen" checked />
+    </div>
+    <div class="setting-item">
+      <button id="saveSettings" class="save-btn">保存设置</button>
+      <button id="resetSettings" class="reset-btn">重置设置</button>
+    </div>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>
