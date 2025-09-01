@@ -34,18 +34,14 @@ async function downloadImage(imageUrl, pageUrl) {
       filename = `image_${timestamp}.jpg`;
     }
     
-    // 使用固定的下载路径
-    const fixedPath = 'C:\\Users\\ADMIN\\Desktop\\ImageDownloader';
-    const fullPath = `${fixedPath}\\${filename}`;
-    
+    // 使用默认下载文件夹，让浏览器自动选择路径
     console.log('文件名:', filename);
-    console.log('下载路径:', fullPath);
     console.log('用户设置:', settings);
     
     // 开始下载
     const downloadId = await chrome.downloads.download({
       url: imageUrl,
-      filename: fullPath,
+      filename: filename,  // 只使用文件名，让浏览器使用默认下载路径
       saveAs: false
     });
     

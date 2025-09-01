@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "图片快捷下载器",
-  "version": "1.0",
-  "description": "快捷下载图片，保留原有格式和尺寸，下载完成后自动打开",
+  "name": "AnnotateFlow Assistant",
+  "version": "2.0",
+  "description": "Annotation platform assistant: Fast image download with D key, skip with Space, submit with S key",
   "permissions": [
     "downloads",
     "contextMenus",
@@ -17,7 +17,7 @@
   },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "图片快捷下载器"
+    "default_title": "AnnotateFlow Assistant"
   },
   "content_scripts": [
     {
