@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>音效测试页面</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .button {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 16px;
+        }
+        .button:hover {
+            background: #45a049;
+        }
+        .skip-button {
+            background: #ff9800;
+        }
+        .skip-button:hover {
+            background: #f57c00;
+        }
+        .submit-button {
+            background: #2196F3;
+        }
+        .submit-button:hover {
+            background: #1976D2;
+        }
+        .instructions {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        .hotkey {
+            background: #f0f0f0;
+            padding: 3px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔊 AnnotateFlow Assistant 音效测试页面</h1>
+        
+        <div class="instructions">
+            <h3>📋 测试说明</h3>
+            <p>这个页面用于测试Chrome扩展的音效功能。请确保：</p>
+            <ul>
+                <li>已安装并启用 AnnotateFlow Assistant 扩展</li>
+                <li>已添加音效文件 <code>notification.mp3</code></li>
+                <li>浏览器允许播放音频</li>
+                <li><strong>注意：</strong>扩展只在 <a href="https://qlabel.tencent.com/" target="_blank">腾讯QLabel平台</a> 上运行</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <h3>🎵 音效测试</h3>
+            <p>按下以下快捷键测试音效：</p>
+            <ul>
+                <li><span class="hotkey">S键</span> - 点击"提交"按钮并播放音效</li>
+                <li><span class="hotkey">空格键</span> - 点击"跳过"按钮</li>
+            </ul>
+            <p><strong>注意：</strong>请确保焦点不在输入框中，否则快捷键可能不生效。</p>
+            <p><strong>音效开关：</strong>点击扩展图标，在设置中可以开启或关闭S键音效。</p>
+        </div>
+
+        <div class="test-section">
+            <h3>🔘 测试按钮</h3>
+            <p>点击以下按钮或使用快捷键：</p>
+            
+            <button class="button skip-button" onclick="alert('跳过按钮被点击')">
+                跳过
+            </button>
+            
+            <button class="button submit-button" onclick="alert('提交按钮被点击')">
+                提交并继续标注
+            </button>
+            
+            <button class="button submit-button" onclick="alert('提交按钮被点击')">
+                提交
+            </button>
+        </div>
+
+        <div class="test-section">
+            <h3>🖼️ 图片下载测试</h3>
+            <p>测试图片下载功能：</p>
+            <ul>
+                <li>将鼠标悬停在下面的图片上</li>
+                <li>按 <span class="hotkey">D键</span> 下载图片</li>
+            </ul>
+            
+            <img src="https://via.placeholder.com/300x200/4CAF50/FFFFFF?text=测试图片" 
+                 alt="测试图片" 
+                 style="border: 2px solid #ddd; border-radius: 5px; margin: 10px 0;">
+        </div>
+
+        <div class="test-section">
+            <h3>📝 功能说明</h3>
+            <p><strong>AnnotateFlow Assistant</strong> 是一个专为 <a href="https://qlabel.tencent.com/" target="_blank">腾讯QLabel标注平台</a> 设计的Chrome扩展，提供以下功能：</p>
+            <ul>
+                <li><strong>D键下载：</strong>悬停图片 + 按D键快速下载</li>
+                <li><strong>空格键跳过：</strong>快速点击页面中的"跳过"按钮</li>
+                <li><strong>S键提交：</strong>快速点击"提交"按钮并播放到账音效</li>
+            </ul>
+            <p><strong>平台限制：</strong>扩展功能只在 <code>https://qlabel.tencent.com/</code> 网站上生效</p>
+        </div>
+
+        <div class="test-section">
+            <h3>🔧 故障排除</h3>
+            <p>如果音效不播放，请检查：</p>
+            <ul>
+                <li>音效文件 <code>notification.mp3</code> 是否存在</li>
+                <li>扩展是否正确加载</li>
+                <li>浏览器是否允许播放音频</li>
+                <li>系统音量是否正常</li>
+            </ul>
+            <p>详细设置说明请参考 <code>SOUND_SETUP.md</code> 文件。</p>
+        </div>
+    </div>
+
+    <script>
+        // 添加一些测试用的输入框
+        document.addEventListener('DOMContentLoaded', function() {
+            const testSection = document.createElement('div');
+            testSection.className = 'test-section';
+            testSection.innerHTML = `
+                <h3>⌨️ 输入框测试</h3>
+                <p>在输入框中时，快捷键不会生效（这是正常行为）：</p>
+                <input type="text" placeholder="在这里输入时快捷键不会生效" style="width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px;">
+                <textarea placeholder="这里也是" style="width: 100%; height: 80px; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px;"></textarea>
+            `;
+            document.querySelector('.container').appendChild(testSection);
+        });
+    </script>
+</body>
+</html>

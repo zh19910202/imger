@@ -1,1 +1,28 @@
-
+{
+  "name": "annotateflow-assistant",
+  "version": "2.2.0",
+  "description": "Chrome extension for Tencent QLabel annotation platform with fast image download and keyboard shortcuts",
+  "main": "content.js",
+  "scripts": {
+    "build": "echo 'No build process needed for Chrome extension'",
+    "test": "echo 'No tests specified'"
+  },
+  "keywords": [
+    "chrome-extension",
+    "annotation",
+    "image-download",
+    "keyboard-shortcuts",
+    "qlabel",
+    "tencent"
+  ],
+  "author": "AnnotateFlow Assistant Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/annotateflow-assistant.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-username/annotateflow-assistant/issues"
+  },
+  "homepage": "https://github.com/your-username/annotateflow-assistant#readme"
+}

@@ -1,0 +1,9 @@
+{
+  "name": "com.annotateflow.assistant",
+  "description": "AnnotateFlow Assistant Native Host",
+  "path": "native_host.py",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://__MSG_@@extension_id__/"
+  ]
+}

@@ -6,7 +6,7 @@
   <style>
     body {
       width: 300px;
-      padding: 20px;
+      padding: 25px;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: white;
@@ -15,7 +15,7 @@
     
     .header {
       text-align: center;
-      margin-bottom: 20px;
+      margin-bottom: 25px;
     }
     
     .header h1 {
@@ -61,6 +61,7 @@
       padding: 15px;
       font-size: 13px;
       line-height: 1.4;
+      margin-bottom: 15px;
     }
     
     .usage h3 {
@@ -85,55 +86,120 @@
       font-family: monospace;
       font-weight: bold;
     }
+    
+    .settings {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 15px;
+      font-size: 13px;
+      line-height: 1.4;
+      margin-top: 5px;
+    }
+    
+    .settings h3 {
+      margin: 0 0 10px 0;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    
+    .setting-item {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    
+    .setting-item:last-child {
+      margin-bottom: 0;
+    }
+    
+    .setting-label {
+      margin-left: 10px;
+      font-size: 13px;
+    }
+    
+    /* 开关样式 */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 40px;
+      height: 20px;
+    }
+    
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(255, 255, 255, 0.3);
+      transition: 0.3s;
+      border-radius: 20px;
+    }
+    
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 16px;
+      width: 16px;
+      left: 2px;
+      bottom: 2px;
+      background-color: white;
+      transition: 0.3s;
+      border-radius: 50%;
+    }
+    
+    input:checked + .slider {
+      background-color: #4CAF50;
+    }
+    
+    input:checked + .slider:before {
+      transform: translateX(20px);
+    }
   </style>
 </head>
 <body>
   <div class="header">
     <h1>📝 AnnotateFlow Assistant</h1>
-  </div>
-  
-  <div class="feature-list">
-    <div class="feature-item">
-      <div class="feature-icon">✓</div>
-      <span>保留原始格式和尺寸</span>
-    </div>
-    <div class="feature-item">
-      <div class="feature-icon">✓</div>
-      <span>下载完成后尝试打开</span>
-    </div>
-    <div class="feature-item">
-      <div class="feature-icon">✓</div>
-      <span>支持右键菜单下载</span>
-    </div>
-    <div class="feature-item">
-      <div class="feature-icon">✓</div>
-      <span>支持双击快速下载</span>
-    </div>
-    <div class="feature-item">
-      <div class="feature-icon">✓</div>
-      <span>支持悬停+D键下载</span>
-    </div>
-    <div class="feature-item">
-      <div class="feature-icon">✓</div>
-      <span>空格键快速跳过操作</span>
-    </div>
-    <div class="feature-item">
-      <div class="feature-icon">✓</div>
-      <span>S键快速提交操作</span>
-    </div>
+    <p style="font-size: 12px; margin: 5px 0 0 0; opacity: 0.8;">专为腾讯QLabel标注平台设计</p>
   </div>
   
   <div class="usage">
     <h3>使用方法：</h3>
     <ul>
-      <li>右键点击图片 → 选择"快捷下载图片"</li>
-      <li>双击图片即可快速下载</li>
       <li><span class="hotkey">悬停图片 + 按D键</span> → 超快速下载</li>
       <li><span class="hotkey">空格键</span> → 点击页面中的"跳过"按钮</li>
       <li><span class="hotkey">S键</span> → 点击页面中的"提交"或"提交并继续标注"按钮</li>
-      <li>图片将保存到指定文件夹</li>
-      <li>下载完成后尝试使用默认应用打开</li>
+      <li><span class="hotkey">A键</span> → 点击页面中的"上传图片"按钮</li>
+      <li><span class="hotkey">F键</span> → 点击页面中的"查看历史"链接</li>
     </ul>
+  </div>
+
+  <div class="settings">
+    <h3>设置：</h3>
+    <div class="setting-item">
+      <label class="switch">
+        <input type="checkbox" id="soundToggle" checked>
+        <span class="slider"></span>
+      </label>
+      <span class="setting-label">S键音效</span>
+    </div>
+            <div class="setting-item">
+          <label class="switch">
+            <input type="checkbox" id="autoOpenToggle" checked>
+            <span class="slider"></span>
+          </label>
+          <span class="setting-label">下载完成后自动打开图片</span>
+        </div>
+        <div class="setting-item">
+          <button id="openLastImage" class="action-button">打开最近下载的图片</button>
+        </div>
   </div>
   
   <script src="popup.js"></script>

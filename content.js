@@ -7,6 +7,8 @@
 // 全局变量
 let lastHoveredImage = null;
 let selectedImage = null;
+let notificationAudio = null;
+let soundEnabled = true; // 音效开关状态
 
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', initializeScript);
@@ -19,8 +21,9 @@ if (document.readyState === 'loading') {
 }
 
 function initializeScript() {
-    console.log('=== 图片下载器 + 按钮快捷键 Content Script v2.0 已加载 ===');
-    console.log('支持功能: D键下载图片, 空格键跳过, S键提交标注');
+    console.log('=== AnnotateFlow Assistant v2.0 已加载 ===');
+    console.log('专为腾讯QLabel标注平台设计');
+    console.log('支持功能: D键下载图片, 空格键跳过, S键提交标注, A键上传图片, F键查看历史');
     console.log('Chrome对象:', typeof chrome);
     console.log('Chrome.runtime:', typeof chrome?.runtime);
     console.log('扩展ID:', chrome?.runtime?.id);
@@ -36,8 +39,22 @@ function initializeScript() {
         return;
     }
     
+    // 加载音效设置
+    loadSoundSettings();
+    
+    // 初始化音效
+    initializeAudio();
+    
     // 添加键盘事件监听器
     document.addEventListener('keydown', handleKeydown);
+    
+    // 监听存储变化
+    chrome.storage.onChanged.addListener((changes, namespace) => {
+        if (namespace === 'sync' && changes.soundEnabled) {
+            soundEnabled = changes.soundEnabled.newValue;
+            console.log('音效设置已更新:', soundEnabled);
+        }
+    });
     
     // 为所有图片添加鼠标事件监听器
     addImageEventListeners();
@@ -45,7 +62,7 @@ function initializeScript() {
     // 使用 MutationObserver 监听动态添加的图片
     observeImageChanges();
     
-    console.log('图片快捷下载器初始化完成');
+    console.log('AnnotateFlow Assistant 初始化完成');
 }
 
 // 处理键盘事件
@@ -85,7 +102,29 @@ function handleKeydown(event) {
         const submitButton = findButtonByText(['提交并继续标注', '提交', 'Submit', '继续标注', 'Continue']);
         if (submitButton) {
             event.preventDefault();
+            // 播放音效
+            playNotificationSound();
             clickButton(submitButton, '提交并继续标注');
+        }
+    }
+    // 处理A键 - 点击"上传图片"按钮
+    else if (key === 'a') {
+        const uploadButton = findButtonByText(['上传图片', '上传', 'Upload', '选择图片', '选择文件']);
+        if (uploadButton) {
+            event.preventDefault();
+            clickButton(uploadButton, '上传图片');
+        } else {
+            showNotification('未找到上传图片按钮');
+        }
+    }
+    // 处理F键 - 点击"查看历史"链接
+    else if (key === 'f') {
+        const historyLink = findLinkByText(['点击查看历史', '查看历史', '历史', 'History', '历史记录', '查看记录']);
+        if (historyLink) {
+            event.preventDefault();
+            clickLink(historyLink, '查看历史');
+        } else {
+            showNotification('未找到查看历史链接');
         }
     }
 }
@@ -394,6 +433,166 @@ function cleanup() {
         img.style.outline = '';
         img.style.boxShadow = '';
     });
+}
+
+// 初始化音效
+function initializeAudio() {
+    try {
+        // 获取扩展中音效文件的URL
+        const audioUrl = chrome.runtime.getURL('notification.mp3');
+        notificationAudio = new Audio(audioUrl);
+        
+        // 设置音效属性
+        notificationAudio.volume = 0.6; // 设置音量为60%
+        notificationAudio.preload = 'auto'; // 预加载音效
+        
+        console.log('音效初始化成功:', audioUrl);
+    } catch (error) {
+        console.error('音效初始化失败:', error);
+    }
+}
+
+// 加载音效设置
+function loadSoundSettings() {
+    try {
+        chrome.storage.sync.get({ soundEnabled: true }, (items) => {
+            soundEnabled = items.soundEnabled;
+            console.log('音效设置已加载:', soundEnabled);
+        });
+    } catch (error) {
+        console.error('加载音效设置失败:', error);
+        soundEnabled = true; // 默认开启
+    }
+}
+
+// 播放通知音效
+function playNotificationSound() {
+    try {
+        // 检查音效是否开启
+        if (!soundEnabled) {
+            console.log('音效已关闭，跳过播放');
+            return;
+        }
+        
+        if (notificationAudio) {
+            // 重置音频到开始位置
+            notificationAudio.currentTime = 0;
+            // 播放音效
+            notificationAudio.play().catch(error => {
+                console.error('播放音效失败:', error);
+            });
+        }
+    } catch (error) {
+        console.error('播放音效时发生错误:', error);
+    }
+}
+
+// 根据文本内容查找链接
+function findLinkByText(textOptions) {
+    // 查找所有可能的链接元素，包括更广泛的选择器
+    const linkSelectors = [
+        'a[href]',
+        'a[onclick]',
+        '[role="link"]',
+        '.link',
+        '.history-link',
+        '.nav-link',
+        'span[onclick]',
+        'div[onclick]',
+        'span[style*="cursor: pointer"]',
+        'div[style*="cursor: pointer"]',
+        'span[class*="link"]',
+        'div[class*="link"]',
+        'span[class*="history"]',
+        'div[class*="history"]',
+        'span[class*="click"]',
+        'div[class*="click"]'
+    ];
+    
+    const allElements = document.querySelectorAll(linkSelectors.join(','));
+    
+    // 遍历所有元素，查找匹配的文本
+    for (const element of allElements) {
+        const text = (element.textContent || element.innerText || element.title || '').trim();
+        
+        // 检查是否匹配任一文本选项
+        if (textOptions.some(option => 
+            text.includes(option) || 
+            text.toLowerCase().includes(option.toLowerCase())
+        )) {
+            return element;
+        }
+    }
+    
+    // 如果上面的方法没找到，尝试在整个页面中搜索包含目标文本的元素
+    const allTextElements = document.querySelectorAll('*');
+    for (const element of allTextElements) {
+        const text = (element.textContent || element.innerText || '').trim();
+        
+        // 检查是否包含目标文本
+        if (textOptions.some(option => 
+            text.includes(option) || 
+            text.toLowerCase().includes(option.toLowerCase())
+        )) {
+            // 检查这个元素是否可点击（有onclick、cursor:pointer等）
+            const style = window.getComputedStyle(element);
+            const hasClickHandler = element.onclick || 
+                                  element.getAttribute('onclick') ||
+                                  style.cursor === 'pointer' ||
+                                  element.tagName === 'A' ||
+                                  element.getAttribute('role') === 'link';
+            
+            if (hasClickHandler) {
+                return element;
+            }
+        }
+    }
+    
+    return null;
+}
+
+// 点击链接并显示反馈
+function clickLink(link, actionName) {
+    try {
+        console.log(`点击${actionName}链接:`, link);
+        
+        // 添加视觉反馈
+        addLinkClickEffect(link);
+        
+        // 模拟点击事件
+        link.click();
+        
+        // 显示通知
+        showNotification(`已执行: ${actionName}`);
+        
+    } catch (error) {
+        console.error(`点击${actionName}链接时发生错误:`, error);
+        showNotification(`执行${actionName}失败: ${error.message}`);
+    }
+}
+
+// 为链接添加点击视觉效果
+function addLinkClickEffect(link) {
+    const originalStyle = {
+        backgroundColor: link.style.backgroundColor,
+        transform: link.style.transform,
+        transition: link.style.transition,
+        color: link.style.color
+    };
+    
+    // 添加点击效果
+    link.style.transition = 'all 0.2s ease';
+    link.style.transform = 'scale(0.95)';
+    link.style.backgroundColor = '#e3f2fd';
+    link.style.color = '#1976d2';
+    
+    // 恢复原始样式
+    setTimeout(() => {
+        link.style.backgroundColor = originalStyle.backgroundColor;
+        link.style.transform = originalStyle.transform;
+        link.style.transition = originalStyle.transition;
+        link.style.color = originalStyle.color;
+    }, 200);
 }
 
 // 页面卸载时清理
