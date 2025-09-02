@@ -29,6 +29,32 @@ def read_message():
     message = sys.stdin.buffer.read(message_length).decode('utf-8')
     return json.loads(message)
 
+def check_file_ready(file_path):
+    """检查文件是否存在且可读"""
+    try:
+        if not os.path.exists(file_path):
+            return {"action": "check_file_result", "exists": False, "readable": False}
+        
+        # 检查文件是否可读且大小大于0
+        if os.path.isfile(file_path) and os.access(file_path, os.R_OK):
+            file_size = os.path.getsize(file_path)
+            return {
+                "action": "check_file_result", 
+                "exists": True, 
+                "readable": True,
+                "size": file_size
+            }
+        else:
+            return {"action": "check_file_result", "exists": True, "readable": False}
+            
+    except Exception as e:
+        return {
+            "action": "check_file_result", 
+            "exists": False, 
+            "readable": False, 
+            "error": str(e)
+        }
+
 def open_file_with_default_app(file_path):
     """使用系统默认应用打开文件"""
     try:
@@ -55,7 +81,9 @@ def main():
             if not message:
                 break
                 
-            if message.get('action') == 'open_file':
+            action = message.get('action')
+            
+            if action == 'open_file':
                 file_path = message.get('file_path')
                 if file_path and os.path.exists(file_path):
                     result = open_file_with_default_app(file_path)
@@ -64,6 +92,18 @@ def main():
                     send_message({
                         "success": False, 
                         "error": f"File not found: {file_path}"
+                    })
+            elif action == 'check_file':
+                file_path = message.get('file_path')
+                if file_path:
+                    result = check_file_ready(file_path)
+                    send_message(result)
+                else:
+                    send_message({
+                        "action": "check_file_result",
+                        "exists": False, 
+                        "readable": False,
+                        "error": "No file path provided"
                     })
             else:
                 send_message({

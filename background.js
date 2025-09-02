@@ -27,29 +27,58 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 let downloadListener = null;
 let nativePort = null;
 
+// 连接状态管理
+let isConnecting = false;
+let connectionPromise = null;
+
 // 初始化Native Messaging连接
 function initializeNativeMessaging() {
-  try {
-    nativePort = chrome.runtime.connectNative('com.annotateflow.assistant');
-    
-    nativePort.onMessage.addListener((response) => {
-      console.log('Native Host响应:', response);
-      if (response.success) {
-        console.log('图片已通过Native Host成功打开');
-      } else {
-        console.error('Native Host打开失败:', response.error);
-      }
-    });
-    
-    nativePort.onDisconnect.addListener(() => {
-      console.log('Native Host连接断开');
-      nativePort = null;
-    });
-    
-    console.log('Native Messaging连接已建立');
-  } catch (error) {
-    console.error('Native Messaging连接失败:', error);
+  // 如果已经在连接中，返回现有的Promise
+  if (isConnecting && connectionPromise) {
+    return connectionPromise;
   }
+  
+  // 如果已经连接，直接返回成功的Promise
+  if (nativePort) {
+    return Promise.resolve(nativePort);
+  }
+  
+  isConnecting = true;
+  
+  connectionPromise = new Promise((resolve, reject) => {
+    try {
+      const port = chrome.runtime.connectNative('com.annotateflow.assistant');
+      
+      port.onMessage.addListener((response) => {
+        console.log('Native Host响应:', response);
+        if (response.success) {
+          console.log('图片已通过Native Host成功打开');
+        } else if (response.error) {
+          console.error('Native Host打开失败:', response.error);
+        }
+      });
+      
+      port.onDisconnect.addListener(() => {
+        console.log('Native Host连接断开');
+        nativePort = null;
+        isConnecting = false;
+        connectionPromise = null;
+      });
+      
+      nativePort = port;
+      isConnecting = false;
+      console.log('Native Messaging连接已建立');
+      resolve(port);
+      
+    } catch (error) {
+      console.error('Native Messaging连接失败:', error);
+      isConnecting = false;
+      connectionPromise = null;
+      reject(error);
+    }
+  });
+  
+  return connectionPromise;
 }
 
 // 初始化下载监听器
@@ -89,10 +118,8 @@ function initializeDownloadListener() {
               if (settings.autoOpenImages) {
                 console.log('尝试自动打开图片');
                 
-                // 延迟确保文件完全写入
-                setTimeout(() => {
-                  openImageWithBestMethod(delta.id, download.filename);
-                }, 1000);
+                // 立即尝试打开图片，使用更智能的文件就绪检测
+                openImageWithBestMethod(delta.id, download.filename);
               } else {
                 console.log('用户设置不自动打开图片');
               }
@@ -112,23 +139,86 @@ function initializeDownloadListener() {
 function openImageWithBestMethod(downloadId, filePath) {
   console.log('尝试打开图片，下载ID:', downloadId, '文件路径:', filePath);
   
-  // 方法1: 使用Native Host (主要方法，不需要用户手势)
+  // 智能文件就绪检测
+  checkFileReady(filePath, () => {
+    // 方法1: 使用Native Host (主要方法，不需要用户手势)
+    if (nativePort) {
+      console.log('使用现有Native Host连接');
+      tryNativeHostOpen(filePath);
+    } else {
+      console.log('Native Host未连接，尝试连接');
+      initializeNativeMessaging()
+        .then(() => {
+          console.log('Native Host连接成功，打开图片');
+          tryNativeHostOpen(filePath);
+        })
+        .catch((error) => {
+          console.error('Native Host连接失败，尝试备用方法:', error);
+          tryAlternativeOpen(filePath);
+        });
+    }
+  });
+}
+
+// 智能文件就绪检测
+function checkFileReady(filePath, callback, retryCount = 0) {
+  const maxRetries = 5;
+  const retryDelay = 50; // 50ms间隔
+  
+  // 使用Native Host检查文件是否存在且可读
   if (nativePort) {
-    console.log('尝试方法1: Native Host');
-    tryNativeHostOpen(filePath);
+    try {
+      nativePort.postMessage({
+        action: 'check_file',
+        file_path: filePath
+      });
+      
+      // 监听文件检查响应
+      const checkListener = (response) => {
+        if (response.action === 'check_file_result') {
+          nativePort.onMessage.removeListener(checkListener);
+          
+          if (response.exists && response.readable) {
+            console.log('文件就绪，立即打开');
+            callback();
+          } else if (retryCount < maxRetries) {
+            console.log(`文件未就绪，重试 ${retryCount + 1}/${maxRetries}`);
+            setTimeout(() => {
+              checkFileReady(filePath, callback, retryCount + 1);
+            }, retryDelay);
+          } else {
+            console.log('文件检查超时，强制打开');
+            callback();
+          }
+        }
+      };
+      
+      nativePort.onMessage.addListener(checkListener);
+      
+      // 超时保护
+      setTimeout(() => {
+        nativePort.onMessage.removeListener(checkListener);
+        if (retryCount < maxRetries) {
+          checkFileReady(filePath, callback, retryCount + 1);
+        } else {
+          console.log('文件检查超时，强制打开');
+          callback();
+        }
+      }, 200);
+      
+    } catch (error) {
+      console.error('文件检查失败:', error);
+      // 如果检查失败，直接执行回调
+      callback();
+    }
   } else {
-    console.log('Native Host未连接，尝试重新连接');
-    initializeNativeMessaging();
-    
-    // 等待连接建立后再尝试
-    setTimeout(() => {
-      if (nativePort) {
-        tryNativeHostOpen(filePath);
-      } else {
-        console.error('Native Host连接失败，尝试备用方法');
-        tryAlternativeOpen(filePath);
-      }
-    }, 1000);
+    // 如果没有Native Host，使用简单的延迟策略
+    if (retryCount === 0) {
+      // 第一次尝试，稍微延迟确保文件写入
+      setTimeout(callback, 50);
+    } else {
+      callback();
+    }
   }
 }
 

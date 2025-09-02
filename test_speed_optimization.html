@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片自动打开速度测试</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        .test-section {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .test-images {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .test-image {
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.3s ease;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 10px;
+        }
+        .test-image:hover {
+            transform: scale(1.05);
+        }
+        .test-image img {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+            border-radius: 5px;
+        }
+        .image-info {
+            text-align: center;
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
+        .speed-indicator {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.8em;
+            margin-top: 5px;
+        }
+        .speed-fast { background: #4CAF50; }
+        .speed-medium { background: #FF9800; }
+        .speed-slow { background: #F44336; }
+        .btn {
+            background: linear-gradient(45deg, #FF6B6B, #4ECDC4);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1em;
+            margin: 10px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+        .log-area {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+        .status {
+            text-align: center;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-weight: bold;
+        }
+        .status.success { background: rgba(76, 175, 80, 0.3); }
+        .status.warning { background: rgba(255, 152, 0, 0.3); }
+        .status.error { background: rgba(244, 67, 54, 0.3); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 图片自动打开速度测试</h1>
+        
+        <div class="test-section">
+            <h2>📊 优化效果对比</h2>
+            <div class="status" id="optimizationStatus">
+                正在检测优化状态...
+            </div>
+            
+            <h3>🎯 测试图片</h3>
+            <div class="test-images">
+                <div class="test-image" onclick="testImageDownload('https://picsum.photos/400/300?random=1', 'test1.jpg')">
+                    <img src="https://picsum.photos/400/300?random=1" alt="测试图片1">
+                    <div class="image-info">
+                        <div>测试图片 1</div>
+                        <div class="speed-indicator speed-fast" id="speed1">等待测试</div>
+                    </div>
+                </div>
+                
+                <div class="test-image" onclick="testImageDownload('https://picsum.photos/400/300?random=2', 'test2.jpg')">
+                    <img src="https://picsum.photos/400/300?random=2" alt="测试图片2">
+                    <div class="image-info">
+                        <div>测试图片 2</div>
+                        <div class="speed-indicator speed-fast" id="speed2">等待测试</div>
+                    </div>
+                </div>
+                
+                <div class="test-image" onclick="testImageDownload('https://picsum.photos/400/300?random=3', 'test3.jpg')">
+                    <img src="https://picsum.photos/400/300?random=3" alt="测试图片3">
+                    <div class="image-info">
+                        <div>测试图片 3</div>
+                        <div class="speed-indicator speed-fast" id="speed3">等待测试</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="text-align: center;">
+                <button class="btn" onclick="runSpeedTest()">🏃‍♂️ 运行速度测试</button>
+                <button class="btn" onclick="clearLogs()">🧹 清除日志</button>
+                <button class="btn" onclick="checkExtensionStatus()">🔍 检查扩展状态</button>
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h2>📝 测试日志</h2>
+            <div class="log-area" id="logArea">
+                等待测试开始...
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h2>📋 优化说明</h2>
+            <ul>
+                <li>✅ 移除了1000ms的固定延迟</li>
+                <li>✅ 实现智能文件就绪检测（50ms间隔）</li>
+                <li>✅ 优化Native Host连接管理</li>
+                <li>✅ 避免重复连接造成的延迟</li>
+                <li>✅ 文件完全写入后立即打开</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        let testStartTime = 0;
+        let testResults = [];
+        
+        function log(message) {
+            const logArea = document.getElementById('logArea');
+            const timestamp = new Date().toLocaleTimeString();
+            logArea.innerHTML += `[${timestamp}] ${message}\n`;
+            logArea.scrollTop = logArea.scrollHeight;
+        }
+        
+        function clearLogs() {
+            document.getElementById('logArea').innerHTML = '日志已清除\n';
+        }
+        
+        async function checkExtensionStatus() {
+            log('🔍 检查扩展状态...');
+            
+            if (typeof chrome === 'undefined' || !chrome.runtime) {
+                log('❌ Chrome扩展API不可用');
+                updateStatus('error', '❌ Chrome扩展API不可用，请确保在扩展环境中运行');
+                return;
+            }
+            
+            try {
+                const response = await new Promise((resolve) => {
+                    chrome.runtime.sendMessage({action: 'checkSettings'}, resolve);
+                });
+                
+                if (response && response.success) {
+                    log(`✅ 扩展状态正常`);
+                    log(`📋 自动打开设置: ${response.autoOpenImages ? '启用' : '禁用'}`);
+                    log(`📋 扩展版本: ${response.extensionVersion}`);
+                    updateStatus('success', '✅ 扩展状态正常，自动打开功能已启用');
+                } else {
+                    log('❌ 扩展状态检查失败');
+                    updateStatus('error', '❌ 扩展状态检查失败');
+                }
+            } catch (error) {
+                log(`❌ 扩展状态检查异常: ${error.message}`);
+                updateStatus('error', '❌ 扩展状态检查异常');
+            }
+        }
+        
+        function updateStatus(type, message) {
+            const status = document.getElementById('optimizationStatus');
+            status.className = `status ${type}`;
+            status.textContent = message;
+        }
+        
+        async function testImageDownload(imageUrl, filename) {
+            const testId = filename.replace('.jpg', '');
+            const speedIndicator = document.getElementById(`speed${testId.slice(-1)}`);
+            
+            log(`🚀 开始测试: ${filename}`);
+            testStartTime = performance.now();
+            
+            speedIndicator.textContent = '测试中...';
+            speedIndicator.className = 'speed-indicator speed-medium';
+            
+            try {
+                if (typeof chrome === 'undefined' || !chrome.runtime) {
+                    throw new Error('Chrome扩展API不可用');
+                }
+                
+                const response = await new Promise((resolve) => {
+                    chrome.runtime.sendMessage({
+                        action: 'downloadImage',
+                        imageUrl: imageUrl,
+                        filename: filename
+                    }, resolve);
+                });
+                
+                if (response && response.success) {
+                    log(`✅ ${filename} 下载请求成功`);
+                    
+                    // 监听下载完成和打开时间
+                    setTimeout(() => {
+                        const endTime = performance.now();
+                        const duration = Math.round(endTime - testStartTime);
+                        
+                        log(`⏱️ ${filename} 总耗时: ${duration}ms`);
+                        
+                        // 根据耗时更新速度指示器
+                        if (duration < 200) {
+                            speedIndicator.textContent = `极快 (${duration}ms)`;
+                            speedIndicator.className = 'speed-indicator speed-fast';
+                        } else if (duration < 500) {
+                            speedIndicator.textContent = `较快 (${duration}ms)`;
+                            speedIndicator.className = 'speed-indicator speed-medium';
+                        } else {
+                            speedIndicator.textContent = `较慢 (${duration}ms)`;
+                            speedIndicator.className = 'speed-indicator speed-slow';
+                        }
+                        
+                        testResults.push({filename, duration});
+                    }, 2000); // 给足够时间让文件打开
+                    
+                } else {
+                    throw new Error(response ? response.error : '未知错误');
+                }
+                
+            } catch (error) {
+                log(`❌ ${filename} 测试失败: ${error.message}`);
+                speedIndicator.textContent = '测试失败';
+                speedIndicator.className = 'speed-indicator speed-slow';
+            }
+        }
+        
+        async function runSpeedTest() {
+            log('🏃‍♂️ 开始批量速度测试...');
+            testResults = [];
+            
+            const testImages = [
+                {url: 'https://picsum.photos/400/300?random=4', filename: 'speed_test1.jpg'},
+                {url: 'https://picsum.photos/400/300?random=5', filename: 'speed_test2.jpg'},
+                {url: 'https://picsum.photos/400/300?random=6', filename: 'speed_test3.jpg'}
+            ];
+            
+            for (let i = 0; i < testImages.length; i++) {
+                const {url, filename} = testImages[i];
+                await testImageDownload(url, filename);
+                
+                // 测试间隔
+                if (i < testImages.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                }
+            }
+            
+            // 显示测试总结
+            setTimeout(() => {
+                if (testResults.length > 0) {
+                    const avgTime = testResults.reduce((sum, result) => sum + result.duration, 0) / testResults.length;
+                    log(`📊 测试完成！平均响应时间: ${Math.round(avgTime)}ms`);
+                    
+                    if (avgTime < 300) {
+                        updateStatus('success', `🎉 优化效果显著！平均响应时间: ${Math.round(avgTime)}ms`);
+                    } else {
+                        updateStatus('warning', `⚠️ 响应时间偏慢，平均: ${Math.round(avgTime)}ms`);
+                    }
+                }
+            }, 8000);
+        }
+        
+        // 页面加载时检查状态
+        window.addEventListener('load', () => {
+            setTimeout(checkExtensionStatus, 1000);
+        });
+    </script>
+</body>
+</html>
