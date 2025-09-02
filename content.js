@@ -9,6 +9,7 @@ let lastHoveredImage = null;
 let selectedImage = null;
 let notificationAudio = null;
 let soundEnabled = true; // 音效开关状态
+let dimensionTooltip = null; // 尺寸提示框元素
 
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', initializeScript);
@@ -155,12 +156,19 @@ function addImageListeners(img) {
     img.addEventListener('mouseenter', (event) => {
         lastHoveredImage = event.target;
         highlightImage(event.target, true);
+        showImageDimensions(event.target, event);
     });
     
     img.addEventListener('mouseleave', (event) => {
         if (lastHoveredImage === event.target) {
             highlightImage(event.target, false);
         }
+        hideImageDimensions();
+    });
+    
+    // 鼠标移动事件 - 更新提示框位置
+    img.addEventListener('mousemove', (event) => {
+        updateTooltipPosition(event);
     });
     
     // 点击选择事件
@@ -433,6 +441,11 @@ function cleanup() {
         img.style.outline = '';
         img.style.boxShadow = '';
     });
+    // 清理尺寸提示框
+    if (dimensionTooltip && dimensionTooltip.parentNode) {
+        dimensionTooltip.parentNode.removeChild(dimensionTooltip);
+        dimensionTooltip = null;
+    }
 }
 
 // 初始化音效
@@ -593,6 +606,100 @@ function addLinkClickEffect(link) {
         link.style.transition = originalStyle.transition;
         link.style.color = originalStyle.color;
     }, 200);
+}
+
+// 显示图片尺寸提示框
+function showImageDimensions(img, event) {
+    try {
+        // 获取图片的真实尺寸
+        const width = img.naturalWidth || img.width;
+        const height = img.naturalHeight || img.height;
+        
+        // 如果尺寸无效，不显示提示框
+        if (!width || !height) {
+            return;
+        }
+        
+        // 创建或更新提示框
+        if (!dimensionTooltip) {
+            createDimensionTooltip();
+        }
+        
+        // 设置提示框内容
+        dimensionTooltip.textContent = `${width} × ${height}`;
+        
+        // 显示提示框
+        dimensionTooltip.style.display = 'block';
+        
+        // 更新位置
+        updateTooltipPosition(event);
+        
+    } catch (error) {
+        console.error('显示图片尺寸时发生错误:', error);
+    }
+}
+
+// 隐藏图片尺寸提示框
+function hideImageDimensions() {
+    if (dimensionTooltip) {
+        dimensionTooltip.style.display = 'none';
+    }
+}
+
+// 创建尺寸提示框元素
+function createDimensionTooltip() {
+    dimensionTooltip = document.createElement('div');
+    dimensionTooltip.style.cssText = `
+        position: fixed;
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        font-size: 12px;
+        font-weight: 500;
+        z-index: 999999;
+        pointer-events: none;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        backdrop-filter: blur(4px);
+        transition: opacity 0.2s ease;
+        white-space: nowrap;
+        display: none;
+    `;
+    
+    document.body.appendChild(dimensionTooltip);
+}
+
+// 更新提示框位置
+function updateTooltipPosition(event) {
+    if (!dimensionTooltip || dimensionTooltip.style.display === 'none') {
+        return;
+    }
+    
+    const offsetX = 15;
+    const offsetY = -30;
+    
+    let x = event.clientX + offsetX;
+    let y = event.clientY + offsetY;
+    
+    // 防止提示框超出屏幕边界
+    const tooltipRect = dimensionTooltip.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    
+    // 右边界检查
+    if (x + tooltipRect.width > viewportWidth) {
+        x = event.clientX - tooltipRect.width - offsetX;
+    }
+    
+    // 上边界检查
+    if (y < 0) {
+        y = event.clientY + Math.abs(offsetY);
+    }
+    
+    dimensionTooltip.style.left = x + 'px';
+    dimensionTooltip.style.top = y + 'px';
 }
 
 // 页面卸载时清理
