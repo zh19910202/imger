@@ -31,7 +31,7 @@ let nativePort = null;
 let isConnecting = false;
 let connectionPromise = null;
 
-// 初始化Native Messaging连接
+// 初始化Native Messaging连接 - 优化版本
 function initializeNativeMessaging() {
   // 如果已经在连接中，返回现有的Promise
   if (isConnecting && connectionPromise) {
@@ -49,13 +49,20 @@ function initializeNativeMessaging() {
     try {
       const port = chrome.runtime.connectNative('com.annotateflow.assistant');
       
+      // 优化消息监听器 - 只处理相关消息
       port.onMessage.addListener((response) => {
         console.log('Native Host响应:', response);
-        if (response.success) {
-          console.log('图片已通过Native Host成功打开');
-        } else if (response.error) {
-          console.error('Native Host打开失败:', response.error);
+        
+        // 处理文件打开响应
+        if (response.success !== undefined) {
+          if (response.success) {
+            console.log('图片已通过Native Host成功打开');
+          } else if (response.error) {
+            console.error('Native Host打开失败:', response.error);
+          }
         }
+        
+        // 文件检查响应由专门的监听器处理，这里不需要处理
       });
       
       port.onDisconnect.addListener(() => {
@@ -135,59 +142,64 @@ function initializeDownloadListener() {
   chrome.downloads.onChanged.addListener(downloadListener);
 }
 
-// 通过多种方式打开图片 (不依赖用户手势)
+// 通过多种方式打开图片 (不依赖用户手势) - 优化版本
 function openImageWithBestMethod(downloadId, filePath) {
   console.log('尝试打开图片，下载ID:', downloadId, '文件路径:', filePath);
   
-  // 智能文件就绪检测
-  checkFileReady(filePath, () => {
-    // 方法1: 使用Native Host (主要方法，不需要用户手势)
-    if (nativePort) {
-      console.log('使用现有Native Host连接');
+  // 简化的文件就绪检测 - 直接尝试打开，减少延迟
+  if (nativePort) {
+    console.log('使用现有Native Host连接');
+    // 直接尝试打开，不进行复杂的文件检查
+    setTimeout(() => {
       tryNativeHostOpen(filePath);
-    } else {
-      console.log('Native Host未连接，尝试连接');
-      initializeNativeMessaging()
-        .then(() => {
-          console.log('Native Host连接成功，打开图片');
+    }, 50); // 最小延迟确保文件写入完成
+  } else {
+    console.log('Native Host未连接，尝试连接');
+    initializeNativeMessaging()
+      .then(() => {
+        console.log('Native Host连接成功，打开图片');
+        // 连接成功后稍微延迟确保稳定
+        setTimeout(() => {
           tryNativeHostOpen(filePath);
-        })
-        .catch((error) => {
-          console.error('Native Host连接失败，尝试备用方法:', error);
-          tryAlternativeOpen(filePath);
-        });
-    }
-  });
+        }, 100);
+      })
+      .catch((error) => {
+        console.error('Native Host连接失败，尝试备用方法:', error);
+        tryAlternativeOpen(filePath);
+      });
+  }
 }
 
-// 智能文件就绪检测
-function checkFileReady(filePath, callback, retryCount = 0) {
-  const maxRetries = 5;
-  const retryDelay = 50; // 50ms间隔
+// 简化的文件就绪检测 - 仅在必要时使用
+function checkFileReadyIfNeeded(filePath, callback, retryCount = 0) {
+  const maxRetries = 2; // 进一步减少重试次数
+  const retryDelay = 150; // 适中的延迟
   
-  // 使用Native Host检查文件是否存在且可读
-  if (nativePort) {
+  // 只在文件可能未就绪时进行检查
+  if (nativePort && retryCount === 0) {
     try {
+      const checkId = `check_${Date.now()}`;
+      
       nativePort.postMessage({
         action: 'check_file',
-        file_path: filePath
+        file_path: filePath,
+        check_id: checkId
       });
       
-      // 监听文件检查响应
       const checkListener = (response) => {
-        if (response.action === 'check_file_result') {
+        if (response.action === 'check_file_result' && response.check_id === checkId) {
           nativePort.onMessage.removeListener(checkListener);
           
-          if (response.exists && response.readable) {
-            console.log('文件就绪，立即打开');
+          if (response.exists && response.readable && response.size > 0) {
+            console.log(`文件就绪 (${response.size} bytes)，立即打开`);
             callback();
           } else if (retryCount < maxRetries) {
-            console.log(`文件未就绪，重试 ${retryCount + 1}/${maxRetries}`);
+            console.log(`文件未就绪，延迟重试`);
             setTimeout(() => {
-              checkFileReady(filePath, callback, retryCount + 1);
+              callback(); // 直接回调，不再检查
             }, retryDelay);
           } else {
-            console.log('文件检查超时，强制打开');
+            console.log('直接尝试打开文件');
             callback();
           }
         }
@@ -195,34 +207,24 @@ function checkFileReady(filePath, callback, retryCount = 0) {
       
       nativePort.onMessage.addListener(checkListener);
       
-      // 超时保护
+      // 较短的超时时间
       setTimeout(() => {
         nativePort.onMessage.removeListener(checkListener);
-        if (retryCount < maxRetries) {
-          checkFileReady(filePath, callback, retryCount + 1);
-        } else {
-          console.log('文件检查超时，强制打开');
-          callback();
-        }
+        console.log('文件检查超时，直接打开');
+        callback();
       }, 200);
       
     } catch (error) {
       console.error('文件检查失败:', error);
-      // 如果检查失败，直接执行回调
       callback();
     }
   } else {
-    // 如果没有Native Host，使用简单的延迟策略
-    if (retryCount === 0) {
-      // 第一次尝试，稍微延迟确保文件写入
-      setTimeout(callback, 50);
-    } else {
-      callback();
-    }
+    // 直接执行回调
+    callback();
   }
 }
 
-// 通过Native Host打开图片
+// 通过Native Host打开图片 - 优化版本
 function tryNativeHostOpen(filePath) {
   console.log('使用Native Host打开图片');
   
@@ -235,10 +237,22 @@ function tryNativeHostOpen(filePath) {
   
   try {
     console.log('发送打开请求到Native Host:', filePath);
+    
+    // 创建唯一的打开请求ID
+    const openId = `open_${Date.now()}`;
+    
     nativePort.postMessage({
       action: 'open_file',
-      file_path: filePath
+      file_path: filePath,
+      open_id: openId
     });
+    
+    // 设置响应超时
+    setTimeout(() => {
+      console.log('Native Host打开请求超时，尝试备用方法');
+      tryAlternativeOpen(filePath);
+    }, 2000); // 2秒超时
+    
   } catch (error) {
     console.error('Native Host方法失败:', error);
     tryAlternativeOpen(filePath);

@@ -29,33 +29,42 @@ def read_message():
     message = sys.stdin.buffer.read(message_length).decode('utf-8')
     return json.loads(message)
 
-def check_file_ready(file_path):
+def check_file_ready(file_path, check_id=None):
     """检查文件是否存在且可读"""
     try:
+        result = {"action": "check_file_result"}
+        if check_id:
+            result["check_id"] = check_id
+            
         if not os.path.exists(file_path):
-            return {"action": "check_file_result", "exists": False, "readable": False}
+            result.update({"exists": False, "readable": False})
+            return result
         
         # 检查文件是否可读且大小大于0
         if os.path.isfile(file_path) and os.access(file_path, os.R_OK):
             file_size = os.path.getsize(file_path)
-            return {
-                "action": "check_file_result", 
+            result.update({
                 "exists": True, 
                 "readable": True,
                 "size": file_size
-            }
+            })
         else:
-            return {"action": "check_file_result", "exists": True, "readable": False}
+            result.update({"exists": True, "readable": False, "size": 0})
+            
+        return result
             
     except Exception as e:
-        return {
+        result = {
             "action": "check_file_result", 
             "exists": False, 
             "readable": False, 
             "error": str(e)
         }
+        if check_id:
+            result["check_id"] = check_id
+        return result
 
-def open_file_with_default_app(file_path):
+def open_file_with_default_app(file_path, open_id=None):
     """使用系统默认应用打开文件"""
     try:
         system = platform.system().lower()
@@ -69,9 +78,15 @@ def open_file_with_default_app(file_path):
         else:
             raise Exception(f"Unsupported operating system: {system}")
             
-        return {"success": True, "message": f"Successfully opened {file_path}"}
+        result = {"success": True, "message": f"Successfully opened {file_path}"}
+        if open_id:
+            result["open_id"] = open_id
+        return result
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        result = {"success": False, "error": str(e)}
+        if open_id:
+            result["open_id"] = open_id
+        return result
 
 def main():
     """主函数"""
@@ -85,26 +100,34 @@ def main():
             
             if action == 'open_file':
                 file_path = message.get('file_path')
+                open_id = message.get('open_id')
                 if file_path and os.path.exists(file_path):
-                    result = open_file_with_default_app(file_path)
+                    result = open_file_with_default_app(file_path, open_id)
                     send_message(result)
                 else:
-                    send_message({
+                    result = {
                         "success": False, 
                         "error": f"File not found: {file_path}"
-                    })
+                    }
+                    if open_id:
+                        result["open_id"] = open_id
+                    send_message(result)
             elif action == 'check_file':
                 file_path = message.get('file_path')
+                check_id = message.get('check_id')
                 if file_path:
-                    result = check_file_ready(file_path)
+                    result = check_file_ready(file_path, check_id)
                     send_message(result)
                 else:
-                    send_message({
+                    result = {
                         "action": "check_file_result",
                         "exists": False, 
                         "readable": False,
                         "error": "No file path provided"
-                    })
+                    }
+                    if check_id:
+                        result["check_id"] = check_id
+                    send_message(result)
             else:
                 send_message({
                     "success": False, 
