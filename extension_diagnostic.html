@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Chrome扩展诊断工具</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .diagnostic-item {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #ddd;
+        }
+        .success {
+            background: #d4edda;
+            border-left-color: #28a745;
+            color: #155724;
+        }
+        .error {
+            background: #f8d7da;
+            border-left-color: #dc3545;
+            color: #721c24;
+        }
+        .warning {
+            background: #fff3cd;
+            border-left-color: #ffc107;
+            color: #856404;
+        }
+        .info {
+            background: #d1ecf1;
+            border-left-color: #17a2b8;
+            color: #0c5460;
+        }
+        .diagnostic-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .diagnostic-detail {
+            font-size: 14px;
+            margin-left: 20px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .code {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 3px;
+            font-family: monospace;
+            margin: 10px 0;
+        }
+        .solution {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+            border-left: 4px solid #007bff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Chrome扩展诊断工具</h1>
+        <p style="text-align: center; color: #666;">检测AnnotateFlow Assistant扩展的加载状态和API可用性</p>
+        
+        <button onclick="runDiagnostic()">🚀 开始诊断</button>
+        <button onclick="clearResults()">🗑️ 清空结果</button>
+        
+        <div id="results"></div>
+        
+        <div class="solution">
+            <h3>📋 常见问题解决方案</h3>
+            <ol>
+                <li><strong>扩展未加载：</strong>
+                    <ul>
+                        <li>打开Chrome扩展管理页面：<code>chrome://extensions/</code></li>
+                        <li>确保"开发者模式"已开启</li>
+                        <li>点击"加载已解压的扩展程序"，选择项目文件夹</li>
+                    </ul>
+                </li>
+                <li><strong>权限不足：</strong>
+                    <ul>
+                        <li>检查manifest.json中的permissions配置</li>
+                        <li>确保host_permissions包含目标网站</li>
+                    </ul>
+                </li>
+                <li><strong>Content Script未注入：</strong>
+                    <ul>
+                        <li>确保在正确的网站上测试（https://qlabel.tencent.com/*）</li>
+                        <li>刷新页面重新加载扩展</li>
+                    </ul>
+                </li>
+                <li><strong>Service Worker问题：</strong>
+                    <ul>
+                        <li>在扩展管理页面点击"检查视图"查看background页面</li>
+                        <li>检查控制台是否有错误信息</li>
+                    </ul>
+                </li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        function addResult(title, status, details) {
+            const results = document.getElementById('results');
+            const item = document.createElement('div');
+            item.className = `diagnostic-item ${status}`;
+            
+            const titleDiv = document.createElement('div');
+            titleDiv.className = 'diagnostic-title';
+            titleDiv.textContent = title;
+            
+            const detailDiv = document.createElement('div');
+            detailDiv.className = 'diagnostic-detail';
+            detailDiv.innerHTML = details;
+            
+            item.appendChild(titleDiv);
+            item.appendChild(detailDiv);
+            results.appendChild(item);
+        }
+        
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+        
+        function runDiagnostic() {
+            clearResults();
+            
+            // 1. 检查Chrome对象
+            if (typeof chrome === 'undefined') {
+                addResult(
+                    '❌ Chrome对象不存在',
+                    'error',
+                    '这通常表示页面不在Chrome扩展环境中运行。<br>请确保：<br>• 在Chrome浏览器中打开此页面<br>• 扩展已正确安装'
+                );
+                return;
+            } else {
+                addResult(
+                    '✅ Chrome对象存在',
+                    'success',
+                    'Chrome扩展API基础对象可用'
+                );
+            }
+            
+            // 2. 检查chrome.runtime
+            if (!chrome.runtime) {
+                addResult(
+                    '❌ chrome.runtime不可用',
+                    'error',
+                    'Runtime API不可用，这可能是因为：<br>• 扩展未正确加载<br>• 权限配置问题<br>• 在非扩展环境中运行'
+                );
+            } else {
+                addResult(
+                    '✅ chrome.runtime可用',
+                    'success',
+                    `扩展ID: ${chrome.runtime.id || '未知'}`
+                );
+            }
+            
+            // 3. 检查扩展ID
+            if (chrome.runtime && chrome.runtime.id) {
+                addResult(
+                    '✅ 扩展ID获取成功',
+                    'success',
+                    `当前扩展ID: <code>${chrome.runtime.id}</code>`
+                );
+            } else {
+                addResult(
+                    '⚠️ 无法获取扩展ID',
+                    'warning',
+                    '这可能表示扩展未正确加载或在错误的上下文中运行'
+                );
+            }
+            
+            // 4. 检查关键API
+            const apis = [
+                { name: 'chrome.downloads', api: chrome.downloads },
+                { name: 'chrome.storage', api: chrome.storage },
+                { name: 'chrome.contextMenus', api: chrome.contextMenus },
+                { name: 'chrome.tabs', api: chrome.tabs }
+            ];
+            
+            apis.forEach(({name, api}) => {
+                if (api) {
+                    addResult(
+                        `✅ ${name}可用`,
+                        'success',
+                        `${name} API已正确加载`
+                    );
+                } else {
+                    addResult(
+                        `❌ ${name}不可用`,
+                        'error',
+                        `${name} API不可用，请检查manifest.json中的permissions配置`
+                    );
+                }
+            });
+            
+            // 5. 检查当前页面URL
+            const currentUrl = window.location.href;
+            addResult(
+                '📍 当前页面信息',
+                'info',
+                `URL: <code>${currentUrl}</code><br>协议: ${window.location.protocol}<br>域名: ${window.location.hostname}`
+            );
+            
+            // 6. 检查是否在目标网站
+            if (currentUrl.includes('qlabel.tencent.com')) {
+                addResult(
+                    '✅ 在目标网站',
+                    'success',
+                    '当前在腾讯QLabel标注平台，扩展应该正常工作'
+                );
+            } else {
+                addResult(
+                    '⚠️ 不在目标网站',
+                    'warning',
+                    'AnnotateFlow Assistant主要为腾讯QLabel标注平台设计，在其他网站可能功能受限'
+                );
+            }
+            
+            // 7. 尝试发送消息到background script
+            if (chrome.runtime && chrome.runtime.sendMessage) {
+                chrome.runtime.sendMessage({action: 'ping'}, (response) => {
+                    if (chrome.runtime.lastError) {
+                        addResult(
+                            '❌ Background Script通信失败',
+                            'error',
+                            `错误: ${chrome.runtime.lastError.message}<br>这可能表示background script未正确加载`
+                        );
+                    } else {
+                        addResult(
+                            '✅ Background Script通信成功',
+                            'success',
+                            'Background script正常响应'
+                        );
+                    }
+                });
+            }
+            
+            // 8. 检查manifest版本
+            if (chrome.runtime && chrome.runtime.getManifest) {
+                const manifest = chrome.runtime.getManifest();
+                addResult(
+                    '📋 扩展信息',
+                    'info',
+                    `名称: ${manifest.name}<br>版本: ${manifest.version}<br>Manifest版本: ${manifest.manifest_version}`
+                );
+            }
+        }
+        
+        // 页面加载完成后自动运行诊断
+        window.addEventListener('load', () => {
+            setTimeout(runDiagnostic, 500);
+        });
+    </script>
+</body>
+</html>

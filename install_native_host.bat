@@ -34,7 +34,16 @@ copy "%CURRENT_DIR%com.annotateflow.assistant.json" "%NATIVE_DIR%\" >nul
 copy "%CURRENT_DIR%native_host.py" "%NATIVE_DIR%\" >nul
 
 REM 更新JSON文件中的路径
-powershell -Command "(Get-Content '%NATIVE_DIR%\com.annotateflow.assistant.json') -replace 'native_host.py', '%NATIVE_DIR%\native_host.py' | Set-Content '%NATIVE_DIR%\com.annotateflow.assistant.json'"
+powershell -Command "(Get-Content '%NATIVE_DIR%\com.annotateflow.assistant.json') -replace 'native_host.py', ('%NATIVE_DIR%\native_host.py' -replace '\\', '\\') | Set-Content '%NATIVE_DIR%\com.annotateflow.assistant.json'"
+
+REM 注册Native Host到Windows注册表
+echo 正在注册Native Host到注册表...
+reg add "HKEY_CURRENT_USER\Software\Google\Chrome\NativeMessagingHosts\com.annotateflow.assistant" /ve /t REG_SZ /d "%NATIVE_DIR%\com.annotateflow.assistant.json" /f >nul 2>&1
+if errorlevel 1 (
+    echo 警告：注册表注册失败，可能需要管理员权限
+) else (
+    echo 注册表注册成功
+)
 
 echo Native Host 安装完成！
 echo 文件已复制到：%NATIVE_DIR%

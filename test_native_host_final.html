@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Native Host 最终测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+        .warning { color: #ffc107; }
+        .info { color: #17a2b8; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 3px;
+            padding: 10px;
+            margin: 10px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Native Host 最终测试</h1>
+        <p>测试修复后的图片自动打开功能</p>
+
+        <div class="test-section">
+            <h3>📋 修复内容检查</h3>
+            <div id="fixStatus">正在检查修复状态...</div>
+        </div>
+
+        <div class="test-section">
+            <h3>🔌 Native Messaging 连接测试</h3>
+            <button onclick="testNativeConnection()">测试 Native Host 连接</button>
+            <div id="nativeResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📥 图片下载和自动打开测试</h3>
+            <button onclick="testImageDownload()">测试图片下载 + 自动打开</button>
+            <div id="downloadResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>⚙️ 扩展设置检查</h3>
+            <button onclick="checkSettings()">检查自动打开设置</button>
+            <div id="settingsResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📝 实时日志</h3>
+            <button onclick="clearLogs()">清空日志</button>
+            <div id="logs" class="log"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📖 使用说明</h3>
+            <ol>
+                <li>确保已重新加载Chrome扩展</li>
+                <li>访问 <a href="https://qlabel.tencent.com" target="_blank">qlabel.tencent.com</a></li>
+                <li>按 <kbd>D</kbd> 键下载图片</li>
+                <li>图片应该自动用默认应用打开</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const logs = document.getElementById('logs');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'info';
+            logs.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\n`;
+            logs.scrollTop = logs.scrollHeight;
+        }
+
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+        }
+
+        function checkFixStatus() {
+            const statusDiv = document.getElementById('fixStatus');
+            let status = '';
+            
+            // 检查Chrome扩展API
+            if (typeof chrome !== 'undefined' && chrome.runtime) {
+                status += '<div class="success">✅ Chrome扩展API可用</div>';
+                
+                // 检查权限
+                if (chrome.runtime.connectNative) {
+                    status += '<div class="success">✅ nativeMessaging权限已添加</div>';
+                } else {
+                    status += '<div class="error">❌ nativeMessaging权限缺失</div>';
+                }
+            } else {
+                status += '<div class="error">❌ Chrome扩展API不可用</div>';
+            }
+            
+            statusDiv.innerHTML = status;
+        }
+
+        function testNativeConnection() {
+            const resultDiv = document.getElementById('nativeResult');
+            log('开始测试Native Host连接...');
+            
+            if (typeof chrome === 'undefined' || !chrome.runtime) {
+                const error = 'Chrome扩展API不可用';
+                resultDiv.innerHTML = `<div class="error">❌ ${error}</div>`;
+                log(error, 'error');
+                return;
+            }
+
+            if (!chrome.runtime.connectNative) {
+                const error = 'nativeMessaging权限缺失';
+                resultDiv.innerHTML = `<div class="error">❌ ${error}</div>`;
+                log(error, 'error');
+                return;
+            }
+
+            try {
+                const port = chrome.runtime.connectNative('com.annotateflow.assistant');
+                
+                port.onMessage.addListener((response) => {
+                    log(`Native Host响应: ${JSON.stringify(response)}`, 'success');
+                    resultDiv.innerHTML = '<div class="success">✅ Native Host连接成功并响应</div>';
+                });
+                
+                port.onDisconnect.addListener(() => {
+                    if (chrome.runtime.lastError) {
+                        const error = `连接断开: ${chrome.runtime.lastError.message}`;
+                        resultDiv.innerHTML = `<div class="error">❌ ${error}</div>`;
+                        log(error, 'error');
+                    } else {
+                        log('Native Host连接正常断开', 'info');
+                    }
+                });
+                
+                // 发送测试消息
+                port.postMessage({
+                    action: 'open_file',
+                    file_path: 'C:\\Windows\\System32\\notepad.exe'
+                });
+                
+                resultDiv.innerHTML = '<div class="info">🔄 正在测试连接...</div>';
+                log('已发送测试消息到Native Host');
+                
+            } catch (error) {
+                const errorMsg = `连接失败: ${error.message}`;
+                resultDiv.innerHTML = `<div class="error">❌ ${errorMsg}</div>`;
+                log(errorMsg, 'error');
+            }
+        }
+
+        function testImageDownload() {
+            const resultDiv = document.getElementById('downloadResult');
+            log('开始测试图片下载...');
+            
+            if (typeof chrome === 'undefined' || !chrome.downloads) {
+                const error = '下载API不可用';
+                resultDiv.innerHTML = `<div class="error">❌ ${error}</div>`;
+                log(error, 'error');
+                return;
+            }
+
+            // 测试图片URL
+            const testImageUrl = 'https://via.placeholder.com/300x200/4CAF50/white?text=Test+Image';
+            
+            chrome.downloads.download({
+                url: testImageUrl,
+                filename: 'test_auto_open_image.png'
+            }, (downloadId) => {
+                if (chrome.runtime.lastError) {
+                    const error = `下载失败: ${chrome.runtime.lastError.message}`;
+                    resultDiv.innerHTML = `<div class="error">❌ ${error}</div>`;
+                    log(error, 'error');
+                    return;
+                }
+                
+                log(`下载开始，ID: ${downloadId}`);
+                resultDiv.innerHTML = '<div class="info">🔄 下载中，等待自动打开...</div>';
+                
+                // 监听下载完成
+                const listener = (delta) => {
+                    if (delta.id === downloadId && delta.state && delta.state.current === 'complete') {
+                        chrome.downloads.onChanged.removeListener(listener);
+                        log('下载完成，检查是否自动打开', 'success');
+                        resultDiv.innerHTML = '<div class="success">✅ 下载完成，请检查图片是否自动打开</div>';
+                    }
+                };
+                
+                chrome.downloads.onChanged.addListener(listener);
+            });
+        }
+
+        function checkSettings() {
+            const resultDiv = document.getElementById('settingsResult');
+            log('检查扩展设置...');
+            
+            if (typeof chrome === 'undefined' || !chrome.storage) {
+                const error = '存储API不可用';
+                resultDiv.innerHTML = `<div class="error">❌ ${error}</div>`;
+                log(error, 'error');
+                return;
+            }
+
+            chrome.storage.sync.get({autoOpenImages: true}, (settings) => {
+                if (chrome.runtime.lastError) {
+                    const error = `获取设置失败: ${chrome.runtime.lastError.message}`;
+                    resultDiv.innerHTML = `<div class="error">❌ ${error}</div>`;
+                    log(error, 'error');
+                    return;
+                }
+                
+                const autoOpen = settings.autoOpenImages;
+                const status = autoOpen ? '已启用' : '已禁用';
+                const className = autoOpen ? 'success' : 'warning';
+                const icon = autoOpen ? '✅' : '⚠️';
+                
+                resultDiv.innerHTML = `<div class="${className}">${icon} 自动打开图片: ${status}</div>`;
+                log(`自动打开设置: ${status}`);
+            });
+        }
+
+        // 页面加载时检查修复状态
+        document.addEventListener('DOMContentLoaded', () => {
+            checkFixStatus();
+            log('测试页面已加载');
+        });
+    </script>
+</body>
+</html>
