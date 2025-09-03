@@ -1,0 +1,29 @@
+# Project Structure - AnnotateFlow Assistant
+
+## Core Extension Files
+- manifest.json           # Extension configuration
+- background.js          # Service worker (main logic)
+- content.js             # Content script for qlabel.tencent.com
+- popup.html             # Extension popup interface
+- popup.js               # Popup functionality
+
+## Native Host Integration  
+- native_host.py          # Native messaging host
+- com.annotateflow.assistant.json  # Native host manifest
+- install_native_host.bat # Installation script
+
+## Documentation
+- CLAUDE.md              # Project instructions for Claude Code
+- README.md              # Main project documentation
+- NATIVE_HOST_SETUP.md   # Native host setup guide
+- SOUND_SETUP.md         # Audio setup instructions
+
+## Configuration
+- package.json           # Project metadata
+- .git/                  # Git repository
+- .claude/               # Claude Code settings
+
+## Build Output
+- dist/                  # Distribution files (if any)
+
+Total Files: 15 core files (down from 30+ files)
