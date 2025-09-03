@@ -1,18 +1,124 @@
-// 创建右键菜单
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({
-    id: "downloadImage",
-    title: "快捷下载图片",
-    contexts: ["image"]
+// =============================================================================
+// Service Worker初始化管理 - 解决Manifest V3浏览器重启问题
+// =============================================================================
+
+// 全局状态管理
+let downloadListener = null;
+let nativePort = null;
+let isConnecting = false;
+let connectionPromise = null;
+let isInitialized = false;
+
+// 统一初始化函数
+function initializeExtension() {
+  if (isInitialized) {
+    console.log('扩展已初始化，跳过重复初始化');
+    return Promise.resolve();
+  }
+
+  console.log('开始初始化扩展功能');
+  
+  return new Promise((resolve) => {
+    // 创建右键菜单
+    chrome.contextMenus.create({
+      id: "downloadImage", 
+      title: "快捷下载图片",
+      contexts: ["image"]
+    }, () => {
+      if (chrome.runtime.lastError) {
+        console.log('菜单创建失败或已存在:', chrome.runtime.lastError.message);
+      } else {
+        console.log('右键菜单创建成功');
+      }
+    });
+    
+    // 初始化下载监听器
+    initializeDownloadListener();
+    console.log('下载监听器已初始化');
+    
+    // 初始化Native Messaging
+    initializeNativeMessaging()
+      .then(() => {
+        console.log('扩展初始化完成 - Native Messaging连接成功');
+        isInitialized = true;
+        resolve();
+      })
+      .catch((error) => {
+        console.log('扩展初始化完成 - Native Messaging连接失败:', error.message);
+        isInitialized = true;
+        resolve();
+      });
   });
+}
+
+// Keep-alive机制 - 防止service worker休眠
+function startKeepAlive() {
+  const KEEP_ALIVE_INTERVAL = 25000; // 25秒，避免30秒超时
   
-  // 初始化下载监听器
-  initializeDownloadListener();
-  console.log('下载监听器已初始化');
+  const keepAlive = () => {
+    chrome.runtime.getPlatformInfo((info) => {
+      console.log(`Keep-alive ping: ${info.os} - ${new Date().toISOString()}`);
+    });
+  };
   
-  // 初始化Native Messaging
-  initializeNativeMessaging();
+  // 立即执行一次
+  keepAlive();
+  
+  // 定期执行
+  setInterval(keepAlive, KEEP_ALIVE_INTERVAL);
+  console.log('Keep-alive机制已启动');
+}
+
+// =============================================================================
+// 事件监听器 - 必须在顶层同步注册
+// =============================================================================
+
+// 扩展安装/更新事件
+chrome.runtime.onInstalled.addListener(() => {
+  console.log('onInstalled事件触发');
+  initializeExtension().then(() => {
+    startKeepAlive();
+  });
 });
+
+// 浏览器启动事件
+chrome.runtime.onStartup.addListener(() => {
+  console.log('onStartup事件触发');
+  isInitialized = false; // 重置初始化状态
+  initializeExtension().then(() => {
+    startKeepAlive();
+  });
+});
+
+// 标签页激活事件 - 触发初始化
+chrome.tabs.onActivated.addListener((activeInfo) => {
+  if (!isInitialized) {
+    console.log('标签页激活，触发初始化检查');
+    initializeExtension().then(() => {
+      startKeepAlive();
+    });
+  }
+});
+
+// 标签页更新事件 - 触发初始化 
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (!isInitialized && tab.url && tab.url.includes('qlabel.tencent.com')) {
+    console.log('目标页面加载，触发初始化检查');
+    initializeExtension().then(() => {
+      startKeepAlive();
+    });
+  }
+});
+
+// Service Worker立即启动初始化
+console.log('Service Worker启动，开始初始化');
+initializeExtension().then(() => {
+  startKeepAlive();
+});
+
+// =============================================================================
+// 事件处理器
+// =============================================================================
 
 // 处理右键菜单点击
 chrome.contextMenus.onClicked.addListener((info, tab) => {
@@ -22,14 +128,6 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     openLastDownloadedImage();
   }
 });
-
-// 全局下载监听器
-let downloadListener = null;
-let nativePort = null;
-
-// 连接状态管理
-let isConnecting = false;
-let connectionPromise = null;
 
 // 初始化Native Messaging连接 - 优化版本
 function initializeNativeMessaging() {
