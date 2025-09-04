@@ -6,6 +6,7 @@
   <style>
     body {
       width: 300px;
+      min-height: 400px;
       padding: 25px;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -171,14 +172,34 @@
   </div>
   
   <div class="usage">
-    <h3>使用方法：</h3>
+    <h3>⌨️ 主要功能：</h3>
     <ul>
-      <li><span class="hotkey">悬停图片</span> → 快速查看尺寸</li>
-      <li><span class="hotkey">悬停图片 + 按D键</span> → 超快速下载</li>
-      <li><span class="hotkey">空格键</span> → 点击页面中的"跳过"按钮</li>
-      <li><span class="hotkey">S键</span> → 点击页面中的"提交"或"提交并继续标注"按钮</li>
-      <li><span class="hotkey">A键</span> → 点击页面中的"上传图片"按钮</li>
-      <li><span class="hotkey">F键</span> → 点击页面中的"查看历史"链接</li>
+      <li><span class="hotkey">D</span> → 悬停图片时按D键快速下载</li>
+      <li><span class="hotkey">Space</span> → 跳过当前标注任务</li>
+      <li><span class="hotkey">S</span> → 提交并继续标注（可配音效）</li>
+      <li><span class="hotkey">A</span> → 快速打开上传图片对话框</li>
+      <li><span class="hotkey">F</span> → 查看标注历史记录</li>
+      <li><span class="hotkey">X</span> → 标记当前任务为无效</li>
+    </ul>
+  </div>
+
+  <div class="usage">
+    <h3>🔍 图片对比功能：</h3>
+    <ul>
+      <li><span class="hotkey">C</span> → 手动触发图片对比界面</li>
+      <li><span class="hotkey">ESC</span> → 关闭对比界面</li>
+    </ul>
+    <p style="margin: 10px 0 0 0; font-size: 12px; opacity: 0.9;">
+      💡 上传图片时自动对比，支持尺寸分析和智能原图检测
+    </p>
+  </div>
+
+  <div class="usage">
+    <h3>🛠️ 辅助工具：</h3>
+    <ul>
+      <li><span class="hotkey">Z</span> → 开启/关闭调试模式（默认关闭）</li>
+      <li><span class="hotkey">B</span> → 重新检测页面原图</li>
+      <li><span class="hotkey">V</span> → 检查文件输入状态</li>
     </ul>
   </div>
 
