@@ -1005,6 +1005,12 @@ function handleImageUpload(file, inputElement) {
         // 设置自动对比标记，表明这是用户主动上传的图片
         shouldAutoCompare = true;
         
+        // 在上传图片时执行B键逻辑，重新检测原图，防止找不到原图
+        debugLog('上传图片时自动重新检测原图（执行B键逻辑）');
+        originalImageLocked = false;
+        originalImage = null;
+        recordOriginalImages();
+        
         showNotification(`图片上传完成: ${file.name}`, 2000);
         
         // 等待一段时间后进行对比（给页面时间处理上传）
@@ -1397,9 +1403,10 @@ function createComparisonModal(original, uploaded, newImage) {
     content.style.cssText = `
         background: white;
         border-radius: 12px;
-        padding: 20px;
-        max-width: 90%;
-        max-height: 90%;
+        padding: 30px;
+        max-width: 95%;
+        max-height: 95%;
+        min-width: 1000px;
         overflow: auto;
         box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
     `;
@@ -1419,8 +1426,9 @@ function createComparisonModal(original, uploaded, newImage) {
     comparisonArea.style.cssText = `
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 20px;
-        margin-bottom: 20px;
+        gap: 30px;
+        margin-bottom: 30px;
+        min-height: 600px;
     `;
     
     // 创建原图区域
@@ -1500,12 +1508,28 @@ function createImageArea(title, src, imageInfo) {
     const img = document.createElement('img');
     img.src = src;
     img.style.cssText = `
+        width: 100%;
         max-width: 100%;
-        max-height: 300px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        min-height: 400px;
+        max-height: 600px;
+        object-fit: contain;
+        border: 2px solid #ddd;
+        border-radius: 8px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+        cursor: zoom-in;
     `;
+    
+    // Add click to zoom functionality
+    img.addEventListener('click', () => {
+        if (img.style.objectFit === 'contain') {
+            img.style.objectFit = 'none';
+            img.style.cursor = 'zoom-out';
+            img.style.overflow = 'auto';
+        } else {
+            img.style.objectFit = 'contain';
+            img.style.cursor = 'zoom-in';
+        }
+    });
     
     const info = document.createElement('div');
     info.style.cssText = `
@@ -1516,15 +1540,16 @@ function createImageArea(title, src, imageInfo) {
     `;
     
     // 显示图片信息
-    if (imageInfo.width && imageInfo.height) {
-        info.innerHTML = `尺寸: ${imageInfo.width} × ${imageInfo.height}px`;
-    }
-    if (imageInfo.size) {
-        info.innerHTML += `<br>大小: ${(imageInfo.size / 1024).toFixed(1)} KB`;
-    }
-    if (imageInfo.name) {
-        info.innerHTML += `<br>文件名: ${imageInfo.name}`;
-    }
+    const dimensions = imageInfo.width && imageInfo.height ? `${imageInfo.width} × ${imageInfo.height}px` : '未知';
+    const fileSize = imageInfo.size ? `${(imageInfo.size / 1024).toFixed(1)} KB` : '未知';
+    const fileName = imageInfo.name || '未知';
+    
+    info.innerHTML = `
+        <div style="font-weight: bold; color: #333; margin-bottom: 8px;">📐 尺寸: ${dimensions}</div>
+        <div style="margin-bottom: 4px;">📁 文件大小: ${fileSize}</div>
+        <div style="margin-bottom: 4px;">🏷️ 文件名: ${fileName}</div>
+        <div style="font-size: 11px; color: #888; margin-top: 8px;">💡 点击图片可缩放</div>
+    `;
     
     area.appendChild(titleElement);
     area.appendChild(img);
@@ -1569,24 +1594,56 @@ function createComparisonInfo(original, uploaded) {
         tempImg.onload = () => {
             const widthDiff = tempImg.width - original.width;
             const heightDiff = tempImg.height - original.height;
+            const widthRatio = ((tempImg.width / original.width) * 100).toFixed(1);
+            const heightRatio = ((tempImg.height / original.height) * 100).toFixed(1);
+            const aspectRatioOrig = (original.width / original.height).toFixed(3);
+            const aspectRatioUploaded = (tempImg.width / tempImg.height).toFixed(3);
+            
+            // Calculate compression efficiency
+            const origPixels = original.width * original.height;
+            const uploadedPixels = tempImg.width * tempImg.height;
+            const pixelRatio = ((uploadedPixels / origPixels) * 100).toFixed(1);
+            
+            const sizeStatus = widthDiff === 0 && heightDiff === 0 ? 
+                '🟢 尺寸完全一致' : 
+                widthDiff > 0 || heightDiff > 0 ? '🔴 大于原图' : '🟡 小于原图';
             
             comparison = `
-                <strong>尺寸对比:</strong><br>
-                • 原图: ${original.width} × ${original.height}px<br>
-                • 上传图: ${tempImg.width} × ${tempImg.height}px<br>
-                • 差异: 宽度${widthDiff > 0 ? '+' : ''}${widthDiff}px, 高度${heightDiff > 0 ? '+' : ''}${heightDiff}px<br><br>
-                
-                <strong>相似度分析:</strong><br>
-                • ${widthDiff === 0 && heightDiff === 0 ? '✓ 尺寸完全一致' : '⚠ 尺寸有差异'}<br>
-                • ${uploaded.size ? `文件大小: ${(uploaded.size / 1024).toFixed(1)} KB` : '无法获取文件大小'}<br>
-                • ${uploaded.type || '未知格式'}
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 15px;">
+                    <div style="background: #f8f9ff; padding: 12px; border-radius: 6px;">
+                        <h5 style="margin: 0 0 8px 0; color: #1976d2;">📊 尺寸分析</h5>
+                        <div><strong>原图:</strong> ${original.width} × ${original.height}px</div>
+                        <div><strong>上传图:</strong> ${tempImg.width} × ${tempImg.height}px</div>
+                        <div><strong>差异:</strong> ${widthDiff > 0 ? '+' : ''}${widthDiff}px × ${heightDiff > 0 ? '+' : ''}${heightDiff}px</div>
+                        <div><strong>缩放比例:</strong> ${widthRatio}% × ${heightRatio}%</div>
+                    </div>
+                    <div style="background: #f0f8ff; padding: 12px; border-radius: 6px;">
+                        <h5 style="margin: 0 0 8px 0; color: #1976d2;">🔍 质量指标</h5>
+                        <div><strong>像素数:</strong> 原图的 ${pixelRatio}%</div>
+                        <div><strong>宽高比:</strong> ${aspectRatioOrig} → ${aspectRatioUploaded}</div>
+                        <div><strong>文件大小:</strong> ${uploaded.size ? (uploaded.size / 1024).toFixed(1) + ' KB' : '未知'}</div>
+                        <div><strong>格式:</strong> ${uploaded.type || '未知'}</div>
+                    </div>
+                </div>
+                <div style="background: ${widthDiff === 0 && heightDiff === 0 ? '#e8f5e8' : '#fff3e0'}; padding: 15px; border-radius: 8px; border-left: 4px solid ${widthDiff === 0 && heightDiff === 0 ? '#4caf50' : '#ff9800'};">
+                    <div style="font-weight: bold; margin-bottom: 5px;">${sizeStatus}</div>
+                    ${widthDiff === 0 && heightDiff === 0 ? 
+                        '<div style="color: #2e7d32;">完美匹配！图片尺寸完全一致。</div>' :
+                        `<div style="color: #f57c00;">检测到尺寸差异。建议将图片${widthDiff > 0 || heightDiff > 0 ? '缩小' : '放大'}以匹配原图。</div>`
+                    }
+                </div>
             `;
             
             details.innerHTML = comparison;
         };
         tempImg.src = uploaded.src;
     } else {
-        details.innerHTML = '正在分析图片信息...';
+        details.innerHTML = `
+            <div style="text-align: center; padding: 20px; color: #666;">
+                <div style="font-size: 18px; margin-bottom: 10px;">⏳</div>
+                <div>正在分析图片信息...</div>
+            </div>
+        `;
     }
     
     infoArea.appendChild(title);
