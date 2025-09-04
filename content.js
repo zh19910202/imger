@@ -18,7 +18,7 @@ let shouldAutoCompare = false; // 标记是否应该自动触发对比（只有�
 let uploadedImage = null; // 存储上传图片引用
 let comparisonModal = null; // 图片对比弹窗元素
 let isComparisonModalOpen = false; // 对比页面开启状态
-let debugMode = true; // 调试模式开关
+let debugMode = false; // 调试模式开关（默认关闭）
 let debugPanel = null; // 调试面板元素
 let debugLogs = []; // 调试日志数组
 
@@ -90,13 +90,12 @@ function initializeScript() {
     debugLog('页面加载完成，开始检测原图');
     recordOriginalImages();
     
-    // 初始化调试功能
+    // 初始化调试功能（默认关闭）
     if (debugMode) {
         initializeDebugPanel();
     }
     
-    debugLog('AnnotateFlow Assistant 初始化完成，调试模式已启用');
-    console.log('AnnotateFlow Assistant 初始化完成');
+    console.log('AnnotateFlow Assistant 初始化完成，调试模式:', debugMode ? '已启用' : '已禁用');
 }
 
 // 检查页面是否发生变化，如果是新页面则重置原图锁定

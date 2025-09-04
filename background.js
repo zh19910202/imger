@@ -329,7 +329,6 @@ function tryNativeHostOpen(filePath) {
   if (!nativePort) {
     console.error('Native Host未连接，无法打开图片');
     console.log('提示: 请运行install_native_host.bat安装Native Host支持');
-    tryAlternativeOpen(filePath);
     return;
   }
   
@@ -345,46 +344,10 @@ function tryNativeHostOpen(filePath) {
       open_id: openId
     });
     
-    // 设置响应超时
-    setTimeout(() => {
-      console.log('Native Host打开请求超时，尝试备用方法');
-      tryAlternativeOpen(filePath);
-    }, 2000); // 2秒超时
+    console.log('Native Host打开请求已发送，等待系统处理');
     
   } catch (error) {
     console.error('Native Host方法失败:', error);
-    tryAlternativeOpen(filePath);
-  }
-}
-
-// 备用打开方法 (通过创建临时链接)
-function tryAlternativeOpen(filePath) {
-  console.log('尝试备用方法: 创建文件链接');
-  
-  try {
-    // 创建一个临时的文件URL
-    const fileUrl = 'file:///' + filePath.replace(/\\/g, '/');
-    console.log('创建文件URL:', fileUrl);
-    
-    // 尝试在新标签页中打开
-    chrome.tabs.create({
-      url: fileUrl,
-      active: false
-    }, (tab) => {
-      if (chrome.runtime.lastError) {
-        console.error('备用方法失败:', chrome.runtime.lastError.message);
-        showOpenFileNotification(filePath);
-      } else {
-        console.log('备用方法成功: 在新标签页中打开图片');
-        // 延迟关闭标签页，让系统有时间处理
-        setTimeout(() => {
-          chrome.tabs.remove(tab.id);
-        }, 2000);
-      }
-    });
-  } catch (error) {
-    console.error('备用方法异常:', error);
-    showOpenFileNotification(filePath);
   }
 }
 
