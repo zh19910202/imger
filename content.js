@@ -127,11 +127,14 @@ function checkPageChange() {
             comparisonModal = null;
         }
         
-        // 注意：不重置uploadedImage，因为用户可能想用同一个上传图片对比不同页面的原图
+        // 清空上传的对比图，避免内存泄漏和页面间的状态污染
+        uploadedImage = null;
+        isComparisonModalOpen = false;
+        
         debugLog('页面跳转重置状态', {
             'originalImageLocked': originalImageLocked,
             'originalImage': originalImage ? '有' : '无',
-            'uploadedImage': uploadedImage ? '保留' : '无',
+            'uploadedImage': '已清空',
             'canceledTimeouts': pendingComparisonTimeouts.length
         });
         
