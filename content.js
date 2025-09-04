@@ -1246,6 +1246,38 @@ function recordOriginalImages() {
     }
 }
 
+// 从URL中提取文件名
+function extractFileNameFromUrl(url) {
+    if (!url) return '未知';
+    
+    try {
+        // 从URL中提取文件名部分
+        const urlParts = url.split('/');
+        let fileName = urlParts[urlParts.length - 1];
+        
+        // 去除查询参数
+        if (fileName.includes('?')) {
+            fileName = fileName.split('?')[0];
+        }
+        
+        // 如果没有文件名或者只是数字/ID，使用默认名称
+        if (!fileName || fileName.length < 3 || /^\d+$/.test(fileName)) {
+            return '原图';
+        }
+        
+        // 如果文件名过长，截断显示
+        if (fileName.length > 30) {
+            const extension = fileName.includes('.') ? fileName.split('.').pop() : '';
+            const baseName = fileName.substring(0, 25);
+            return extension ? `${baseName}...${extension}` : `${baseName}...`;
+        }
+        
+        return fileName;
+    } catch (error) {
+        return '原图';
+    }
+}
+
 // 将图片记录为原图
 function recordImageAsOriginal(img) {
     // 如果原图已经被锁定，不允许在同一页面内更改
@@ -1265,6 +1297,7 @@ function recordImageAsOriginal(img) {
         src: img.src,
         width: width,
         height: height,
+        name: extractFileNameFromUrl(img.src), // 添加文件名提取
         element: img
     };
     
@@ -1445,7 +1478,7 @@ function createComparisonModal(original, uploaded, newImage) {
     
     // 创建关闭按钮
     const closeButton = document.createElement('button');
-    closeButton.textContent = '关闭对比';
+    closeButton.textContent = '关闭对比 (ESC)';
     closeButton.style.cssText = `
         display: block;
         margin: 20px auto 0;
@@ -1462,6 +1495,8 @@ function createComparisonModal(original, uploaded, newImage) {
     closeButton.addEventListener('click', () => {
         if (comparisonModal && comparisonModal.parentNode) {
             comparisonModal.parentNode.removeChild(comparisonModal);
+            // 移除ESC键监听器
+            document.removeEventListener('keydown', handleEscKey);
         }
     });
     
@@ -1478,6 +1513,15 @@ function createComparisonModal(original, uploaded, newImage) {
             comparisonModal.parentNode.removeChild(comparisonModal);
         }
     });
+    
+    // 添加ESC键关闭功能
+    const handleEscKey = (e) => {
+        if (e.key === 'Escape' && comparisonModal && comparisonModal.parentNode) {
+            comparisonModal.parentNode.removeChild(comparisonModal);
+            document.removeEventListener('keydown', handleEscKey);
+        }
+    };
+    document.addEventListener('keydown', handleEscKey);
     
     // 添加到页面
     document.body.appendChild(comparisonModal);
@@ -1516,20 +1560,7 @@ function createImageArea(title, src, imageInfo) {
         border: 2px solid #ddd;
         border-radius: 8px;
         box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
-        cursor: zoom-in;
     `;
-    
-    // Add click to zoom functionality
-    img.addEventListener('click', () => {
-        if (img.style.objectFit === 'contain') {
-            img.style.objectFit = 'none';
-            img.style.cursor = 'zoom-out';
-            img.style.overflow = 'auto';
-        } else {
-            img.style.objectFit = 'contain';
-            img.style.cursor = 'zoom-in';
-        }
-    });
     
     const info = document.createElement('div');
     info.style.cssText = `
@@ -1539,17 +1570,38 @@ function createImageArea(title, src, imageInfo) {
         font-family: Arial, sans-serif;
     `;
     
-    // 显示图片信息
-    const dimensions = imageInfo.width && imageInfo.height ? `${imageInfo.width} × ${imageInfo.height}px` : '未知';
-    const fileSize = imageInfo.size ? `${(imageInfo.size / 1024).toFixed(1)} KB` : '未知';
-    const fileName = imageInfo.name || '未知';
+    // 显示图片信息（仅保留文件名和尺寸）
+    let dimensions = '未知';
     
-    info.innerHTML = `
-        <div style="font-weight: bold; color: #333; margin-bottom: 8px;">📐 尺寸: ${dimensions}</div>
-        <div style="margin-bottom: 4px;">📁 文件大小: ${fileSize}</div>
-        <div style="margin-bottom: 4px;">🏷️ 文件名: ${fileName}</div>
-        <div style="font-size: 11px; color: #888; margin-top: 8px;">💡 点击图片可缩放</div>
-    `;
+    // 对于上传的图片，需要等待图片加载完成后获取真实尺寸
+    if (src.startsWith('data:')) {
+        // 这是base64图片（上传的图片），需要等待加载
+        img.onload = () => {
+            const realDimensions = `${img.naturalWidth} × ${img.naturalHeight}px`;
+            const fileName = imageInfo.name || '未知';
+            
+            info.innerHTML = `
+                <div style="font-weight: bold; color: #333; margin-bottom: 8px;">📐 尺寸: ${realDimensions}</div>
+                <div style="margin-bottom: 4px;">🏷️ 文件名: ${fileName}</div>
+            `;
+        };
+        
+        // 初始显示
+        const fileName = imageInfo.name || '未知';
+        info.innerHTML = `
+            <div style="font-weight: bold; color: #333; margin-bottom: 8px;">📐 尺寸: 加载中...</div>
+            <div style="margin-bottom: 4px;">🏷️ 文件名: ${fileName}</div>
+        `;
+    } else {
+        // 原图，使用已有的尺寸信息
+        dimensions = imageInfo.width && imageInfo.height ? `${imageInfo.width} × ${imageInfo.height}px` : '未知';
+        const fileName = imageInfo.name || '未知';
+        
+        info.innerHTML = `
+            <div style="font-weight: bold; color: #333; margin-bottom: 8px;">📐 尺寸: ${dimensions}</div>
+            <div style="margin-bottom: 4px;">🏷️ 文件名: ${fileName}</div>
+        `;
+    }
     
     area.appendChild(titleElement);
     area.appendChild(img);
@@ -1609,28 +1661,20 @@ function createComparisonInfo(original, uploaded) {
                 widthDiff > 0 || heightDiff > 0 ? '🔴 大于原图' : '🟡 小于原图';
             
             comparison = `
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 15px;">
-                    <div style="background: #f8f9ff; padding: 12px; border-radius: 6px;">
-                        <h5 style="margin: 0 0 8px 0; color: #1976d2;">📊 尺寸分析</h5>
-                        <div><strong>原图:</strong> ${original.width} × ${original.height}px</div>
-                        <div><strong>上传图:</strong> ${tempImg.width} × ${tempImg.height}px</div>
-                        <div><strong>差异:</strong> ${widthDiff > 0 ? '+' : ''}${widthDiff}px × ${heightDiff > 0 ? '+' : ''}${heightDiff}px</div>
-                        <div><strong>缩放比例:</strong> ${widthRatio}% × ${heightRatio}%</div>
+                <div style="background: #f8f9ff; padding: 15px; border-radius: 6px;">
+                    <h5 style="margin: 0 0 12px 0; color: #1976d2;">📊 尺寸对比分析</h5>
+                    <div style="margin-bottom: 8px;"><strong>原图:</strong> ${original.width} × ${original.height}px</div>
+                    <div style="margin-bottom: 8px;"><strong>上传图:</strong> ${tempImg.width} × ${tempImg.height}px</div>
+                    <div style="margin-bottom: 8px;"><strong>尺寸差异:</strong> ${widthDiff > 0 ? '+' : ''}${widthDiff}px × ${heightDiff > 0 ? '+' : ''}${heightDiff}px</div>
+                    <div style="margin-bottom: 12px;"><strong>缩放比例:</strong> ${widthRatio}% × ${heightRatio}%</div>
+                    
+                    <div style="background: ${widthDiff === 0 && heightDiff === 0 ? '#e8f5e8' : '#fff3e0'}; padding: 12px; border-radius: 6px; border-left: 4px solid ${widthDiff === 0 && heightDiff === 0 ? '#4caf50' : '#ff9800'};">
+                        <div style="font-weight: bold; margin-bottom: 5px;">${sizeStatus}</div>
+                        ${widthDiff === 0 && heightDiff === 0 ? 
+                            '<div style="color: #2e7d32;">完美匹配！图片尺寸完全一致。</div>' :
+                            `<div style="color: #f57c00;">检测到尺寸差异。建议将图片${widthDiff > 0 || heightDiff > 0 ? '缩小' : '放大'}以匹配原图。</div>`
+                        }
                     </div>
-                    <div style="background: #f0f8ff; padding: 12px; border-radius: 6px;">
-                        <h5 style="margin: 0 0 8px 0; color: #1976d2;">🔍 质量指标</h5>
-                        <div><strong>像素数:</strong> 原图的 ${pixelRatio}%</div>
-                        <div><strong>宽高比:</strong> ${aspectRatioOrig} → ${aspectRatioUploaded}</div>
-                        <div><strong>文件大小:</strong> ${uploaded.size ? (uploaded.size / 1024).toFixed(1) + ' KB' : '未知'}</div>
-                        <div><strong>格式:</strong> ${uploaded.type || '未知'}</div>
-                    </div>
-                </div>
-                <div style="background: ${widthDiff === 0 && heightDiff === 0 ? '#e8f5e8' : '#fff3e0'}; padding: 15px; border-radius: 8px; border-left: 4px solid ${widthDiff === 0 && heightDiff === 0 ? '#4caf50' : '#ff9800'};">
-                    <div style="font-weight: bold; margin-bottom: 5px;">${sizeStatus}</div>
-                    ${widthDiff === 0 && heightDiff === 0 ? 
-                        '<div style="color: #2e7d32;">完美匹配！图片尺寸完全一致。</div>' :
-                        `<div style="color: #f57c00;">检测到尺寸差异。建议将图片${widthDiff > 0 || heightDiff > 0 ? '缩小' : '放大'}以匹配原图。</div>`
-                    }
                 </div>
             `;
             
