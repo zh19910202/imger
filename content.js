@@ -17,6 +17,7 @@ let pendingComparisonTimeouts = []; // 记录待执行的对比任务
 let shouldAutoCompare = false; // 标记是否应该自动触发对比（只有上传图片时为true）
 let uploadedImage = null; // 存储上传图片引用
 let comparisonModal = null; // 图片对比弹窗元素
+let isComparisonModalOpen = false; // 对比页面开启状态
 let debugMode = true; // 调试模式开关
 let debugPanel = null; // 调试面板元素
 let debugLogs = []; // 调试日志数组
@@ -209,6 +210,22 @@ function checkPageChange() {
     }
 }
 
+// 关闭图片对比弹窗
+function closeComparisonModal() {
+    if (comparisonModal && comparisonModal.parentNode) {
+        comparisonModal.parentNode.removeChild(comparisonModal);
+        comparisonModal = null;
+        isComparisonModalOpen = false;
+        debugLog('对比弹窗已关闭，状态已更新');
+        
+        // 移除ESC键监听器（如果存在）
+        if (typeof window.currentHandleEscKey === 'function') {
+            document.removeEventListener('keydown', window.currentHandleEscKey);
+            window.currentHandleEscKey = null;
+        }
+    }
+}
+
 // 处理键盘事件
 function handleKeydown(event) {
     // 检查是否在输入框中
@@ -235,20 +252,48 @@ function handleKeydown(event) {
     }
     // 处理空格键 - 点击"跳过"按钮
     else if (event.code === 'Space') {
-        const skipButton = findButtonByText(['跳过', 'Skip', '跳過']);
-        if (skipButton) {
-            event.preventDefault(); // 阻止空格键的默认滚动行为
-            clickButton(skipButton, '跳过');
+        // 如果对比页面打开，先关闭对比
+        if (isComparisonModalOpen) {
+            closeComparisonModal();
+            // 延迟执行跳过功能，确保对比页面完全关闭
+            setTimeout(() => {
+                const skipButton = findButtonByText(['跳过', 'Skip', '跳過']);
+                if (skipButton) {
+                    event.preventDefault(); // 阻止空格键的默认滚动行为
+                    clickButton(skipButton, '跳过');
+                }
+            }, 100);
+        } else {
+            const skipButton = findButtonByText(['跳过', 'Skip', '跳過']);
+            if (skipButton) {
+                event.preventDefault(); // 阻止空格键的默认滚动行为
+                clickButton(skipButton, '跳过');
+            }
         }
     }
     // 处理S键 - 点击"提交并继续标注"按钮
     else if (key === 's') {
-        const submitButton = findButtonByText(['提交并继续标注', '提交', 'Submit', '继续标注', 'Continue']);
-        if (submitButton) {
-            event.preventDefault();
-            // 播放音效
-            playNotificationSound();
-            clickButton(submitButton, '提交并继续标注');
+        // 如果对比页面打开，先关闭对比
+        if (isComparisonModalOpen) {
+            closeComparisonModal();
+            // 延迟执行提交功能，确保对比页面完全关闭
+            setTimeout(() => {
+                const submitButton = findButtonByText(['提交并继续标注', '提交', 'Submit', '继续标注', 'Continue']);
+                if (submitButton) {
+                    event.preventDefault();
+                    // 播放音效
+                    playNotificationSound();
+                    clickButton(submitButton, '提交并继续标注');
+                }
+            }, 100);
+        } else {
+            const submitButton = findButtonByText(['提交并继续标注', '提交', 'Submit', '继续标注', 'Continue']);
+            if (submitButton) {
+                event.preventDefault();
+                // 播放音效
+                playNotificationSound();
+                clickButton(submitButton, '提交并继续标注');
+            }
         }
     }
     // 处理A键 - 点击"上传图片"按钮
@@ -273,12 +318,27 @@ function handleKeydown(event) {
     }
     // 处理X键 - 点击"标记无效"按钮
     else if (key === 'x') {
-        const invalidButton = findButtonByText(['标记无效', '无效', 'Invalid', '标记为无效', 'Mark Invalid', '标记不合格']);
-        if (invalidButton) {
-            event.preventDefault();
-            clickButton(invalidButton, '标记无效');
+        // 如果对比页面打开，先关闭对比
+        if (isComparisonModalOpen) {
+            closeComparisonModal();
+            // 延迟执行标记无效功能，确保对比页面完全关闭
+            setTimeout(() => {
+                const invalidButton = findButtonByText(['标记无效', '无效', 'Invalid', '标记为无效', 'Mark Invalid', '标记不合格']);
+                if (invalidButton) {
+                    event.preventDefault();
+                    clickButton(invalidButton, '标记无效');
+                } else {
+                    showNotification('未找到标记无效按钮');
+                }
+            }, 100);
         } else {
-            showNotification('未找到标记无效按钮');
+            const invalidButton = findButtonByText(['标记无效', '无效', 'Invalid', '标记为无效', 'Mark Invalid', '标记不合格']);
+            if (invalidButton) {
+                event.preventDefault();
+                clickButton(invalidButton, '标记无效');
+            } else {
+                showNotification('未找到标记无效按钮');
+            }
         }
     }
     // 处理C键 - 手动触发图片对比
@@ -639,6 +699,8 @@ function cleanup() {
         comparisonModal.parentNode.removeChild(comparisonModal);
         comparisonModal = null;
     }
+    // 重置对比页面状态
+    isComparisonModalOpen = false;
     // 清理调试面板
     if (debugPanel && debugPanel.parentNode) {
         debugPanel.parentNode.removeChild(debugPanel);
@@ -1476,55 +1538,122 @@ function createComparisonModal(original, uploaded, newImage) {
     // 创建对比信息
     const infoArea = createComparisonInfo(original, uploaded);
     
-    // 创建关闭按钮
+    // 创建底部区域容器
+    const footerArea = document.createElement('div');
+    footerArea.style.cssText = `
+        margin-top: 25px;
+        padding-top: 20px;
+        border-top: 1px solid #e0e0e0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 15px;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+    `;
+    
+    // 创建操作提示
+    const hintText = document.createElement('div');
+    hintText.innerHTML = `
+        <span style="color: #666; font-size: 13px; display: flex; align-items: center; gap: 8px;">
+            <span style="background: #e3f2fd; padding: 3px 8px; border-radius: 4px; font-weight: bold; color: #1976d2;">ESC</span>
+            快速关闭
+            <span style="color: #ddd; margin: 0 5px;">|</span>
+            <span style="background: #f3e5f5; padding: 3px 8px; border-radius: 4px; font-weight: bold; color: #7b1fa2;">点击背景</span>
+            关闭对话框
+        </span>
+    `;
+    
+    // 创建美化的关闭按钮
     const closeButton = document.createElement('button');
-    closeButton.textContent = '关闭对比 (ESC)';
+    closeButton.innerHTML = `
+        <span style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 16px;">✖️</span>
+            关闭对比
+        </span>
+    `;
     closeButton.style.cssText = `
-        display: block;
-        margin: 20px auto 0;
-        padding: 10px 30px;
-        background: #2196F3;
+        padding: 12px 25px;
+        background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
         color: white;
         border: none;
-        border-radius: 6px;
+        border-radius: 25px;
         cursor: pointer;
         font-size: 14px;
         font-family: Arial, sans-serif;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+        position: relative;
+        overflow: hidden;
     `;
     
-    closeButton.addEventListener('click', () => {
-        if (comparisonModal && comparisonModal.parentNode) {
-            comparisonModal.parentNode.removeChild(comparisonModal);
-            // 移除ESC键监听器
-            document.removeEventListener('keydown', handleEscKey);
-        }
+    // 按钮悬停效果
+    closeButton.addEventListener('mouseenter', () => {
+        closeButton.style.transform = 'translateY(-2px)';
+        closeButton.style.boxShadow = '0 6px 16px rgba(33, 150, 243, 0.4)';
+        closeButton.style.background = 'linear-gradient(135deg, #1976D2 0%, #1565C0 100%)';
     });
+    
+    closeButton.addEventListener('mouseleave', () => {
+        closeButton.style.transform = 'translateY(0)';
+        closeButton.style.boxShadow = '0 4px 12px rgba(33, 150, 243, 0.3)';
+        closeButton.style.background = 'linear-gradient(135deg, #2196F3 0%, #1976D2 100%)';
+    });
+    
+    // 按钮点击效果
+    closeButton.addEventListener('mousedown', () => {
+        closeButton.style.transform = 'translateY(1px) scale(0.98)';
+    });
+    
+    closeButton.addEventListener('mouseup', () => {
+        closeButton.style.transform = 'translateY(-2px) scale(1)';
+    });
+    
+    closeButton.addEventListener('click', () => {
+        closeComparisonModal();
+    });
+    
+    // 组装底部区域
+    footerArea.appendChild(hintText);
+    footerArea.appendChild(closeButton);
+    
+    // 组装底部区域
+    footerArea.appendChild(hintText);
+    footerArea.appendChild(closeButton);
     
     // 组装弹窗
     content.appendChild(title);
     content.appendChild(comparisonArea);
     content.appendChild(infoArea);
-    content.appendChild(closeButton);
+    content.appendChild(footerArea);
     comparisonModal.appendChild(content);
     
     // 点击背景关闭
     comparisonModal.addEventListener('click', (e) => {
         if (e.target === comparisonModal) {
-            comparisonModal.parentNode.removeChild(comparisonModal);
+            closeComparisonModal();
         }
     });
     
     // 添加ESC键关闭功能
     const handleEscKey = (e) => {
         if (e.key === 'Escape' && comparisonModal && comparisonModal.parentNode) {
-            comparisonModal.parentNode.removeChild(comparisonModal);
-            document.removeEventListener('keydown', handleEscKey);
+            closeComparisonModal();
         }
     };
+    // 保存到全局，方便清理
+    window.currentHandleEscKey = handleEscKey;
     document.addEventListener('keydown', handleEscKey);
     
     // 添加到页面
     document.body.appendChild(comparisonModal);
+    
+    // 更新对比页面状态
+    isComparisonModalOpen = true;
+    debugLog('对比弹窗已打开，状态已更新');
     
     showNotification('图片对比界面已打开', 2000);
 }
