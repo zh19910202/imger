@@ -1,7 +1,18 @@
 {
   "permissions": {
     "allow": [
-      "WebSearch"
+      "WebSearch",
+      "Read(/D:\\app\\imgerV2/**)",
+      "Read(/D:\\app\\imgerV2/**)",
+      "Read(/D:\\app\\imgerV2/**)",
+      "Read(/D:\\app\\imgerV2/**)",
+      "Read(/D:\\app\\imgerV2/**)",
+      "Read(/D:\\app\\imgerV2/**)",
+      "Read(/D:\\app\\imgerV2/**)",
+      "Read(/D:\\app\\imgerV2/**)",
+      "Read(/D:\\app\\imgerV2/**)",
+      "Read(/D:\\app\\imgerV2/**)",
+      "Read(/D:\\app\\imgerV2/**)"
     ],
     "deny": [],
     "ask": []

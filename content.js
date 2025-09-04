@@ -10,7 +10,9 @@ let selectedImage = null;
 let notificationAudio = null;
 let soundEnabled = true; // 音效开关状态
 let dimensionTooltip = null; // 尺寸提示框元素
-let originalImage = null; // 存储原图引用用于对比
+let originalImage = null; // 存储原图引用用于对比（在单个页面生命周期内不可变更）
+let originalImageLocked = false; // 原图锁定状态，防止在同一页面被覆盖
+let currentPageUrl = ''; // 记录当前页面URL，用于检测页面跳转
 let uploadedImage = null; // 存储上传图片引用
 let comparisonModal = null; // 图片对比弹窗元素
 let debugMode = true; // 调试模式开关
@@ -34,6 +36,9 @@ function initializeScript() {
     console.log('Chrome对象:', typeof chrome);
     console.log('Chrome.runtime:', typeof chrome?.runtime);
     console.log('扩展ID:', chrome?.runtime?.id);
+    
+    // 检测页面是否发生变化（用于重置原图锁定）
+    checkPageChange();
     
     // 检查Chrome扩展API是否可用
     if (typeof chrome === 'undefined' || !chrome.runtime) {
@@ -75,6 +80,9 @@ function initializeScript() {
     // 添加图片加载监听器
     addImageLoadListeners();
     
+    // 初始化DOM内容变化监听（用于检测页面内容更新）
+    initializeDOMContentObserver();
+    
     // 初始化调试功能
     if (debugMode) {
         initializeDebugPanel();
@@ -82,6 +90,88 @@ function initializeScript() {
     
     debugLog('AnnotateFlow Assistant 初始化完成，调试模式已启用');
     console.log('AnnotateFlow Assistant 初始化完成');
+}
+
+// 检查页面是否发生变化，如果是新页面则重置原图锁定
+function checkPageChange() {
+    const newUrl = window.location.href;
+    
+    if (currentPageUrl && currentPageUrl !== newUrl) {
+        debugLog('检测到页面跳转，重置原图锁定状态', {
+            oldUrl: currentPageUrl.substring(0, 100) + '...',
+            newUrl: newUrl.substring(0, 100) + '...'
+        });
+        
+        // 重置原图相关状态
+        originalImageLocked = false;
+        originalImage = null;
+        // 注意：不重置uploadedImage，因为用户可能想用同一个上传图片对比不同页面的原图
+        debugLog('页面跳转重置状态', {
+            'originalImageLocked': originalImageLocked,
+            'originalImage': originalImage ? '有' : '无',
+            'uploadedImage': uploadedImage ? '保留' : '无'
+        });
+        
+        showNotification('页面切换，正在重新检测原图...', 2000);
+        
+        // 延迟多次重试检测原图，因为新页面内容可能需要时间加载
+        const retryIntervals = [500, 1000, 2000, 3000, 5000];
+        retryIntervals.forEach((delay, index) => {
+            setTimeout(() => {
+                debugLog(`页面跳转后第${index + 1}次尝试检测原图 (延迟${delay}ms)`);
+                if (!originalImageLocked) { // 只有在还没检测到原图时才继续尝试
+                    recordOriginalImages();
+                }
+            }, delay);
+        });
+    }
+    
+    currentPageUrl = newUrl;
+    debugLog('当前页面URL已更新', currentPageUrl.substring(0, 100) + '...');
+    
+    // 监听后续的URL变化
+    if (!window._pageChangeObserverStarted) {
+        window._pageChangeObserverStarted = true;
+        
+        // 使用pushstate/popstate监听单页应用的路由变化
+        const originalPushState = history.pushState;
+        const originalReplaceState = history.replaceState;
+        
+        history.pushState = function() {
+            originalPushState.apply(history, arguments);
+            setTimeout(() => checkPageChange(), 100);
+        };
+        
+        history.replaceState = function() {
+            originalReplaceState.apply(history, arguments);
+            setTimeout(() => checkPageChange(), 100);
+        };
+        
+        window.addEventListener('popstate', () => {
+            setTimeout(() => checkPageChange(), 100);
+        });
+        
+        // 更频繁地检查URL变化（每200ms一次，持续10秒，然后降低频率）
+        let checkCount = 0;
+        const fastCheckInterval = setInterval(() => {
+            if (window.location.href !== currentPageUrl) {
+                checkPageChange();
+            }
+            checkCount++;
+            // 10秒后改为每秒检查一次
+            if (checkCount >= 50) { // 50 * 200ms = 10秒
+                clearInterval(fastCheckInterval);
+                // 改为每秒检查一次
+                setInterval(() => {
+                    if (window.location.href !== currentPageUrl) {
+                        checkPageChange();
+                    }
+                }, 1000);
+            }
+        }, 200);
+        
+        debugLog('页面变化监听已启动（快速检测模式）');
+    }
 }
 
 // 处理键盘事件
@@ -183,6 +273,9 @@ function handleKeydown(event) {
     else if (key === 'b') {
         event.preventDefault();
         debugLog('手动重新检测原图');
+        // 解锁原图并重新检测
+        originalImageLocked = false;
+        originalImage = null;
         recordOriginalImages();
         showNotification('已重新检测原图，查看调试面板', 2000);
     }
@@ -518,6 +611,7 @@ function cleanup() {
     }
     // 清理图片引用
     originalImage = null;
+    originalImageLocked = false; // 重置锁定状态
     uploadedImage = null;
     // 清理调试日志
     debugLogs = [];
@@ -893,17 +987,74 @@ function handleImageUpload(file, inputElement) {
 function recordOriginalImages() {
     debugLog('开始记录页面原始图片');
     
-    const images = document.querySelectorAll('img');
-    debugLog('发现页面图片总数', images.length);
+    // 使用多个候选选择器来查找原图，按优先级排序
+    const selectorCandidates = [
+        'div[data-v-92a52416].safe-image img[data-v-92a52416][src]', // 最精确的选择器
+        'div.safe-image img[data-v-92a52416][src]', // 通过safe-image class
+        'img[data-v-92a52416][src].img', // 通过img class
+        'img[data-v-92a52416][src]', // 通过data-v属性
+        'div.safe-image img[src]', // 备选：safe-image 容器内的图片
+        '.image-item img[src]' // 备选：image-item 容器内的图片
+    ];
     
-    if (images.length === 0) {
-        debugLog('页面中无图片元素');
+    let targetImages = [];
+    let usedSelector = '';
+    
+    // 按优先级尝试每个选择器
+    for (const selector of selectorCandidates) {
+        targetImages = document.querySelectorAll(selector);
+        if (targetImages.length > 0) {
+            usedSelector = selector;
+            debugLog('使用选择器找到原图', {
+                selector: selector,
+                found: targetImages.length
+            });
+            break;
+        }
+    }
+    
+    // 如果所有特定选择器都没找到，使用更宽泛的查找
+    if (targetImages.length === 0) {
+        debugLog('所有特定选择器未找到图片，尝试查找所有带data-v属性的图片');
+        
+        // 查找所有带 data-v- 开头属性的图片
+        const allImages = document.querySelectorAll('img[src]');
+        const dataVImages = Array.from(allImages).filter(img => {
+            return Array.from(img.attributes).some(attr => 
+                attr.name.startsWith('data-v-')
+            );
+        });
+        
+        debugLog('找到带data-v属性的图片', dataVImages.length);
+        targetImages = dataVImages;
+        usedSelector = '带data-v属性的图片';
+        
+        if (targetImages.length === 0) {
+            debugLog('仍未找到，使用所有图片作为备选');
+            targetImages = allImages;
+            usedSelector = '所有图片';
+        }
+    }
+    
+    debugLog('最终图片候选数量', {
+        count: targetImages.length,
+        selector: usedSelector
+    });
+    
+    if (targetImages.length === 0) {
+        debugLog('页面中无符合条件的图片元素');
+        // 延迟重试，可能图片还在动态加载
+        setTimeout(() => {
+            debugLog('延迟重试检测原图');
+            recordOriginalImages();
+        }, 2000);
         return;
     }
     
-    // 详细检查每个图片
-    images.forEach((img, index) => {
-        debugLog(`检查图片 #${index}`, {
+    // 详细检查每个候选图片
+    Array.from(targetImages).forEach((img, index) => {
+        const parentDiv = img.closest('div[data-v-92a52416], div.safe-image, div.image-item');
+        debugLog(`检查候选图片 #${index}`, {
             src: img.src ? img.src.substring(0, 100) + '...' : '无src',
             naturalWidth: img.naturalWidth,
             naturalHeight: img.naturalHeight,
@@ -911,68 +1062,95 @@ function recordOriginalImages() {
             height: img.height,
             complete: img.complete,
             className: img.className,
-            id: img.id || '无ID'
+            id: img.id || '无ID',
+            dataset: Object.keys(img.dataset).map(key => `${key}=${img.dataset[key]}`).join(', ') || '无data属性',
+            hasDataV92a52416: img.hasAttribute('data-v-92a52416'),
+            parentDivClasses: parentDiv ? parentDiv.className : '无父容器',
+            parentDivDataAttrs: parentDiv ? Object.keys(parentDiv.dataset).join(', ') : '无父容器data属性'
         });
     });
     
-    // 方法1：优先选择已完全加载的图片
-    let mainImage = Array.from(images).find(img => {
-        const isLoaded = img.complete && img.naturalWidth > 100 && img.naturalHeight > 100;
-        if (isLoaded) {
-            debugLog('找到已加载的合适图片', {
-                src: img.src.substring(0, 50) + '...',
-                naturalWidth: img.naturalWidth,
-                naturalHeight: img.naturalHeight
+    let mainImage = null;
+    
+    // 方法1：优先选择最精确选择器找到的已加载图片
+    const exactSelector = 'div[data-v-92a52416].safe-image img[data-v-92a52416][src]';
+    const exactImages = document.querySelectorAll(exactSelector);
+    if (exactImages.length > 0) {
+        mainImage = Array.from(exactImages).find(img => {
+            const isLoaded = img.complete && img.naturalWidth > 0 && img.naturalHeight > 0;
+            if (isLoaded) {
+                debugLog('找到精确选择器且已加载的原图', {
+                    src: img.src.substring(0, 50) + '...',
+                    naturalWidth: img.naturalWidth,
+                    naturalHeight: img.naturalHeight,
+                    selector: exactSelector
+                });
+            }
+            return isLoaded;
+        });
+        
+        // 如果没有已加载的，选择第一个
+        if (!mainImage) {
+            mainImage = exactImages[0];
+            debugLog('选择精确选择器的第一个图片（可能未完全加载）', {
+                src: mainImage.src ? mainImage.src.substring(0, 50) + '...' : '无src',
+                complete: mainImage.complete
             });
         }
-        return isLoaded;
-    });
-    
-    // 方法2：如果没找到，选择尺寸最大的图片（即使还没完全加载）
-    if (!mainImage) {
-        debugLog('未找到已加载的图片，尝试选择最大的图片');
-        let maxArea = 0;
-        
-        images.forEach(img => {
-            // 使用显示尺寸或属性尺寸
-            const width = img.naturalWidth || img.width || parseInt(img.getAttribute('width')) || 0;
-            const height = img.naturalHeight || img.height || parseInt(img.getAttribute('height')) || 0;
-            const area = width * height;
-            
-            debugLog(`图片面积计算`, {
-                src: img.src ? img.src.substring(0, 30) + '...' : '无src',
-                width: width,
-                height: height,
-                area: area
-            });
-            
-            if (area > maxArea && area > 10000) { // 至少100x100
-                maxArea = area;
-                mainImage = img;
-                debugLog('选择新的最大图片', { area, width, height });
-            }
-        });
     }
     
-    // 方法3：如果还是没找到，选择第一个有src的图片
-    if (!mainImage) {
-        debugLog('仍未找到合适图片，选择第一个有src的图片');
-        mainImage = Array.from(images).find(img => img.src && img.src.length > 0);
+    // 方法2：如果精确选择器没找到，从候选图片中选择
+    if (!mainImage && targetImages.length > 0) {
+        // 优先选择已加载且在safe-image容器中的图片
+        mainImage = Array.from(targetImages).find(img => {
+            const isInSafeImage = img.closest('.safe-image') !== null;
+            const isLoaded = img.complete && img.naturalWidth > 0 && img.naturalHeight > 0;
+            return isInSafeImage && isLoaded;
+        });
+        
+        if (mainImage) {
+            debugLog('找到safe-image容器中的已加载图片');
+        } else {
+            // 选择第一个已加载的图片
+            mainImage = Array.from(targetImages).find(img => {
+                return img.complete && img.naturalWidth > 0 && img.naturalHeight > 0;
+            });
+            
+            if (mainImage) {
+                debugLog('找到已加载的候选图片');
+            } else {
+                // 选择第一个候选图片
+                mainImage = targetImages[0];
+                debugLog('选择第一个候选图片（可能未加载）');
+            }
+        }
     }
     
     if (mainImage) {
+        debugLog('最终选定的原图', {
+            src: mainImage.src ? mainImage.src.substring(0, 100) + '...' : '无src',
+            complete: mainImage.complete,
+            naturalWidth: mainImage.naturalWidth,
+            naturalHeight: mainImage.naturalHeight,
+            hasDataV: mainImage.hasAttribute('data-v-92a52416'),
+            className: mainImage.className,
+            parentContainer: mainImage.closest('.safe-image, .image-item') ? '在安全图片容器中' : '不在特定容器中',
+            usedSelector: usedSelector
+        });
+        
         // 如果图片还没完全加载，等待加载完成
         if (!mainImage.complete || mainImage.naturalWidth === 0) {
-            debugLog('选中的图片还没完全加载，等待加载完成');
+            debugLog('选中的原图还没完全加载，等待加载完成');
             
             const handleLoad = () => {
-                debugLog('图片加载完成，重新记录');
+                debugLog('原图加载完成，记录原图信息');
                 recordImageAsOriginal(mainImage);
                 mainImage.removeEventListener('load', handleLoad);
             };
             
             const handleError = () => {
-                debugLog('图片加载失败');
+                debugLog('原图加载失败，尝试记录当前状态');
+                recordImageAsOriginal(mainImage);
                 mainImage.removeEventListener('error', handleError);
             };
             
@@ -985,22 +1163,28 @@ function recordOriginalImages() {
             recordImageAsOriginal(mainImage);
         }
     } else {
-        debugLog('未找到任何可用的图片');
+        debugLog('未找到任何可用的原图');
         
         // 延迟重试，可能图片还在动态加载
         setTimeout(() => {
-            debugLog('延迟重试检测原图');
-            const newImages = document.querySelectorAll('img');
-            if (newImages.length > images.length) {
-                debugLog('发现新的图片元素，重新检测');
-                recordOriginalImages();
-            }
-        }, 2000);
+            debugLog('延迟3秒后重试检测原图');
+            recordOriginalImages();
+        }, 3000);
     }
 }
 
 // 将图片记录为原图
 function recordImageAsOriginal(img) {
+    // 如果原图已经被锁定，不允许在同一页面内更改
+    if (originalImageLocked && originalImage) {
+        debugLog('原图已在当前页面锁定，跳过更新', {
+            existingOriginal: originalImage.src.substring(0, 50) + '...',
+            attemptedNew: img.src ? img.src.substring(0, 50) + '...' : '无src',
+            currentPage: currentPageUrl.substring(0, 50) + '...'
+        });
+        return;
+    }
+    
     const width = img.naturalWidth || img.width || 0;
     const height = img.naturalHeight || img.height || 0;
     
@@ -1011,17 +1195,22 @@ function recordImageAsOriginal(img) {
         element: img
     };
     
-    debugLog('成功记录原图', {
+    // 锁定原图，防止在当前页面内被覆盖
+    originalImageLocked = true;
+    
+    debugLog('成功记录原图并锁定到当前页面', {
         src: originalImage.src.substring(0, 50) + '...',
         width: originalImage.width,
         height: originalImage.height,
         complete: img.complete,
         naturalWidth: img.naturalWidth,
-        naturalHeight: img.naturalHeight
+        naturalHeight: img.naturalHeight,
+        locked: originalImageLocked,
+        currentPage: currentPageUrl.substring(0, 50) + '...'
     });
     
     console.log('记录原图:', originalImage.src);
-    showNotification(`已识别原图: ${width}×${height}`, 2000);
+    showNotification(`已锁定原图: ${width}×${height}`, 2000);
 }
 
 // 监听网络请求中的图片上传（使用 fetch 拦截）
@@ -1073,18 +1262,56 @@ function performImageComparison(newImage = null) {
     debugLog('开始执行图片对比', {
         hasOriginalImage: !!originalImage,
         hasUploadedImage: !!uploadedImage,
-        hasNewImage: !!newImage
+        hasNewImage: !!newImage,
+        originalImageLocked: originalImageLocked
     });
     
-    if (!originalImage || !uploadedImage) {
-        debugLog('图片对比失败 - 缺少必要的图片', { 
-            originalImage: originalImage ? '有' : '无', 
-            uploadedImage: uploadedImage ? '有' : '无' 
-        });
+    // 如果没有原图，先尝试检测原图
+    if (!originalImage) {
+        debugLog('对比时未找到原图，尝试重新检测');
+        showNotification('检测原图中，请稍候...', 1000);
+        
+        // 先尝试检测原图
+        recordOriginalImages();
+        
+        // 如果立即检测失败，延迟重试
+        setTimeout(() => {
+            if (!originalImage) {
+                debugLog('延迟重试检测原图用于对比');
+                recordOriginalImages();
+                
+                // 再次延迟重试
+                setTimeout(() => {
+                    if (originalImage && uploadedImage) {
+                        debugLog('延迟检测成功，执行对比');
+                        performImageComparison(newImage);
+                    } else {
+                        debugLog('多次尝试后仍无法找到原图');
+                        showNotification('未找到原图，请按B键重新检测后再试', 3000);
+                    }
+                }, 1000);
+            } else if (uploadedImage) {
+                debugLog('重新检测到原图，继续对比');
+                performImageComparison(newImage);
+            }
+        }, 500);
         return;
     }
     
-    debugLog('图片对比条件满足，创建对比界面');
+    // 检查上传图片
+    if (!uploadedImage) {
+        debugLog('图片对比失败 - 缺少上传图片', { 
+            originalImage: originalImage ? '有' : '无', 
+            uploadedImage: uploadedImage ? '有' : '无' 
+        });
+        showNotification('请先上传图片再进行对比', 2000);
+        return;
+    }
+    
+    debugLog('图片对比条件满足，创建对比界面', {
+        originalSrc: originalImage.src ? originalImage.src.substring(0, 50) + '...' : '无src',
+        uploadedSrc: uploadedImage.src ? uploadedImage.src.substring(0, 50) + '...' : '无src'
+    });
     showNotification('正在对比图片...', 1000);
     
     // 创建对比界面
@@ -1146,10 +1373,10 @@ function createComparisonModal(original, uploaded, newImage) {
     `;
     
     // 创建原图区域
-    const originalArea = createImageArea('原图', original.src, original);
+    const originalArea = createImageArea('原图 (不可变更)', original.src, original);
     
-    // 创建上传图区域
-    const uploadedArea = createImageArea('上传图片', uploaded.src, uploaded);
+    // 创建上传图区域  
+    const uploadedArea = createImageArea('上传对比图', uploaded.src, uploaded);
     
     comparisonArea.appendChild(originalArea);
     comparisonArea.appendChild(uploadedArea);
@@ -1876,8 +2103,8 @@ function addImageLoadListeners() {
                     naturalHeight: img.naturalHeight
                 });
                 
-                // 如果还没有原图，或者这个图片更大，考虑更新原图
-                if (!originalImage || (
+                // 如果还没有原图，或者原图未锁定且这个图片更大，考虑更新原图
+                if (!originalImage || (!originalImageLocked && 
                     img.naturalWidth * img.naturalHeight > 
                     originalImage.width * originalImage.height
                 )) {
@@ -1891,7 +2118,7 @@ function addImageLoadListeners() {
             });
         } else if (img.naturalWidth > 0 && img.naturalHeight > 0) {
             // 图片已经加载完成，检查是否需要更新原图
-            if (!originalImage || (
+            if (!originalImage || (!originalImageLocked && 
                 img.naturalWidth * img.naturalHeight > 
                 (originalImage.width || 0) * (originalImage.height || 0)
             )) {
@@ -1944,7 +2171,7 @@ function addSingleImageLoadListener(img) {
             });
             
             // 检查是否需要更新原图
-            if (!originalImage || (
+            if (!originalImage || (!originalImageLocked && 
                 img.naturalWidth * img.naturalHeight > 
                 originalImage.width * originalImage.height
             )) {
@@ -1958,7 +2185,7 @@ function addSingleImageLoadListener(img) {
         });
     } else if (img.naturalWidth > 0 && img.naturalHeight > 0) {
         // 图片已经加载完成
-        if (!originalImage || (
+        if (!originalImage || (!originalImageLocked && 
             img.naturalWidth * img.naturalHeight > 
             (originalImage.width || 0) * (originalImage.height || 0)
         )) {
@@ -1966,4 +2193,83 @@ function addSingleImageLoadListener(img) {
             recordImageAsOriginal(img);
         }
     }
+}
+
+// 初始化DOM内容变化监听（用于检测页面内容更新）
+function initializeDOMContentObserver() {
+    debugLog('初始化DOM内容变化监听');
+    
+    // 监听页面主要内容区域的变化
+    const contentObserver = new MutationObserver((mutations) => {
+        let hasSignificantChange = false;
+        let hasNewImages = false;
+        
+        mutations.forEach((mutation) => {
+            // 检查是否有新的节点被添加
+            if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+                mutation.addedNodes.forEach((node) => {
+                    if (node.nodeType === Node.ELEMENT_NODE) {
+                        // 检查是否添加了包含原图的容器
+                        if (node.classList && (
+                            node.classList.contains('safe-image') ||
+                            node.classList.contains('image-item') ||
+                            node.hasAttribute('data-v-92a52416')
+                        )) {
+                            debugLog('检测到原图相关容器被添加', {
+                                className: node.className,
+                                hasDataV: node.hasAttribute('data-v-92a52416')
+                            });
+                            hasSignificantChange = true;
+                        }
+                        
+                        // 检查是否添加了图片元素
+                        if (node.tagName === 'IMG' || node.querySelectorAll('img').length > 0) {
+                            debugLog('检测到新图片元素被添加');
+                            hasNewImages = true;
+                        }
+                        
+                        // 检查是否有原图相关的选择器
+                        const targetElements = node.querySelectorAll && node.querySelectorAll([
+                            'div[data-v-92a52416].safe-image',
+                            'div.safe-image img[data-v-92a52416]',
+                            '.image-item img',
+                            'img[data-v-92a52416]'
+                        ].join(','));
+                        
+                        if (targetElements && targetElements.length > 0) {
+                            debugLog('检测到原图相关元素被添加', targetElements.length);
+                            hasSignificantChange = true;
+                        }
+                    }
+                });
+            }
+        });
+        
+        // 如果检测到重要变化且当前没有锁定的原图，尝试重新检测
+        if ((hasSignificantChange || hasNewImages) && !originalImageLocked) {
+            debugLog('DOM发生重要变化，尝试重新检测原图', {
+                hasSignificantChange,
+                hasNewImages,
+                originalImageLocked
+            });
+            
+            // 延迟一点时间再检测，确保DOM完全更新
+            setTimeout(() => {
+                if (!originalImageLocked) {
+                    debugLog('延迟后执行原图检测');
+                    recordOriginalImages();
+                }
+            }, 1000);
+        }
+    });
+    
+    // 开始观察document.body的变化
+    contentObserver.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: false, // 不监听属性变化，避免过多触发
+        attributeOldValue: false
+    });
+    
+    debugLog('DOM内容变化监听已启动');
 }
