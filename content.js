@@ -13,6 +13,8 @@ let dimensionTooltip = null; // 尺寸提示框元素
 let originalImage = null; // 存储原图引用用于对比（在单个页面生命周期内不可变更）
 let originalImageLocked = false; // 原图锁定状态，防止在同一页面被覆盖
 let currentPageUrl = ''; // 记录当前页面URL，用于检测页面跳转
+let pendingComparisonTimeouts = []; // 记录待执行的对比任务
+let shouldAutoCompare = false; // 标记是否应该自动触发对比（只有上传图片时为true）
 let uploadedImage = null; // 存储上传图片引用
 let comparisonModal = null; // 图片对比弹窗元素
 let debugMode = true; // 调试模式开关
@@ -83,6 +85,10 @@ function initializeScript() {
     // 初始化DOM内容变化监听（用于检测页面内容更新）
     initializeDOMContentObserver();
     
+    // 立即开始检测原图
+    debugLog('页面加载完成，开始检测原图');
+    recordOriginalImages();
+    
     // 初始化调试功能
     if (debugMode) {
         initializeDebugPanel();
@@ -105,24 +111,53 @@ function checkPageChange() {
         // 重置原图相关状态
         originalImageLocked = false;
         originalImage = null;
+        shouldAutoCompare = false; // 重置自动对比标记
+        
+        // 取消所有待执行的对比任务
+        debugLog('取消待执行的对比任务', { count: pendingComparisonTimeouts.length });
+        pendingComparisonTimeouts.forEach(timeoutId => {
+            clearTimeout(timeoutId);
+        });
+        pendingComparisonTimeouts = [];
+        
+        // 关闭已存在的对比弹窗
+        if (comparisonModal && comparisonModal.parentNode) {
+            debugLog('关闭已存在的对比弹窗');
+            comparisonModal.parentNode.removeChild(comparisonModal);
+            comparisonModal = null;
+        }
+        
         // 注意：不重置uploadedImage，因为用户可能想用同一个上传图片对比不同页面的原图
         debugLog('页面跳转重置状态', {
             'originalImageLocked': originalImageLocked,
             'originalImage': originalImage ? '有' : '无',
-            'uploadedImage': uploadedImage ? '保留' : '无'
+            'uploadedImage': uploadedImage ? '保留' : '无',
+            'canceledTimeouts': pendingComparisonTimeouts.length
         });
         
         showNotification('页面切换，正在重新检测原图...', 2000);
         
+        // 立即开始检测原图
+        recordOriginalImages();
+        
         // 延迟多次重试检测原图，因为新页面内容可能需要时间加载
         const retryIntervals = [500, 1000, 2000, 3000, 5000];
         retryIntervals.forEach((delay, index) => {
-            setTimeout(() => {
+            const retryTimeoutId = setTimeout(() => {
                 debugLog(`页面跳转后第${index + 1}次尝试检测原图 (延迟${delay}ms)`);
                 if (!originalImageLocked) { // 只有在还没检测到原图时才继续尝试
                     recordOriginalImages();
                 }
+                
+                // 从待执行列表中移除
+                const timeoutIndex = pendingComparisonTimeouts.indexOf(retryTimeoutId);
+                if (timeoutIndex > -1) {
+                    pendingComparisonTimeouts.splice(timeoutIndex, 1);
+                }
             }, delay);
+            
+            // 将重试任务也加入管理队列
+            pendingComparisonTimeouts.push(retryTimeoutId);
         });
     }
     
@@ -613,6 +648,15 @@ function cleanup() {
     originalImage = null;
     originalImageLocked = false; // 重置锁定状态
     uploadedImage = null;
+    shouldAutoCompare = false; // 重置自动对比标记
+    
+    // 取消所有待执行的对比任务
+    debugLog('清理时取消待执行的对比任务', { count: pendingComparisonTimeouts.length });
+    pendingComparisonTimeouts.forEach(timeoutId => {
+        clearTimeout(timeoutId);
+    });
+    pendingComparisonTimeouts = [];
+    
     // 清理调试日志
     debugLogs = [];
 }
@@ -958,20 +1002,43 @@ function handleImageUpload(file, inputElement) {
             element: inputElement
         };
         
-        debugLog('上传图片信息已保存', {
-            name: uploadedImage.name,
-            size: uploadedImage.size,
-            type: uploadedImage.type,
-            srcLength: uploadedImage.src ? uploadedImage.src.length : 0
-        });
+        // 设置自动对比标记，表明这是用户主动上传的图片
+        shouldAutoCompare = true;
         
         showNotification(`图片上传完成: ${file.name}`, 2000);
         
         // 等待一段时间后进行对比（给页面时间处理上传）
-        setTimeout(() => {
-            debugLog('延迟执行图片对比');
-            performImageComparison();
+        debugLog('设置延迟对比任务');
+        const timeoutId = setTimeout(() => {
+            debugLog('延迟执行图片对比', {
+                currentUrl: window.location.href.substring(0, 50) + '...',
+                hasOriginal: !!originalImage,
+                hasUploaded: !!uploadedImage,
+                shouldAutoCompare: shouldAutoCompare
+            });
+            
+            // 从待执行列表中移除
+            const index = pendingComparisonTimeouts.indexOf(timeoutId);
+            if (index > -1) {
+                pendingComparisonTimeouts.splice(index, 1);
+            }
+            
+            // 只有在应该自动对比时才执行（即用户刚上传了图片）
+            if (shouldAutoCompare) {
+                debugLog('用户上传图片触发的自动对比');
+                shouldAutoCompare = false; // 重置标记，避免重复触发
+                performImageComparison();
+            } else {
+                debugLog('跳过自动对比 - 非用户上传触发');
+            }
         }, 1000);
+        
+        // 记录待执行的任务
+        pendingComparisonTimeouts.push(timeoutId);
+        debugLog('已添加延迟对比任务', { 
+            timeoutId: timeoutId,
+            totalPending: pendingComparisonTimeouts.length 
+        });
     };
     
     reader.onerror = (error) => {
@@ -1249,10 +1316,12 @@ function checkForNewImages() {
         console.log('发现新图片:', newImages.length, '张');
         newImages.forEach(img => {
             img._recorded = true;
-            // 如果有上传的图片，进行对比
-            if (uploadedImage) {
-                performImageComparison(img);
-            }
+            // 注意：不在这里自动触发对比，对比只应该在用户上传图片时触发
+            debugLog('标记新图片为已记录', {
+                src: img.src ? img.src.substring(0, 50) + '...' : '无src',
+                width: img.naturalWidth,
+                height: img.naturalHeight
+            });
         });
     }
 }
@@ -1263,39 +1332,21 @@ function performImageComparison(newImage = null) {
         hasOriginalImage: !!originalImage,
         hasUploadedImage: !!uploadedImage,
         hasNewImage: !!newImage,
-        originalImageLocked: originalImageLocked
+        originalImageLocked: originalImageLocked,
+        shouldAutoCompare: shouldAutoCompare
     });
     
-    // 如果没有原图，先尝试检测原图
+    // 如果没有原图，先尝试快速检测一次
     if (!originalImage) {
-        debugLog('对比时未找到原图，尝试重新检测');
-        showNotification('检测原图中，请稍候...', 1000);
-        
-        // 先尝试检测原图
+        debugLog('对比时未找到原图，尝试快速重新检测');
         recordOriginalImages();
         
-        // 如果立即检测失败，延迟重试
-        setTimeout(() => {
-            if (!originalImage) {
-                debugLog('延迟重试检测原图用于对比');
-                recordOriginalImages();
-                
-                // 再次延迟重试
-                setTimeout(() => {
-                    if (originalImage && uploadedImage) {
-                        debugLog('延迟检测成功，执行对比');
-                        performImageComparison(newImage);
-                    } else {
-                        debugLog('多次尝试后仍无法找到原图');
-                        showNotification('未找到原图，请按B键重新检测后再试', 3000);
-                    }
-                }, 1000);
-            } else if (uploadedImage) {
-                debugLog('重新检测到原图，继续对比');
-                performImageComparison(newImage);
-            }
-        }, 500);
-        return;
+        // 如果快速检测失败，提示用户按B键
+        if (!originalImage) {
+            debugLog('快速检测失败');
+            showNotification('未找到原图，请按B键重新检测后再试', 3000);
+            return;
+        }
     }
     
     // 检查上传图片
@@ -2254,12 +2305,20 @@ function initializeDOMContentObserver() {
             });
             
             // 延迟一点时间再检测，确保DOM完全更新
-            setTimeout(() => {
+            const domChangeTimeoutId = setTimeout(() => {
                 if (!originalImageLocked) {
                     debugLog('延迟后执行原图检测');
                     recordOriginalImages();
                 }
+                
+                // 从待执行列表中移除
+                const index = pendingComparisonTimeouts.indexOf(domChangeTimeoutId);
+                if (index > -1) {
+                    pendingComparisonTimeouts.splice(index, 1);
+                }
             }, 1000);
+            
+            pendingComparisonTimeouts.push(domChangeTimeoutId);
         }
     });
     
