@@ -24,7 +24,7 @@ if (document.readyState === 'loading') {
 function initializeScript() {
     console.log('=== AnnotateFlow Assistant v2.0 已加载 ===');
     console.log('专为腾讯QLabel标注平台设计');
-    console.log('支持功能: D键下载图片, 空格键跳过, S键提交标注, A键上传图片, F键查看历史');
+    console.log('支持功能: D键下载图片, 空格键跳过, S键提交标注, A键上传图片, F键查看历史, X键标记无效');
     console.log('Chrome对象:', typeof chrome);
     console.log('Chrome.runtime:', typeof chrome?.runtime);
     console.log('扩展ID:', chrome?.runtime?.id);
@@ -126,6 +126,16 @@ function handleKeydown(event) {
             clickLink(historyLink, '查看历史');
         } else {
             showNotification('未找到查看历史链接');
+        }
+    }
+    // 处理X键 - 点击"标记无效"按钮
+    else if (key === 'x') {
+        const invalidButton = findButtonByText(['标记无效', '无效', 'Invalid', '标记为无效', 'Mark Invalid', '标记不合格']);
+        if (invalidButton) {
+            event.preventDefault();
+            clickButton(invalidButton, '标记无效');
+        } else {
+            showNotification('未找到标记无效按钮');
         }
     }
 }
