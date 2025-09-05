@@ -10,10 +10,12 @@
     "storage",
     "notifications",
     "tabs",
-    "nativeMessaging"
+    "nativeMessaging",
+    "webRequest"
   ],
   "host_permissions": [
-    "<all_urls>"
+    "<all_urls>",
+    "*://aidata-1258344706.cos.ap-guangzhou.myqcloud.com/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -24,14 +26,14 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://qlabel.tencent.com/*"],
-      "js": ["content.js"]
+      "matches": ["https://qlabel.tencent.com/*", "http://localhost:*/*", "file://*/*"],
+      "js": ["resource-extractor.js", "content.js"]
     }
   ],
   "web_accessible_resources": [
     {
       "resources": ["notification.mp3"],
-      "matches": ["https://qlabel.tencent.com/*"]
+      "matches": ["https://qlabel.tencent.com/*", "http://localhost:*/*", "file://*/*"]
     }
   ]
 }

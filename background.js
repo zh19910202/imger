@@ -8,6 +8,217 @@ let nativePort = null;
 let isConnecting = false;
 let connectionPromise = null;
 let isInitialized = false;
+let webRequestListenerAdded = false;
+
+// 网络请求拦截功能
+function initializeNetworkInterception() {
+  if (webRequestListenerAdded) {
+    console.log('网络请求拦截器已初始化，跳过重复初始化');
+    return;
+  }
+
+  console.log('初始化网络请求拦截功能');
+  console.log('🚀 [网络拦截] 开始注册拦截器...');
+  
+  // 拦截所有图片类型的请求
+  chrome.webRequest.onBeforeRequest.addListener(
+    (details) => {
+      // 只拦截指定腾讯云COS域名的JPEG图片
+      const isTargetDomain = details.url.includes('aidata-1258344706.cos.ap-guangzhou.myqcloud.com');
+      const isJpeg = details.url.toLowerCase().match(/\.(jpe?g)(\?|$)/) || 
+                    details.url.toLowerCase().includes('jpeg') ||
+                    details.url.toLowerCase().includes('jpg');
+      
+      if (isTargetDomain && isJpeg) {
+        console.log('🎯 [COS拦截] JPEG图片请求:', details.url);
+        
+        // 区分原图和修改图
+        const isOriginalImage = details.url.includes('/target/');
+        const isModifiedImage = details.url.includes('/attachment/');
+        
+        const imageType = isOriginalImage ? '原图' : 
+                         isModifiedImage ? '修改图' : '其他图片';
+        
+        console.log(`📸 [图片类型] ${imageType}: ${details.url}`);
+        
+        const logData = {
+          url: details.url,
+          method: details.method,
+          type: details.type,
+          tabId: details.tabId,
+          timeStamp: new Date(details.timeStamp).toLocaleString(),
+          initiator: details.initiator,
+          isJpeg: true,
+          imageCategory: {
+            isOriginal: isOriginalImage,
+            isModified: isModifiedImage,
+            type: imageType
+          }
+        };
+        
+        console.log('🔍 [COS拦截] 详细信息:', logData);
+        
+        // 发送网络请求数据到content script
+        chrome.tabs.sendMessage(details.tabId, {
+          type: 'COS_IMAGE_DETECTED',
+          data: {
+            url: details.url,
+            method: details.method,
+            type: details.type,
+            timeStamp: details.timeStamp,
+            initiator: details.initiator,
+            isJpeg: true,
+            isOriginal: isOriginalImage,
+            isModified: isModifiedImage,
+            imageType: imageType,
+            stage: 'request'
+          }
+        }).catch(() => {
+          // 忽略发送失败（可能content script还未加载）
+        });
+      }
+      
+      // 不阻止请求，只记录日志
+      return {};
+    },
+    {
+      urls: ["*://aidata-1258344706.cos.ap-guangzhou.myqcloud.com/*"],
+      types: ["image"]
+    },
+    []
+  );
+
+  // 拦截响应头，获取更多图片信息
+  chrome.webRequest.onHeadersReceived.addListener(
+    (details) => {
+      // 只拦截指定腾讯云COS域名的JPEG图片
+      const isTargetDomain = details.url.includes('aidata-1258344706.cos.ap-guangzhou.myqcloud.com');
+      const isJpegByUrl = details.url.toLowerCase().match(/\.(jpe?g)(\?|$)/) || 
+                         details.url.toLowerCase().includes('jpeg') ||
+                         details.url.toLowerCase().includes('jpg');
+      
+      if (isTargetDomain && isJpegByUrl) {
+        const contentType = details.responseHeaders?.find(h => 
+          h.name.toLowerCase() === 'content-type'
+        )?.value;
+        
+        const contentLength = details.responseHeaders?.find(h => 
+          h.name.toLowerCase() === 'content-length'
+        )?.value;
+        
+        // 检测是否为JPEG类型（通过Content-Type或URL）
+        const isJpegByContentType = contentType && contentType.toLowerCase().includes('jpeg');
+        const isJpeg = isJpegByContentType || isJpegByUrl;
+        
+        // 区分原图和修改图
+        const isOriginalImage = details.url.includes('/target/');
+        const isModifiedImage = details.url.includes('/attachment/');
+        const imageType = isOriginalImage ? '原图' : 
+                         isModifiedImage ? '修改图' : '其他图片';
+        
+        const logData = {
+          url: details.url,
+          statusCode: details.statusCode,
+          contentType: contentType,
+          contentLength: contentLength ? `${contentLength} bytes` : 'unknown',
+          tabId: details.tabId,
+          timeStamp: new Date(details.timeStamp).toLocaleString(),
+          isJpeg: isJpeg,
+          imageType: imageType,
+          jpegDetection: {
+            byContentType: isJpegByContentType,
+            byUrl: isJpegByUrl
+          }
+        };
+        
+        console.log(`📥 [COS拦截] ${imageType}响应头:`, logData);
+        
+        // 发送响应数据到content script
+        chrome.tabs.sendMessage(details.tabId, {
+          type: 'COS_IMAGE_DETECTED',
+          data: {
+            url: details.url,
+            statusCode: details.statusCode,
+            contentType: contentType,
+            contentLength: contentLength,
+            isJpeg: isJpeg,
+            isOriginal: isOriginalImage,
+            isModified: isModifiedImage,
+            imageType: imageType,
+            jpegDetection: {
+              byContentType: isJpegByContentType,
+              byUrl: isJpegByUrl
+            },
+            stage: 'response'
+          }
+        }).catch(() => {
+          // 忽略发送失败
+        });
+      }
+      
+      return {};
+    },
+    {
+      urls: ["*://aidata-1258344706.cos.ap-guangzhou.myqcloud.com/*"],
+      types: ["image"]
+    },
+    ["responseHeaders"]
+  );
+
+  // 拦截请求完成事件
+  chrome.webRequest.onCompleted.addListener(
+    (details) => {
+      // 只拦截指定腾讯云COS域名的JPEG图片
+      const isTargetDomain = details.url.includes('aidata-1258344706.cos.ap-guangzhou.myqcloud.com');
+      const isJpegByUrl = details.url.toLowerCase().match(/\.(jpe?g)(\?|$)/) || 
+                         details.url.toLowerCase().includes('jpeg') ||
+                         details.url.toLowerCase().includes('jpg');
+      
+      if (isTargetDomain && isJpegByUrl) {
+        // 区分原图和修改图
+        const isOriginalImage = details.url.includes('/target/');
+        const isModifiedImage = details.url.includes('/attachment/');
+        const imageType = isOriginalImage ? '原图' : 
+                         isModifiedImage ? '修改图' : '其他图片';
+        
+        const logData = {
+          url: details.url,
+          statusCode: details.statusCode,
+          tabId: details.tabId,
+          timeStamp: new Date(details.timeStamp).toLocaleString(),
+          imageType: imageType,
+          isJpeg: isJpegByUrl
+        };
+        
+        console.log(`✅ [COS拦截] ${imageType}请求完成:`, logData);
+        
+        // 发送完成状态到content script
+        chrome.tabs.sendMessage(details.tabId, {
+          type: 'COS_IMAGE_DETECTED',
+          data: {
+            url: details.url,
+            statusCode: details.statusCode,
+            isJpeg: isJpegByUrl,
+            isOriginal: isOriginalImage,
+            isModified: isModifiedImage,
+            imageType: imageType,
+            stage: 'completed'
+          }
+        }).catch(() => {
+          // 忽略发送失败
+        });
+      }
+    },
+    {
+      urls: ["*://aidata-1258344706.cos.ap-guangzhou.myqcloud.com/*"],
+      types: ["image"]
+    }
+  );
+
+  webRequestListenerAdded = true;
+  console.log('✅ 网络请求拦截器初始化完成');
+  console.log('🔍 [网络拦截] 拦截器已激活，等待图片请求...');
+}
 
 // 统一初始化函数
 function initializeExtension() {
@@ -35,6 +246,9 @@ function initializeExtension() {
     // 初始化下载监听器
     initializeDownloadListener();
     console.log('下载监听器已初始化');
+    
+    // 初始化网络请求拦截
+    initializeNetworkInterception();
     
     // 初始化Native Messaging
     initializeNativeMessaging()
@@ -459,5 +673,68 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       }, 1000);
     }
     return true; // 保持消息通道开放
+  } else if (request.action === "fetchCOSImage") {
+    // 代理获取COS图片，解决跨域问题
+    fetchCOSImageProxy(request.url)
+      .then((result) => {
+        sendResponse({
+          success: true,
+          data: result
+        });
+      })
+      .catch((error) => {
+        console.error('代理获取COS图片失败:', error);
+        sendResponse({
+          success: false,
+          error: error.message
+        });
+      });
+    return true; // 保持消息通道开放
   }
 });
+
+// COS图片代理获取函数
+async function fetchCOSImageProxy(imageUrl) {
+  try {
+    console.log('🌐 代理获取COS图片:', imageUrl);
+    
+    // 使用background script获取图片（无跨域限制）
+    const response = await fetch(imageUrl, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    // 获取blob数据
+    const blob = await response.blob();
+    
+    // 转换为base64以便传递给content script
+    const arrayBuffer = await blob.arrayBuffer();
+    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+    
+    const result = {
+      url: imageUrl,
+      size: blob.size,
+      type: blob.type,
+      base64: base64,
+      dataUrl: `data:${blob.type};base64,${base64}`
+    };
+    
+    console.log('✅ COS图片代理获取成功:', {
+      url: imageUrl,
+      size: blob.size,
+      type: blob.type
+    });
+    
+    return result;
+    
+  } catch (error) {
+    console.error('❌ COS图片代理获取失败:', error);
+    throw error;
+  }
+}
