@@ -30,50 +30,13 @@ let originalImageFromNetwork = null; // 从网络请求中获取的原图
 // 兼容性变量（逐步清理中）
 let serverReturnedModifiedImage = null;
 let userUploadedImage = null; 
-let isRevisionMode = false;
-// 模式指示器相关变量
-let modeStatusIndicator = null;
-let isDragging = false;
-let dragOffset = { x: 0, y: 0 };
+let isRevisionMode = false; // 模式相关已废弃，固定为普通模式
 
 // 从存储中加载模式状态
-function loadModeState() {
-    if (typeof chrome !== 'undefined' && chrome.storage) {
-        chrome.storage.sync.get(['isRevisionMode'], (result) => {
-            if (result.isRevisionMode !== undefined) {
-                isRevisionMode = result.isRevisionMode;
-                console.log('🔥 从存储中加载模式状态:', isRevisionMode ? '返修模式' : '普通标注模式');
-                
-                // 显示模式状态通知
-                const modeText = isRevisionMode ? '返修模式' : '普通标注模式';
-                const modeIcon = isRevisionMode ? '🔄' : '📝';
-                showNotification(`${modeIcon} 已恢复到${modeText}`, 2000);
-                
-                // 延迟更新显示，确保显示器已创建
-                setTimeout(() => {
-                    if (modeStatusIndicator) {
-                        displayCurrentMode();
-                    }
-                }, 100);
-            } else {
-                console.log('🔥 首次使用，使用默认模式: 普通标注模式');
-            }
-        });
-    } else {
-        console.warn('Chrome存储API不可用，使用默认模式状态');
-    }
-}
+function loadModeState() { /* 模式功能已废弃，保留空实现以兼容旧逻辑 */ }
 
 // 保存模式状态到存储
-function saveModeState() {
-    if (typeof chrome !== 'undefined' && chrome.storage) {
-        chrome.storage.sync.set({ isRevisionMode: isRevisionMode }, () => {
-            console.log('🔥 模式状态已保存到存储:', isRevisionMode ? '返修模式' : '普通标注模式');
-        });
-    } else {
-        console.warn('Chrome存储API不可用，无法保存模式状态');
-    }
-}
+function saveModeState() { /* 模式功能已废弃 */ }
 
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', initializeScript);
@@ -88,7 +51,7 @@ if (document.readyState === 'loading') {
 function initializeScript() {
     console.log('=== AnnotateFlow Assistant v2.0 已加载 ===');
     console.log('专为腾讯QLabel标注平台设计');
-    console.log('支持功能: D键下载图片, 空格键跳过, S键提交标注, A键上传图片, F键查看历史, C键智能图片对比, Z键调试模式, V键检查文件输入, B键重新检测原图, N键从缓存获取图片, P键竞速获取原图, R键资源提取测试');
+    console.log('支持功能: D键下载图片, 空格键跳过, S键提交标注, A键上传图片, F键查看历史, C键智能图片对比, Z键调试模式, V键检查文件输入, B键重新检测原图, N键从缓存获取图片, P键竞速获取原图');
     console.log('Chrome对象:', typeof chrome);
     console.log('Chrome.runtime:', typeof chrome?.runtime);
     console.log('扩展ID:', chrome?.runtime?.id);
@@ -148,18 +111,13 @@ function initializeScript() {
         initializeDebugPanel();
     }
     
-    // 加载保存的模式状态
+    // 加载保存的模式状态（保留数据，同步状态，但不再创建前端模式显示器）
     loadModeState();
-    
-    // 创建并显示模式状态指示器
-    createModeStatusIndicator();
-    displayCurrentMode();
     
     // 初始化COS图片拦截监听
     initializeCOSImageListener();
     
     console.log('AnnotateFlow Assistant 初始化完成，调试模式:', debugMode ? '已启用' : '已禁用');
-    console.log('当前标注模式:', isRevisionMode ? '返修模式' : '普通标注模式');
 }
 
 // 检查页面是否发生变化，如果是新页面则重置原图锁定
@@ -436,23 +394,7 @@ function handleKeydown(event) {
         recordOriginalImages();
         showNotification('已重新检测原图，查看调试面板', 2000);
     }
-    // 处理R键 - 切换标注模式（普通模式/返修模式）
-    else if (key === 'r') {
-        event.preventDefault();
-        console.log('🔥 R键被按下，准备切换模式');
-        debugLog('R键事件触发', { currentMode: isRevisionMode ? '返修模式' : '普通标注模式' });
-        toggleAnnotationMode();
-    }
-    // 处理M键 - 手动打印当前返修模式的图片状态
-    else if (key === 'm') {
-        event.preventDefault();
-        revisionLog('手动状态检查', '用户按下M键，开始打印返修模式图片状态', {
-            currentMode: isRevisionMode ? '返修模式' : '普通标注模式',
-            timestamp: new Date().toLocaleString()
-        }, 'info');
-        printRevisionModeStatus();
-        showNotification('已打印返修模式图片状态，请查看调试面板', 2000);
-    }
+    // 移除：R键模式切换逻辑
 }
 
 // 检查目标元素是否是输入框
@@ -2550,100 +2492,10 @@ function debugLog(message, data = null) {
 }
 
 // 返修模式专用日志函数
-function revisionLog(message, data = null) {
-    const timestamp = new Date().toLocaleTimeString();
-    const fullMessage = `[返修模式] ${message}`;
-    
-    // 添加到调试日志
-    const logEntry = {
-        time: timestamp,
-        message: fullMessage,
-        data: data,
-        type: 'revision'
-    };
-    
-    debugLogs.push(logEntry);
-    
-    // 限制日志数量
-    if (debugLogs.length > 100) {
-        debugLogs.shift();
-    }
-    
-    // 返修模式日志使用特殊颜色输出到控制台
-    if (data) {
-        console.log(`%c[返修模式 ${timestamp}] ${message}`, 'color: #ff6b35; font-weight: bold; background: rgba(255, 107, 53, 0.1); padding: 2px 4px; border-radius: 3px;', data);
-    } else {
-        console.log(`%c[返修模式 ${timestamp}] ${message}`, 'color: #ff6b35; font-weight: bold; background: rgba(255, 107, 53, 0.1); padding: 2px 4px; border-radius: 3px;');
-    }
-    
-    // 更新调试面板
-    if (debugPanel && debugMode) {
-        updateDebugPanel();
-    }
-}
+function revisionLog(message, data = null) { /* 已废弃 */ }
 
 // 打印返修模式图片状态的专用函数
-function printRevisionModeStatus() {
-    if (!isRevisionMode) {
-        console.log('%c[返修模式] 当前不在返修模式', 'color: #888; font-style: italic;');
-        return;
-    }
-    
-    console.log('%c=== 返修模式图片状态报告 ===', 'color: #ff6b35; font-weight: bold; font-size: 14px;');
-    
-    // 原图状态
-    if (originalImage) {
-        const imgInfo = {
-            URL: originalImage.src || '未知',
-            尺寸: `${originalImage.width || originalImage.naturalWidth || '?'} x ${originalImage.height || originalImage.naturalHeight || '?'}`,
-            获取时间: originalImage.timestamp || '未记录',
-            来源: originalImage.source || '未知',
-            锁定状态: originalImageLocked ? '已锁定' : '未锁定'
-        };
-        console.log('%c✓ 原图状态:', 'color: #4ade80; font-weight: bold;', imgInfo);
-    } else {
-        console.log('%c✗ 原图状态: 未检测到原图', 'color: #f87171; font-weight: bold;');
-    }
-    
-    // 用户上传图片状态
-    if (uploadedImage) {
-        const uploadInfo = {
-            文件名: uploadedImage.name || '未知',
-            尺寸: `${uploadedImage.width || '?'} x ${uploadedImage.height || '?'}`,
-            大小: uploadedImage.size ? `${(uploadedImage.size / 1024).toFixed(2)} KB` : '未知',
-            类型: uploadedImage.type || '未知',
-            上传时间: uploadedImage.timestamp || '未记录'
-        };
-        console.log('%c✓ 用户上传图片:', 'color: #4ade80; font-weight: bold;', uploadInfo);
-    } else {
-        console.log('%c✗ 用户上传图片: 无', 'color: #f87171; font-weight: bold;');
-    }
-    
-    // 服务器返修图状态
-    if (serverReturnedModifiedImage) {
-        const serverInfo = {
-            URL: serverReturnedModifiedImage.src || serverReturnedModifiedImage.url || '未知',
-            尺寸: `${serverReturnedModifiedImage.width || '?'} x ${serverReturnedModifiedImage.height || '?'}`,
-            检测时间: serverReturnedModifiedImage.timestamp || '未记录',
-            来源: '服务器返回',
-            特征: serverReturnedModifiedImage.isServerModified ? '已确认为服务器修改图' : '待确认'
-        };
-        console.log('%c✓ 服务器返修图:', 'color: #4ade80; font-weight: bold;', serverInfo);
-    } else {
-        console.log('%c✗ 服务器返修图: 未检测到', 'color: #f87171; font-weight: bold;');
-    }
-    
-    // 对比可用性状态
-    const canCompare = originalImage && (uploadedImage || serverReturnedModifiedImage);
-    if (canCompare) {
-        const compareSource = uploadedImage ? '用户上传图片' : '服务器返修图';
-        console.log('%c✓ 对比状态: 可进行对比', 'color: #4ade80; font-weight: bold;', { 对比源: compareSource });
-    } else {
-        console.log('%c✗ 对比状态: 条件不满足 - 需要原图和修改图', 'color: #f87171; font-weight: bold;');
-    }
-    
-    console.log('%c=== 返修模式状态报告结束 ===', 'color: #ff6b35; font-weight: bold;');
-}
+function printRevisionModeStatus() { /* 已废弃 */ }
 
 // 初始化调试面板
 function initializeDebugPanel() {
@@ -2888,7 +2740,7 @@ function toggleAnnotationMode() {
             }
         }, 'mode_switch');
         
-        showNotification('📝 普通标注模式已开启 - 服务器仅返回原图 (R键切换)', 3000);
+        // showNotification('📝 普通标注模式已开启 - 服务器仅返回原图 (R键切换)', 3000);
         console.log('=== 普通标注模式已开启 ===');
         console.log('- 服务器仅返回原图');
         console.log('- 用户需要上传修改图进行对比');
@@ -4487,15 +4339,7 @@ document.addEventListener('keydown', function(event) {
     }
 });
 
-// R键: 测试资源提取器
-document.addEventListener('keydown', function(event) {
-    if (!isInInputField(event.target) && event.key.toLowerCase() === 'r') {
-        event.preventDefault();
-        debugLog('手动触发资源提取测试 (R键)');
-        showNotification('正在提取页面资源...', 1000);
-        testResourceExtraction();
-    }
-});
+// 移除：R键相关逻辑（模式切换、资源提取测试）
 
 // 删除T键测试功能，合并到C键
 // T键: 手动测试智能对比 - 已删除，请使用C键
