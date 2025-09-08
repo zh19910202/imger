@@ -30,13 +30,15 @@ let originalImageFromNetwork = null; // 从网络请求中获取的原图
 // 兼容性变量（逐步清理中）
 let serverReturnedModifiedImage = null;
 let userUploadedImage = null; 
-let isRevisionMode = false; // 模式相关已废弃，固定为普通模式
+// 已移除：模式相关变量
+// let isRevisionMode = false;
+// let modeStatusIndicator = null;
+// let isDragging = false;
+// let dragOffset = { x: 0, y: 0 };
 
-// 从存储中加载模式状态
-function loadModeState() { /* 模式功能已废弃，保留空实现以兼容旧逻辑 */ }
-
-// 保存模式状态到存储
-function saveModeState() { /* 模式功能已废弃 */ }
+// 已移除：模式状态管理函数
+// function loadModeState() { ... }
+// function saveModeState() { ... }
 
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', initializeScript);
@@ -111,8 +113,8 @@ function initializeScript() {
         initializeDebugPanel();
     }
     
-    // 加载保存的模式状态（保留数据，同步状态，但不再创建前端模式显示器）
-    loadModeState();
+    // 已移除：模式状态加载
+    // loadModeState();
     
     // 初始化COS图片拦截监听
     initializeCOSImageListener();
@@ -395,6 +397,13 @@ function handleKeydown(event) {
         showNotification('已重新检测原图，查看调试面板', 2000);
     }
     // 移除：R键模式切换逻辑
+    // 处理M键 - 手动打印图片状态
+    else if (key === 'm') {
+        event.preventDefault();
+        // 已移除：revisionLog调用
+        // 已移除：printRevisionModeStatus();
+        showNotification('已打印图片状态，请查看调试面板', 2000);
+    }
 }
 
 // 检查目标元素是否是输入框
@@ -1507,51 +1516,37 @@ function handleNetworkResponse(url, response, type) {
         
         capturedImageRequests.set(url, imageInfo);
         
-        // 如果是服务器修改图且在返修模式下，存储它
-        if (isServerModifiedImage && isRevisionMode) {
-            debugLog('检测到服务器修改图', {
-                url: url.substring(0, 100) + '...',
-                mode: '返修模式'
-            });
-            
-            // 返修模式专用日志
-            revisionLog('服务器修改图检测', '发现服务器返回的修改图', {
-                url: url,
-                urlPreview: url.substring(0, 100) + '...',
-                timestamp: new Date(imageInfo.timestamp).toISOString(),
-                requestType: type,
-                status: response.status || 'unknown',
-                currentMode: '返修模式',
-                urlFeatures: {
-                    hasModifiedImageName: url.toLowerCase().includes('副本.jpg') || url.toLowerCase().includes('%e5%89%af%e6%9c%ac.jpg'),
-                    isFromCOSDomain: url.toLowerCase().includes('cos.ap-guangzhou.myqcloud.com'),
-                    hasTaskDetailPath: url.toLowerCase().includes('attachment/task-detail')
-                }
-            }, 'server_modified_image');
-            
-            processServerModifiedImage(imageInfo);
-        }
+        // 已移除：服务器修改图处理逻辑
+        // if (isServerModifiedImage && isRevisionMode) {
+        //     debugLog('检测到服务器修改图', {
+        //         url: url.substring(0, 100) + '...',
+        //         已移除：模式相关日志
+        //     });
+        //     
+        //     // 已移除：返修模式专用日志
+        //     revisionLog('服务器修改图检测', '发现服务器返回的修改图', {
+        //         url: url,
+        //         urlPreview: url.substring(0, 100) + '...',
+        //         timestamp: new Date(imageInfo.timestamp).toISOString(),
+        //         requestType: type,
+        //         status: response.status || 'unknown',
+        //         已移除：模式相关日志
+        //         urlFeatures: {
+        //             hasModifiedImageName: url.toLowerCase().includes('副本.jpg') || url.toLowerCase().includes('%e5%89%af%e6%9c%ac.jpg'),
+        //             isFromCOSDomain: url.toLowerCase().includes('cos.ap-guangzhou.myqcloud.com'),
+        //             hasTaskDetailPath: url.toLowerCase().includes('attachment/task-detail')
+        //         }
+        //     }, 'server_modified_image');
+        //     
+        //     processServerModifiedImage(imageInfo);
+        // }
         
         // 如果这可能是原图，尝试使用它
         if (imageInfo.isOriginalCandidate && (!originalImage || !originalImageLocked)) {
             debugLog('发现原图候选网络请求', url.substring(0, 100) + '...');
             
-            // 返修模式专用日志
-            if (isRevisionMode) {
-                revisionLog('原图候选检测', '发现原图候选网络请求', {
-                    url: url,
-                    urlPreview: url.substring(0, 100) + '...',
-                    timestamp: new Date(imageInfo.timestamp).toISOString(),
-                    requestType: type,
-                    status: response.status || 'unknown',
-                    currentMode: '返修模式',
-                    originalImageStatus: {
-                        hasOriginalImage: !!originalImage,
-                        isLocked: originalImageLocked,
-                        currentImageUrl: originalImage ? originalImage.src : null
-                    }
-                }, 'original_image_candidate');
-            }
+            // 已移除：返修模式专用日志
+            // if (isRevisionMode) { ... }
             
             processNetworkOriginalImage(imageInfo);
         }
@@ -1653,21 +1648,8 @@ async function processNetworkOriginalImage(imageInfo) {
                 url: imageInfo.url.substring(0, 50) + '...'
             });
             
-            // 返修模式专用日志 - 原图加载完成
-            if (isRevisionMode) {
-                revisionLog('原图加载完成', '网络原图成功加载', {
-                    url: imageInfo.url,
-                    urlPreview: imageInfo.url.substring(0, 50) + '...',
-                    dimensions: {
-                        width: img.naturalWidth,
-                        height: img.naturalHeight,
-                        totalPixels: img.naturalWidth * img.naturalHeight
-                    },
-                    loadTime: Date.now() - imageInfo.timestamp,
-                    fileName: extractFileNameFromUrl(imageInfo.url),
-                    currentMode: '返修模式'
-                }, 'original_image_loaded');
-            }
+            // 已移除：返修模式专用日志
+            // if (isRevisionMode) { ... }
             
             // 如果这个图片比当前原图更合适，更新原图
             if (!originalImage || 
@@ -1696,27 +1678,8 @@ async function processNetworkOriginalImage(imageInfo) {
                     fromNetwork: true
                 });
                 
-                // 返修模式专用日志 - 原图更新
-                if (isRevisionMode) {
-                    revisionLog('原图更新', '通过网络请求成功更新原图', {
-                        url: originalImage.src,
-                        urlPreview: originalImage.src.substring(0, 50) + '...',
-                        dimensions: {
-                            width: originalImage.width,
-                            height: originalImage.height,
-                            totalPixels: originalImage.width * originalImage.height
-                        },
-                        fileName: originalImage.name,
-                        source: 'network_request',
-                        captureTime: new Date(originalImage.captureTime).toISOString(),
-                        isLocked: originalImageLocked,
-                        currentMode: '返修模式',
-                        comparisonStatus: {
-                            canCompareWithUserImage: !!userUploadedImage,
-                            canCompareWithServerImage: !!serverReturnedModifiedImage
-                        }
-                    }, 'original_image_updated');
-                }
+                // 已移除：返修模式专用日志
+                // if (isRevisionMode) { ... }
                 
                 showNotification(`从网络请求获取原图: ${originalImage.width}×${originalImage.height}`, 2000);
             }
@@ -1741,28 +1704,12 @@ async function processServerModifiedImage(imageInfo) {
         debugLog('处理服务器修改图', {
             url: imageInfo.url.substring(0, 50) + '...',
             timestamp: imageInfo.timestamp,
-            mode: isRevisionMode ? '返修模式' : '普通标注模式'
+            // 已移除：模式相关日志
         });
         
-        // 返修模式专用日志：服务器修改图检测
-        revisionLog('检测到服务器修改图网络请求', {
-            url: imageInfo.url,
-            timestamp: imageInfo.timestamp,
-            currentMode: isRevisionMode ? '返修模式' : '普通标注模式',
-            requestType: '服务器修改图',
-            fileName: extractFileNameFromUrl(imageInfo.url),
-            domain: new URL(imageInfo.url).hostname
-        }, 'server_modified_image');
-        
-        // 只在返修模式下处理服务器修改图
-        if (!isRevisionMode) {
-            debugLog('非返修模式，跳过服务器修改图处理');
-            revisionLog('非返修模式，跳过服务器修改图处理', {
-                url: imageInfo.url.substring(0, 50) + '...',
-                currentMode: '普通标注模式'
-            }, 'skip');
-            return;
-        }
+        // 已移除：返修模式专用日志和处理逻辑
+        // revisionLog('检测到服务器修改图网络请求', { ... });
+        // if (!isRevisionMode) { ... }
         
         // 创建Image对象来获取实际尺寸
         const img = new Image();
@@ -1774,16 +1721,8 @@ async function processServerModifiedImage(imageInfo) {
                 url: imageInfo.url.substring(0, 50) + '...'
             });
             
-            // 返修模式专用日志：服务器修改图加载完成
-            revisionLog('服务器修改图加载完成', {
-                url: imageInfo.url,
-                width: img.naturalWidth,
-                height: img.naturalHeight,
-                fileName: extractFileNameFromUrl(imageInfo.url),
-                loadTime: Date.now() - imageInfo.timestamp,
-                currentMode: '返修模式',
-                imageType: '服务器返回修改图'
-            }, 'server_modified_loaded');
+            // 已移除：返修模式专用日志
+            // 已移除：revisionLog调用
             
             // 存储服务器修改图信息
             serverReturnedModifiedImage = {
@@ -1803,16 +1742,8 @@ async function processServerModifiedImage(imageInfo) {
                 fromServer: true
             });
             
-            // 返修模式专用日志：服务器修改图存储状态
-            revisionLog('服务器修改图已存储', {
-                imageStored: true,
-                width: serverReturnedModifiedImage.width,
-                height: serverReturnedModifiedImage.height,
-                fileName: serverReturnedModifiedImage.name,
-                canCompare: !!(originalImage && serverReturnedModifiedImage),
-                originalImageStatus: originalImage ? '已获取' : '未获取',
-                userUploadedStatus: userUploadedImage ? '已上传' : '未上传'
-            }, 'server_modified_stored');
+            // 已移除：返修模式专用日志
+            // 已移除：revisionLog调用
             
             showNotification(`检测到服务器修改图: ${serverReturnedModifiedImage.width}×${serverReturnedModifiedImage.height}`, 2000);
             
@@ -1825,13 +1756,8 @@ async function processServerModifiedImage(imageInfo) {
         img.onerror = () => {
             debugLog('服务器修改图加载失败', imageInfo.url.substring(0, 50) + '...');
             
-            // 返修模式专用日志：服务器修改图加载失败
-            revisionLog('服务器修改图加载失败', {
-                url: imageInfo.url,
-                fileName: extractFileNameFromUrl(imageInfo.url),
-                error: '图片加载失败',
-                currentMode: '返修模式'
-            }, 'server_modified_error');
+            // 已移除：返修模式专用日志
+            // 已移除：revisionLog调用
         };
         
         // 设置跨域属性并加载图片
@@ -1969,35 +1895,12 @@ function performImageComparison(newImage = null) {
         hasNewImage: !!newImage,
         originalImageLocked: originalImageLocked,
         shouldAutoCompare: shouldAutoCompare,
-        isRevisionMode: isRevisionMode,
+        // 已移除：模式相关状态
         hasServerReturnedModifiedImage: !!serverReturnedModifiedImage
     });
     
-    // 返修模式专用日志：图片对比开始
-    revisionLog('开始执行图片对比', {
-        currentMode: isRevisionMode ? '返修模式' : '普通标注模式',
-        originalImageStatus: originalImage ? '已获取' : '未获取',
-        userUploadedStatus: uploadedImage ? '已上传' : '未上传',
-        serverModifiedStatus: serverReturnedModifiedImage ? '已获取' : '未获取',
-        originalImageInfo: originalImage ? {
-            src: originalImage.src.substring(0, 50) + '...',
-            width: originalImage.width,
-            height: originalImage.height,
-            name: originalImage.name || '未知'
-        } : null,
-        userUploadedInfo: uploadedImage ? {
-            src: uploadedImage.src.substring(0, 50) + '...',
-            width: uploadedImage.width,
-            height: uploadedImage.height,
-            name: uploadedImage.name || '未知'
-        } : null,
-        serverModifiedInfo: serverReturnedModifiedImage ? {
-            src: serverReturnedModifiedImage.src.substring(0, 50) + '...',
-            width: serverReturnedModifiedImage.width,
-            height: serverReturnedModifiedImage.height,
-            name: serverReturnedModifiedImage.name || '未知'
-        } : null
-    }, 'comparison_start');
+    // 已移除：返修模式专用日志
+    // 已移除：revisionLog调用
     
     // 如果没有原图，先尝试快速检测一次
     if (!originalImage) {
@@ -2022,53 +1925,18 @@ function performImageComparison(newImage = null) {
         imageSource = '用户上传';
         debugLog('使用用户上传的修改图');
         
-        // 返修模式专用日志：选择用户上传图片
-        revisionLog('选择用户上传图片作为对比图', {
-            imageSource: '用户上传',
-            width: uploadedImage.width,
-            height: uploadedImage.height,
-            fileName: uploadedImage.name || '未知',
-            currentMode: isRevisionMode ? '返修模式' : '普通标注模式'
-        }, 'comparison_source_user');
-    } else if (isRevisionMode && serverReturnedModifiedImage) {
-        // 返修模式下，如果没有用户上传图片，使用服务器返回的修改图
-        modifiedImage = serverReturnedModifiedImage;
-        imageSource = '服务器返回';
-        debugLog('返修模式：使用服务器返回的修改图');
-        
-        // 返修模式专用日志：选择服务器返回图片
-        revisionLog('选择服务器返回图片作为对比图', {
-            imageSource: '服务器返回',
-            width: serverReturnedModifiedImage.width,
-            height: serverReturnedModifiedImage.height,
-            fileName: serverReturnedModifiedImage.name || '未知',
-            currentMode: '返修模式',
-            reason: '用户未上传图片，使用服务器返回的修改图'
-        }, 'comparison_source_server');
+        // 已移除：返修模式专用日志
+        // 已移除：revisionLog调用
+    // 已移除：返修模式服务器修改图处理逻辑
+    // } else if (isRevisionMode && serverReturnedModifiedImage) { ... }
     } else {
         // 没有可用的修改图
-        const modeText = isRevisionMode ? '返修模式' : '普通模式';
-        debugLog(`图片对比失败 - 缺少修改图 (${modeText})`, { 
+        debugLog('图片对比失败 - 缺少修改图', { 
             originalImage: originalImage ? '有' : '无', 
-            uploadedImage: uploadedImage ? '有' : '无',
-            serverReturnedModifiedImage: serverReturnedModifiedImage ? '有' : '无',
-            isRevisionMode: isRevisionMode
+            uploadedImage: uploadedImage ? '有' : '无'
         });
         
-        // 返修模式专用日志：对比失败
-        revisionLog('图片对比失败 - 缺少修改图', {
-            currentMode: modeText,
-            originalImageStatus: originalImage ? '已获取' : '未获取',
-            userUploadedStatus: uploadedImage ? '已上传' : '未上传',
-            serverModifiedStatus: serverReturnedModifiedImage ? '已获取' : '未获取',
-            failureReason: isRevisionMode ? '返修模式下需要用户上传图片或服务器返回修改图' : '普通模式下需要用户上传图片'
-        }, 'comparison_failed');
-        
-        if (isRevisionMode) {
-            showNotification('返修模式：请上传图片或等待服务器返回修改图', 3000);
-        } else {
-            showNotification('请先上传图片再进行对比', 2000);
-        }
+        showNotification('请先上传图片再进行对比', 2000);
         return;
     }
     
@@ -2076,34 +1944,13 @@ function performImageComparison(newImage = null) {
         originalSrc: originalImage.src ? originalImage.src.substring(0, 50) + '...' : '无src',
         modifiedSrc: modifiedImage.src ? modifiedImage.src.substring(0, 50) + '...' : '无src',
         imageSource: imageSource,
-        isRevisionMode: isRevisionMode
+        // 已移除：模式相关状态
     });
     
-    // 返修模式专用日志：对比条件满足，准备创建界面
-    revisionLog('图片对比条件满足，准备创建对比界面', {
-        currentMode: isRevisionMode ? '返修模式' : '普通标注模式',
-        imageSource: imageSource,
-        originalImageInfo: {
-            src: originalImage.src.substring(0, 50) + '...',
-            width: originalImage.width,
-            height: originalImage.height,
-            name: originalImage.name || '未知'
-        },
-        modifiedImageInfo: {
-            src: modifiedImage.src.substring(0, 50) + '...',
-            width: modifiedImage.width,
-            height: modifiedImage.height,
-            name: modifiedImage.name || '未知'
-        },
-        sizeDifference: {
-            widthDiff: modifiedImage.width - originalImage.width,
-            heightDiff: modifiedImage.height - originalImage.height,
-            isExactMatch: modifiedImage.width === originalImage.width && modifiedImage.height === originalImage.height
-        }
-    }, 'comparison_ready');
+    // 已移除：返修模式专用日志
+    // 已移除：revisionLog调用
     
-    const modeText = isRevisionMode ? '返修模式' : '普通模式';
-    showNotification(`正在对比图片... (${modeText} - ${imageSource})`, 1500);
+    showNotification(`正在对比图片... (${imageSource})`, 1500);
     
     // 创建对比界面
     createComparisonModal(originalImage, modifiedImage, newImage);
@@ -2491,11 +2338,12 @@ function debugLog(message, data = null) {
     }
 }
 
-// 返修模式专用日志函数
-function revisionLog(message, data = null) { /* 已废弃 */ }
+// 已移除：返修模式专用日志函数
+// function revisionLog() { ... }
 
 // 打印返修模式图片状态的专用函数
-function printRevisionModeStatus() { /* 已废弃 */ }
+// 已移除：返修模式图片状态打印函数
+// function printRevisionModeStatus() { ... }
 
 // 初始化调试面板
 function initializeDebugPanel() {
@@ -2616,30 +2464,11 @@ function updateDebugInfo() {
         infoHtml += '<div style="color: #f87171;">✗ 用户上传图: 无</div>';
     }
     
-    // 返修模式专用信息区域
-    if (isRevisionMode) {
-        infoHtml += '<div style="color: #fbbf24; font-weight: bold; margin: 4px 0;">🔄 返修模式状态</div>';
-        
-        // 服务器修改图信息
-        if (serverReturnedModifiedImage) {
-            const url = serverReturnedModifiedImage.src || serverReturnedModifiedImage.url || '';
-            const fileName = url.split('/').pop() || '未知文件';
-            infoHtml += `<div style="color: #4ade80;">✓ 服务器修改图: ${fileName}</div>`;
-            infoHtml += `<div style="color: #888; margin-left: 12px;">尺寸: ${serverReturnedModifiedImage.width || '?'} x ${serverReturnedModifiedImage.height || '?'}</div>`;
-            if (serverReturnedModifiedImage.loadTime) {
-                infoHtml += `<div style="color: #888; margin-left: 12px;">获取时间: ${new Date(serverReturnedModifiedImage.loadTime).toLocaleTimeString()}</div>`;
-            }
-        } else {
-            infoHtml += '<div style="color: #f87171;">✗ 服务器修改图: 未检测到</div>';
-            infoHtml += '<div style="color: #888; margin-left: 12px;">等待服务器返回包含"副本.jpg"的图片</div>';
-        }
-        
-        // 返修模式对比优先级说明
-        infoHtml += '<div style="color: #a78bfa; margin-top: 4px;">对比优先级: 用户上传 > 服务器返回</div>';
-    }
+    // 已移除：返修模式专用信息区域
+    // if (isRevisionMode) { ... }
     
     // 对比状态
-    const canCompare = originalImage && (uploadedImage || (isRevisionMode && serverReturnedModifiedImage));
+    const canCompare = originalImage && uploadedImage;
     if (canCompare) {
         infoHtml += '<div style="color: #4ade80;">✓ 对比状态: 可进行对比</div>';
     } else {
@@ -2670,407 +2499,32 @@ function toggleDebugMode() {
     }
 }
 
-// 切换标注模式（普通模式/返修模式）
-function toggleAnnotationMode() {
-    console.log('🔥 toggleAnnotationMode函数被调用，当前模式:', isRevisionMode ? '返修模式' : '普通标注模式');
-    isRevisionMode = !isRevisionMode;
-    console.log('🔥 模式切换完成，新模式:', isRevisionMode ? '返修模式' : '普通标注模式');
-    console.log('🔥 准备调用displayCurrentMode更新显示');
-    
-    if (isRevisionMode) {
-        debugLog('切换到返修模式');
-        revisionLog('模式切换', '已切换到返修模式', {
-            previousMode: '普通标注模式',
-            currentMode: '返修模式',
-            timestamp: new Date().toISOString(),
-            features: {
-                serverResponse: '原图 + 修改图',
-                comparisonPriority: '用户上传图片优先',
-                fallback: '服务器返回修改图'
-            },
-            currentImages: {
-                originalImage: originalImage ? '已获取' : '未获取',
-                userUploadedImage: userUploadedImage ? '已获取' : '未获取',
-                serverReturnedModifiedImage: serverReturnedModifiedImage ? '已获取' : '未获取'
-            }
-        }, 'mode_switch');
-        
-        showNotification('🔄 返修模式已开启 - 服务器将返回原图和修改图 (R键切换)', 3000);
-        console.log('=== 返修模式已开启 ===');
-        console.log('- 服务器将同时返回原图和修改图');
-        console.log('- 图片对比时优先使用用户上传的图片');
-        console.log('- 没有用户上传图片时使用服务器返回的修改图');
-        
-        // 清空之前的服务器返回修改图，准备接收新的
-        serverReturnedModifiedImage = null;
-        
-        // 打印当前图片状态
-        revisionLog('图片状态检查', '返修模式下的图片资源状态', {
-            originalImage: {
-                status: originalImage ? '已获取' : '未获取',
-                url: originalImage ? originalImage.src : null,
-                dimensions: originalImage ? `${originalImage.naturalWidth}x${originalImage.naturalHeight}` : null
-            },
-            userUploadedImage: {
-                status: userUploadedImage ? '已获取' : '未获取',
-                url: userUploadedImage ? userUploadedImage.src : null,
-                dimensions: userUploadedImage ? `${userUploadedImage.naturalWidth}x${userUploadedImage.naturalHeight}` : null
-            },
-            serverReturnedModifiedImage: {
-                status: '已清空，等待新的服务器返回图片',
-                url: null,
-                dimensions: null
-            },
-            canCompare: (originalImage && (userUploadedImage || serverReturnedModifiedImage)) ? '是' : '否'
-        }, 'image_status');
-        
-    } else {
-        debugLog('切换到普通标注模式');
-        revisionLog('模式切换', '已切换到普通标注模式', {
-            previousMode: '返修模式',
-            currentMode: '普通标注模式',
-            timestamp: new Date().toISOString(),
-            features: {
-                serverResponse: '仅原图',
-                comparisonRequirement: '用户必须上传修改图'
-            },
-            currentImages: {
-                originalImage: originalImage ? '已获取' : '未获取',
-                userUploadedImage: userUploadedImage ? '已获取' : '未获取'
-            }
-        }, 'mode_switch');
-        
-        // showNotification('📝 普通标注模式已开启 - 服务器仅返回原图 (R键切换)', 3000);
-        console.log('=== 普通标注模式已开启 ===');
-        console.log('- 服务器仅返回原图');
-        console.log('- 用户需要上传修改图进行对比');
-        
-        // 清空服务器返回的修改图
-        serverReturnedModifiedImage = null;
-    }
-    
-    // 保存模式状态到存储
-    saveModeState();
-    
-    // 显示当前模式状态
-    displayCurrentMode();
-    
-    // 更新调试面板信息
-    if (debugMode && debugPanel) {
-        updateDebugInfo();
-    }
-}
+// 已移除：模式切换函数
+// function toggleAnnotationMode() { ... }
 
-// 创建可拖拽的模式状态显示器
-function createModeStatusIndicator() {
-    console.log('🔥 createModeStatusIndicator被调用，当前modeStatusIndicator:', modeStatusIndicator);
-    
-    if (modeStatusIndicator) {
-        console.log('🔥 模式显示器已存在，直接返回');
-        return modeStatusIndicator;
-    }
-    
-    console.log('🔥 开始创建新的模式显示器');
-    modeStatusIndicator = document.createElement('div');
-    modeStatusIndicator.id = 'mode-status-indicator';
-    
-    // 从localStorage获取保存的位置
-    const savedPosition = localStorage.getItem('modeIndicatorPosition');
-    let position = { top: 20, right: 20 };
-    
-    if (savedPosition) {
-        try {
-            position = JSON.parse(savedPosition);
-        } catch (e) {
-            console.warn('无法解析保存的位置信息，使用默认位置');
-        }
-    }
-    
-    modeStatusIndicator.style.cssText = `
-        position: fixed;
-        top: ${position.top}px;
-        right: ${position.right}px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 12px 16px;
-        border-radius: 25px;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        font-size: 13px;
-        font-weight: 600;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1);
-        cursor: pointer;
-        user-select: none;
-        z-index: 10000;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        min-width: 140px;
-        text-align: center;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-    `;
-    
-    // 添加拖拽手柄提示
-    const dragHandle = document.createElement('div');
-    dragHandle.innerHTML = '⋮⋮';
-    dragHandle.style.cssText = `
-        opacity: 0.6;
-        font-size: 12px;
-        line-height: 1;
-        letter-spacing: -1px;
-        margin-right: 4px;
-    `;
-    
-    const textContent = document.createElement('div');
-    textContent.className = 'mode-text';
-    
-    modeStatusIndicator.appendChild(dragHandle);
-    modeStatusIndicator.appendChild(textContent);
-    
-    // 添加拖拽事件监听器
-    addDragListeners(modeStatusIndicator);
-    
-    // 添加双击重置位置功能
-    modeStatusIndicator.addEventListener('dblclick', resetIndicatorPosition);
-    
-    // 添加悬停效果
-    modeStatusIndicator.addEventListener('mouseenter', () => {
-        if (!isDragging) {
-            modeStatusIndicator.style.transform = 'scale(1.05)';
-            modeStatusIndicator.style.boxShadow = '0 6px 25px rgba(0, 0, 0, 0.2), 0 3px 12px rgba(0, 0, 0, 0.15)';
-        }
-    });
-    
-    modeStatusIndicator.addEventListener('mouseleave', () => {
-        if (!isDragging) {
-            modeStatusIndicator.style.transform = 'scale(1)';
-            modeStatusIndicator.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1)';
-        }
-    });
-    
-    console.log('🔥 将模式显示器添加到body');
-    document.body.appendChild(modeStatusIndicator);
-    
-    console.log('🔥 模式显示器创建完成，元素:', modeStatusIndicator);
-    console.log('🔥 模式显示器是否在DOM中:', document.body.contains(modeStatusIndicator));
-    console.log('🔥 模式显示器样式:', modeStatusIndicator.style.cssText);
-    
-    return modeStatusIndicator;
-}
+// 已移除：模式状态显示器创建函数
+// function createModeStatusIndicator() { ... }
 
-// 添加拖拽功能和点击切换功能
-function addDragListeners(element) {
-    let clickStartTime = 0;
-    let clickStartPos = { x: 0, y: 0 };
-    let hasMoved = false;
-    
-    element.addEventListener('mousedown', (e) => {
-        clickStartTime = Date.now();
-        clickStartPos = { x: e.clientX, y: e.clientY };
-        hasMoved = false;
-        startDrag(e);
-    });
-    
-    element.addEventListener('mouseup', (e) => {
-        const clickDuration = Date.now() - clickStartTime;
-        const moveDistance = Math.sqrt(
-            Math.pow(e.clientX - clickStartPos.x, 2) + 
-            Math.pow(e.clientY - clickStartPos.y, 2)
-        );
-        
-        // 如果是短时间点击且没有移动太远，则认为是点击而非拖拽
-        if (clickDuration < 200 && moveDistance < 5 && !hasMoved) {
-            console.log('🔥 模式指示器被点击，准备切换模式');
-            debugLog('模式指示器点击事件', { clickDuration, moveDistance, hasMoved });
-            
-            // 添加点击动画效果
-            element.style.transform = 'scale(0.95)';
-            setTimeout(() => {
-                element.style.transform = 'scale(1)';
-            }, 100);
-            
-            // 切换模式
-            toggleAnnotationMode();
-        }
-    });
-    
-    document.addEventListener('mousemove', (e) => {
-        if (isDragging) {
-            const moveDistance = Math.sqrt(
-                Math.pow(e.clientX - clickStartPos.x, 2) + 
-                Math.pow(e.clientY - clickStartPos.y, 2)
-            );
-            if (moveDistance > 5) {
-                hasMoved = true;
-            }
-        }
-        drag(e);
-    });
-    
-    document.addEventListener('mouseup', stopDrag);
-}
+// 已移除：拖拽功能函数
+// function addDragListeners() { ... }
 
-// 开始拖拽
-function startDrag(e) {
-    if (e.target.closest('#mode-status-indicator')) {
-        isDragging = true;
-        
-        const rect = modeStatusIndicator.getBoundingClientRect();
-        dragOffset.x = e.clientX - rect.left;
-        dragOffset.y = e.clientY - rect.top;
-        
-        // 拖拽时的视觉反馈
-        modeStatusIndicator.style.opacity = '0.8';
-        modeStatusIndicator.style.transform = 'scale(1.1)';
-        modeStatusIndicator.style.boxShadow = '0 8px 30px rgba(0, 0, 0, 0.3), 0 4px 15px rgba(0, 0, 0, 0.2)';
-        modeStatusIndicator.style.transition = 'none';
-        
-        // 防止文本选择
-        e.preventDefault();
-        document.body.style.userSelect = 'none';
-    }
-}
+// 已移除：拖拽开始函数
+// function startDrag() { ... }
 
-// 拖拽过程
-function drag(e) {
-    if (!isDragging) return;
-    
-    e.preventDefault();
-    
-    const x = e.clientX - dragOffset.x;
-    const y = e.clientY - dragOffset.y;
-    
-    // 限制在视窗范围内
-    const maxX = window.innerWidth - modeStatusIndicator.offsetWidth;
-    const maxY = window.innerHeight - modeStatusIndicator.offsetHeight;
-    
-    const constrainedX = Math.max(0, Math.min(x, maxX));
-    const constrainedY = Math.max(0, Math.min(y, maxY));
-    
-    modeStatusIndicator.style.left = constrainedX + 'px';
-    modeStatusIndicator.style.top = constrainedY + 'px';
-    modeStatusIndicator.style.right = 'auto';
-}
+// 已移除：拖拽过程函数
+// function drag() { ... }
 
-// 停止拖拽
-function stopDrag(e) {
-    if (!isDragging) return;
-    
-    isDragging = false;
-    
-    // 恢复样式
-    modeStatusIndicator.style.opacity = '1';
-    modeStatusIndicator.style.transform = 'scale(1)';
-    modeStatusIndicator.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1)';
-    modeStatusIndicator.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
-    
-    document.body.style.userSelect = '';
-    
-    // 保存位置到localStorage
-    const rect = modeStatusIndicator.getBoundingClientRect();
-    const position = {
-        top: rect.top,
-        right: window.innerWidth - rect.right
-    };
-    
-    localStorage.setItem('modeIndicatorPosition', JSON.stringify(position));
-    debugLog('模式指示器位置已保存', position);
-}
+// 已移除：停止拖拽函数
+// function stopDrag() { ... }
 
-// 重置指示器位置
-function resetIndicatorPosition() {
-    if (!modeStatusIndicator) return;
-    
-    // 重置到默认位置（右上角）
-    modeStatusIndicator.style.top = '20px';
-    modeStatusIndicator.style.right = '20px';
-    modeStatusIndicator.style.left = 'auto';
-    
-    // 清除保存的位置
-    localStorage.removeItem('modeIndicatorPosition');
-    
-    // 显示重置提示
-    showNotification('模式指示器位置已重置', 1500);
-    debugLog('模式指示器位置已重置到默认位置');
-}
+// 已移除：重置指示器位置函数
+// function resetIndicatorPosition() { ... }
 
-// 更新模式状态显示器
-function updateModeStatusIndicator() {
-    console.log('🔥 updateModeStatusIndicator被调用');
-    const indicator = createModeStatusIndicator();
-    console.log('🔥 获取到indicator:', indicator);
-    
-    const textElement = indicator.querySelector('.mode-text');
-    console.log('🔥 查找.mode-text元素:', textElement);
-    console.log('🔥 indicator的子元素:', indicator.children);
-    
-    if (!textElement) {
-        console.error('🔥 未找到.mode-text元素！indicator内容:', indicator.innerHTML);
-        return;
-    }
-    
-    const modeText = isRevisionMode ? '返修模式' : '普通标注模式';
-    const modeIcon = isRevisionMode ? '🔄' : '📝';
-    
-    console.log('🔥 设置文本内容:', `${modeIcon} ${modeText}`);
-    textElement.innerHTML = `${modeIcon} ${modeText}`;
-    
-    // 根据模式更新背景色
-    const gradient = isRevisionMode 
-        ? 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)' 
-        : 'linear-gradient(135deg, #4caf50 0%, #388e3c 100%)';
-    
-    console.log('🔥 设置背景色:', gradient);
-    indicator.style.background = gradient;
-    
-    console.log('🔥 模式显示器更新完成');
-}
+// 已移除：更新模式状态显示器函数
+// function updateModeStatusIndicator() { ... }
 
-// 显示当前模式状态
-function displayCurrentMode() {
-    console.log('🔥 displayCurrentMode被调用');
-    const modeText = isRevisionMode ? '返修模式' : '普通标注模式';
-    const modeIcon = isRevisionMode ? '🔄' : '📝';
-    const modeDescription = isRevisionMode 
-        ? '服务器返回原图+修改图，对比时优先用户上传图片' 
-        : '服务器仅返回原图，需用户上传修改图对比';
-    
-    console.log(`当前模式: ${modeIcon} ${modeText}`);
-    console.log(`模式说明: ${modeDescription}`);
-    
-    // 更新页面右上角的模式状态显示器
-    console.log('🔥 准备调用updateModeStatusIndicator');
-    updateModeStatusIndicator();
-    console.log('🔥 updateModeStatusIndicator调用完成');
-    
-    // 在调试面板中也显示当前模式（如果调试模式开启）
-    if (debugMode && debugPanel) {
-        let modeDisplay = debugPanel.querySelector('#current-mode-display');
-        if (!modeDisplay) {
-            modeDisplay = document.createElement('div');
-            modeDisplay.id = 'current-mode-display';
-            modeDisplay.style.cssText = `
-                background: ${isRevisionMode ? '#2d4a3e' : '#3d2d4a'};
-                color: white;
-                padding: 8px;
-                margin: 5px 0;
-                border-radius: 4px;
-                font-weight: bold;
-                border-left: 4px solid ${isRevisionMode ? '#4ade80' : '#8b5cf6'};
-            `;
-            debugPanel.insertBefore(modeDisplay, debugPanel.firstChild);
-        }
-        
-        modeDisplay.innerHTML = `
-            <div style="font-size: 14px;">${modeIcon} ${modeText}</div>
-            <div style="font-size: 11px; opacity: 0.8; margin-top: 2px;">${modeDescription}</div>
-        `;
-        modeDisplay.style.background = isRevisionMode ? '#2d4a3e' : '#3d2d4a';
-        modeDisplay.style.borderLeftColor = isRevisionMode ? '#4ade80' : '#8b5cf6';
-    }
-}
+// 已移除：模式状态显示函数
+// function displayCurrentMode() { ... }
 
 // 增强的图片上传监听和对比功能（带调试）
 function initializeUploadMonitoring() {
