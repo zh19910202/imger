@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "AnnotateFlow Assistant",
-  "version": "2.2",
-  "description": "Annotation platform assistant: Fast image download with D key, skip with Space, submit with S key, upload with A key, history with F key",
+  "version": "2.3",
+  "description": "Annotation platform assistant: Fast image download with D key, skip with Space, submit with S key, upload with A key, history with F key, mark invalid with X key (auto-confirm), batch invalid with F1",
   "permissions": [
     "downloads",
     "contextMenus",

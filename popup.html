@@ -203,6 +203,16 @@
     </ul>
   </div>
 
+  <div class="usage">
+    <h3>⚡ 批量操作：</h3>
+    <ul>
+      <li><span class="hotkey">F1</span> → 连续执行"标记无效"（再次按F1停止）</li>
+    </ul>
+    <p style="margin: 10px 0 0 0; font-size: 12px; opacity: 0.9;">
+      💡 自动确认弹窗，默认间隔800ms，默认无限制次数
+    </p>
+  </div>
+
   <div class="settings">
     <h3>设置：</h3>
     <div class="setting-item">
@@ -212,13 +222,30 @@
       </label>
       <span class="setting-label">S键音效</span>
     </div>
-            <div class="setting-item">
-          <label class="switch">
-            <input type="checkbox" id="autoOpenToggle" checked>
-            <span class="slider"></span>
-          </label>
-          <span class="setting-label">下载完成后自动打开图片</span>
-        </div>
+    <div class="setting-item">
+      <label class="switch">
+        <input type="checkbox" id="autoOpenToggle" checked>
+        <span class="slider"></span>
+      </label>
+      <span class="setting-label">下载完成后自动打开图片</span>
+    </div>
+  </div>
+
+  <div class="settings">
+    <h3>F1 批量设置：</h3>
+    <div class="setting-item">
+      <label for="f1Interval" style="display: block; margin-bottom: 5px; font-size: 13px;">执行间隔 (毫秒):</label>
+      <input type="number" id="f1Interval" value="800" min="100" max="5000" step="100" 
+             style="width: 100%; padding: 5px; border: 1px solid rgba(255,255,255,0.3); border-radius: 4px; background: rgba(255,255,255,0.1); color: white; font-size: 12px;">
+    </div>
+    <div class="setting-item">
+      <label for="f1MaxRuns" style="display: block; margin-bottom: 5px; font-size: 13px;">最大执行次数 (0=无限制):</label>
+      <input type="number" id="f1MaxRuns" value="0" min="0" max="1000" step="1" 
+             style="width: 100%; padding: 5px; border: 1px solid rgba(255,255,255,0.3); border-radius: 4px; background: rgba(255,255,255,0.1); color: white; font-size: 12px;">
+    </div>
+    <p style="margin: 10px 0 0 0; font-size: 11px; opacity: 0.8;">
+      💡 设置会自动保存，重新加载页面后生效
+    </p>
   </div>
   
   <script src="popup.js"></script>

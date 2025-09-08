@@ -21,6 +21,12 @@ let isComparisonModalOpen = false; // 对比页面开启状态
 let debugMode = false; // 调试模式开关（默认关闭）
 let debugPanel = null; // 调试面板元素
 let debugLogs = []; // 调试日志数组
+// F1 连续无效化相关
+let f1AutoInvalidating = false;
+let f1IntervalMs = 800; // 可调整的执行间隔（毫秒）
+let f1MaxRuns = 0; // 最大连续执行次数，0表示无限制
+let f1TimerId = null;
+let f1RunCount = 0;
 // COS图片拦截相关变量
 let capturedOriginalImage = null; // 捕获的原图URL
 let capturedModifiedImage = null; // 捕获的修改图URL
@@ -75,6 +81,9 @@ function initializeScript() {
     // 加载音效设置
     loadSoundSettings();
     
+    // 加载F1设置
+    loadF1Settings();
+    
     // 初始化音效
     initializeAudio();
     
@@ -83,9 +92,19 @@ function initializeScript() {
     
     // 监听存储变化
     chrome.storage.onChanged.addListener((changes, namespace) => {
-        if (namespace === 'sync' && changes.soundEnabled) {
-            soundEnabled = changes.soundEnabled.newValue;
-            console.log('音效设置已更新:', soundEnabled);
+        if (namespace === 'sync') {
+            if (changes.soundEnabled) {
+                soundEnabled = changes.soundEnabled.newValue;
+                console.log('音效设置已更新:', soundEnabled);
+            }
+            if (changes.f1Interval) {
+                f1IntervalMs = changes.f1Interval.newValue;
+                console.log('F1间隔设置已更新:', f1IntervalMs);
+            }
+            if (changes.f1MaxRuns) {
+                f1MaxRuns = changes.f1MaxRuns.newValue;
+                console.log('F1最大执行次数设置已更新:', f1MaxRuns);
+            }
         }
     });
     
@@ -257,6 +276,48 @@ function handleKeydown(event) {
     // 检查是否在输入框中
     if (isInInputField(event.target)) {
         return; // 在输入框中，不处理快捷键
+    }
+    // 处理F1键 - 连续执行“标记无效”(X键逻辑)并自动确认弹窗（再次按F1停止）
+    else if (event.key === 'F1') {
+        event.preventDefault();
+        if (!f1AutoInvalidating) {
+            f1AutoInvalidating = true;
+            f1RunCount = 0;
+            showNotification(`F1 连续无效化启动（间隔 ${f1IntervalMs}ms）`);
+
+            const runOnce = () => {
+                if (!f1AutoInvalidating) return;
+                // 检查是否有次数限制且已达到限制
+                if (f1MaxRuns > 0 && f1RunCount >= f1MaxRuns) {
+                    f1AutoInvalidating = false;
+                    showNotification('F1 连续无效化已达最大次数，自动停止');
+                    return;
+                }
+                f1RunCount++;
+
+                // 复用 X 键逻辑：查找“标记无效”并点击，随后自动确认
+                const invalidButton = findButtonByText(['标记无效', '无效', 'Invalid', '标记为无效', 'Mark Invalid', '标记不合格']);
+                if (invalidButton) {
+                    clickButton(invalidButton, `标记无效 (#${f1RunCount})`);
+                    autoConfirmModalAfterAction();
+                }
+
+                // 安排下一次
+                if (f1AutoInvalidating) {
+                    f1TimerId = setTimeout(runOnce, f1IntervalMs);
+                }
+            };
+
+            runOnce();
+        } else {
+            // 停止
+            f1AutoInvalidating = false;
+            if (f1TimerId) {
+                clearTimeout(f1TimerId);
+                f1TimerId = null;
+            }
+            showNotification('F1 连续无效化已停止');
+        }
     }
     
     const key = event.key.toLowerCase();
@@ -858,6 +919,21 @@ function loadSoundSettings() {
     } catch (error) {
         console.error('加载音效设置失败:', error);
         soundEnabled = true; // 默认开启
+    }
+}
+
+// 加载F1设置
+function loadF1Settings() {
+    try {
+        chrome.storage.sync.get({ f1Interval: 800, f1MaxRuns: 0 }, (items) => {
+            f1IntervalMs = items.f1Interval;
+            f1MaxRuns = items.f1MaxRuns;
+            console.log('F1设置已加载:', { f1IntervalMs, f1MaxRuns });
+        });
+    } catch (error) {
+        console.error('加载F1设置失败:', error);
+        f1IntervalMs = 800; // 默认间隔
+        f1MaxRuns = 0; // 默认无限制
     }
 }
 
