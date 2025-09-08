@@ -353,6 +353,8 @@ function handleKeydown(event) {
                 if (invalidButton) {
                     event.preventDefault();
                     clickButton(invalidButton, '标记无效');
+                    // 尝试自动确认可能弹出的模态框
+                    autoConfirmModalAfterAction();
                 } else {
                     showNotification('未找到标记无效按钮');
                 }
@@ -362,6 +364,8 @@ function handleKeydown(event) {
             if (invalidButton) {
                 event.preventDefault();
                 clickButton(invalidButton, '标记无效');
+                // 尝试自动确认可能弹出的模态框
+                autoConfirmModalAfterAction();
             } else {
                 showNotification('未找到标记无效按钮');
             }
@@ -685,6 +689,80 @@ function clickButton(button, actionName) {
     } catch (error) {
         console.error(`点击${actionName}按钮时发生错误:`, error);
         showNotification(`执行${actionName}失败: ${error.message}`);
+    }
+}
+
+// 在执行可能触发确认弹窗的操作后，尝试自动点击“确定/确认/OK”按钮
+function autoConfirmModalAfterAction() {
+    try {
+        // 等待短时间让弹窗渲染
+        const tryClick = () => {
+            // 1) 优先使用提供的 XPath 精确定位
+            const confirmXPath = '/html/body/div[1]/div/div[2]/div/div[2]/div/div/div[3]/p/button[2]/span';
+            try {
+                const node = document.evaluate(confirmXPath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+                if (node) {
+                    const button = node.closest('button') || node.parentElement;
+                    if (button) {
+                        button.click();
+                        showNotification('已自动确认弹窗');
+                        return;
+                    }
+                }
+            } catch (e) {
+                // 忽略 XPath 执行错误，继续尝试其它方式
+            }
+
+            // 常见弹窗容器选择器（尽量宽松，避免依赖具体站点UI库）
+            const modalSelectors = [
+                '.modal', '.ant-modal', '.ant-modal-root', '.ant-modal-confirm', '.dialog', '.el-message-box', '.el-dialog', '[role="dialog"]', '.q-dialog', '.t-dialog'
+            ];
+            const confirmTextOptions = ['确定', '确认', 'OK', 'Ok', 'ok', 'Yes'];
+            const primaryButtonSelectors = [
+                'button.ant-btn-primary', 'button.el-button--primary', 'button.primary', 'button[type="submit"]', '.btn-primary', '.primary'
+            ];
+
+            // 先在可能的弹窗内找“确定/确认/OK”按钮
+            for (const modalSel of modalSelectors) {
+                const modal = document.querySelector(modalSel);
+                if (!modal || modal.getAttribute('aria-hidden') === 'true' || modal.style.display === 'none') continue;
+
+                // 1) 文本匹配
+                const buttons = modal.querySelectorAll('button, [role="button"], .btn, .button, a');
+                for (const btn of buttons) {
+                    const text = (btn.textContent || btn.innerText || '').trim();
+                    if (confirmTextOptions.some(t => text === t || text.toLowerCase() === t.toLowerCase())) {
+                        btn.click();
+                        showNotification('已自动确认弹窗');
+                        return;
+                    }
+                }
+
+                // 2) 主按钮样式选择器
+                for (const sel of primaryButtonSelectors) {
+                    const primaryBtn = modal.querySelector(sel);
+                    if (primaryBtn) {
+                        primaryBtn.click();
+                        showNotification('已自动确认弹窗');
+                        return;
+                    }
+                }
+            }
+
+            // 若未匹配到，尝试全局查找“确定/确认/OK”按钮（兜底）
+            const globalConfirm = findButtonByText(confirmTextOptions);
+            if (globalConfirm) {
+                globalConfirm.click();
+                showNotification('已自动确认弹窗');
+                return;
+            }
+        };
+
+        // 多次尝试，覆盖弹窗渲染延迟的情况
+        const attempts = [120, 260, 500, 800];
+        attempts.forEach(delay => setTimeout(tryClick, delay));
+    } catch (e) {
+        console.error('自动确认弹窗失败:', e);
     }
 }
 
