@@ -2106,6 +2106,34 @@ function performImageComparison(newImage = null) {
     
     showNotification(`正在对比图片... (${imageSource})`, 1500);
     
+    // 验证参数并创建对比界面
+    debugLog('准备创建对比界面', {
+        originalImage: originalImage ? {
+            src: originalImage.src ? originalImage.src.substring(0, 50) + '...' : '无src',
+            width: originalImage.width,
+            height: originalImage.height,
+            name: originalImage.name
+        } : '无originalImage',
+        modifiedImage: modifiedImage ? {
+            src: modifiedImage.src ? modifiedImage.src.substring(0, 50) + '...' : '无src',
+            width: modifiedImage.width,
+            height: modifiedImage.height,
+            name: modifiedImage.name
+        } : '无modifiedImage'
+    });
+    
+    if (!originalImage) {
+        debugLog('原图为空，无法创建对比界面');
+        showNotification('❌ 原图不可用，无法进行对比', 3000);
+        return;
+    }
+    
+    if (!modifiedImage) {
+        debugLog('修改图为空，无法创建对比界面');
+        showNotification('❌ 修改图不可用，无法进行对比', 3000);
+        return;
+    }
+    
     // 创建对比界面
     createComparisonModal(originalImage, modifiedImage, newImage);
 }
@@ -2166,11 +2194,27 @@ function createComparisonModal(original, uploaded, newImage) {
         min-height: 600px;
     `;
     
+    // 验证参数并创建图片区域
+    debugLog('创建对比弹窗参数验证', {
+        original: original ? {
+            src: original.src ? original.src.substring(0, 50) + '...' : '无src',
+            width: original.width,
+            height: original.height,
+            name: original.name
+        } : '无original',
+        uploaded: uploaded ? {
+            src: uploaded.src ? uploaded.src.substring(0, 50) + '...' : '无src',
+            width: uploaded.width,
+            height: uploaded.height,
+            name: uploaded.name
+        } : '无uploaded'
+    });
+    
     // 创建原图区域
-    const originalArea = createImageArea('原图 (不可变更)', original.src, original);
+    const originalArea = createImageArea('原图 (不可变更)', original ? original.src : null, original);
     
     // 创建上传图区域  
-    const uploadedArea = createImageArea('上传对比图', uploaded.src, uploaded);
+    const uploadedArea = createImageArea('上传对比图', uploaded ? uploaded.src : null, uploaded);
     
     comparisonArea.appendChild(originalArea);
     comparisonArea.appendChild(uploadedArea);
@@ -2300,6 +2344,16 @@ function createComparisonModal(original, uploaded, newImage) {
 
 // 创建单个图片显示区域
 function createImageArea(title, src, imageInfo) {
+    debugLog('创建图片显示区域', {
+        title: title,
+        src: src ? src.substring(0, 50) + '...' : '无src',
+        imageInfo: imageInfo ? {
+            width: imageInfo.width,
+            height: imageInfo.height,
+            name: imageInfo.name
+        } : '无imageInfo'
+    });
+    
     const area = document.createElement('div');
     area.style.cssText = `
         text-align: center;
@@ -2319,7 +2373,52 @@ function createImageArea(title, src, imageInfo) {
     `;
     
     const img = document.createElement('img');
-    img.src = src;
+    
+    // 添加错误处理
+    img.onerror = function() {
+        debugLog('图片加载失败', {
+            src: src ? src.substring(0, 50) + '...' : '无src',
+            title: title
+        });
+        
+        // 显示错误信息
+        const errorInfo = document.createElement('div');
+        errorInfo.style.cssText = `
+            color: #d32f2f;
+            font-weight: bold;
+            padding: 20px;
+            background: #ffebee;
+            border: 1px solid #ffcdd2;
+            border-radius: 4px;
+            margin: 10px 0;
+        `;
+        errorInfo.innerHTML = '❌ 图片加载失败<br/>请检查图片链接是否有效';
+        
+        // 替换图片元素
+        img.style.display = 'none';
+        area.appendChild(errorInfo);
+    };
+    
+    // 设置图片源
+    if (src) {
+        img.src = src;
+    } else {
+        debugLog('图片源为空', { title: title });
+        img.style.display = 'none';
+        const noImageInfo = document.createElement('div');
+        noImageInfo.style.cssText = `
+            color: #f57c00;
+            font-weight: bold;
+            padding: 20px;
+            background: #fff3e0;
+            border: 1px solid #ffcc02;
+            border-radius: 4px;
+            margin: 10px 0;
+        `;
+        noImageInfo.innerHTML = '⚠️ 无图片源<br/>无法显示图片';
+        area.appendChild(noImageInfo);
+    }
+    
     img.style.cssText = `
         width: 100%;
         max-width: 100%;
@@ -2341,34 +2440,44 @@ function createImageArea(title, src, imageInfo) {
     
     // 显示图片信息（仅保留文件名和尺寸）
     let dimensions = '未知';
+    let fileName = '未知';
+    
+    // 安全地获取图片信息
+    if (imageInfo) {
+        if (imageInfo.width && imageInfo.height) {
+            dimensions = `${imageInfo.width} × ${imageInfo.height}px`;
+        }
+        if (imageInfo.name) {
+            fileName = imageInfo.name;
+        }
+    }
     
     // 对于上传的图片，需要等待图片加载完成后获取真实尺寸
-    if (src.startsWith('data:')) {
+    if (src && src.startsWith('data:')) {
         // 这是base64图片（上传的图片），需要等待加载
         img.onload = () => {
             const realDimensions = `${img.naturalWidth} × ${img.naturalHeight}px`;
-            const fileName = imageInfo.name || '未知';
+            const displayFileName = fileName !== '未知' ? fileName : '上传图片';
             
             info.innerHTML = `
                 <div style="font-weight: bold; color: #333; margin-bottom: 8px;">📐 尺寸: ${realDimensions}</div>
-                <div style="margin-bottom: 4px;">🏷️ 文件名: ${fileName}</div>
+                <div style="margin-bottom: 4px;">🏷️ 文件名: ${displayFileName}</div>
             `;
         };
         
         // 初始显示
-        const fileName = imageInfo.name || '未知';
+        const displayFileName = fileName !== '未知' ? fileName : '上传图片';
         info.innerHTML = `
             <div style="font-weight: bold; color: #333; margin-bottom: 8px;">📐 尺寸: 加载中...</div>
-            <div style="margin-bottom: 4px;">🏷️ 文件名: ${fileName}</div>
+            <div style="margin-bottom: 4px;">🏷️ 文件名: ${displayFileName}</div>
         `;
     } else {
-        // 原图，使用已有的尺寸信息
-        dimensions = imageInfo.width && imageInfo.height ? `${imageInfo.width} × ${imageInfo.height}px` : '未知';
-        const fileName = imageInfo.name || '未知';
+        // 原图或其他图片，使用已有的尺寸信息
+        const displayFileName = fileName !== '未知' ? fileName : '原图';
         
         info.innerHTML = `
             <div style="font-weight: bold; color: #333; margin-bottom: 8px;">📐 尺寸: ${dimensions}</div>
-            <div style="margin-bottom: 4px;">🏷️ 文件名: ${fileName}</div>
+            <div style="margin-bottom: 4px;">🏷️ 文件名: ${displayFileName}</div>
         `;
     }
     
@@ -4315,7 +4424,17 @@ function createImageElementForDisplay(imageUrl) {
                 width: this.naturalWidth,
                 height: this.naturalHeight
             });
-            resolve(this);
+            
+            // 创建一个包含必要属性的图片对象
+            const imageObj = {
+                src: this.src,
+                width: this.naturalWidth,
+                height: this.naturalHeight,
+                name: extractFileNameFromUrl(this.src),
+                element: this
+            };
+            
+            resolve(imageObj);
         };
         
         img.onerror = function() {
