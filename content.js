@@ -2340,9 +2340,51 @@ function createComparisonModal(original, uploaded, newImage) {
         });
     };
     
-    modeButtons.appendChild(sideBySideBtn);
-    modeButtons.appendChild(sliderBtn);
-    modeButtons.appendChild(blinkBtn);
+    // 创建尺寸信息显示区域
+    const dimensionsDisplay = document.createElement('div');
+    dimensionsDisplay.style.cssText = `
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 8px;
+        padding: 8px 6px;
+        margin: 8px 0;
+        color: rgba(255, 255, 255, 0.9);
+        font-size: 9px;
+        line-height: 1.2;
+        text-align: center;
+        width: 100%;
+        box-sizing: border-box;
+    `;
+    
+    // 获取并设置尺寸信息
+    const updateToolbarDimensions = () => {
+        const origDimensions = (original && original.width && original.height) 
+            ? `${original.width}×${original.height}` 
+            : '加载中';
+        const upDimensions = (uploaded && uploaded.width && uploaded.height) 
+            ? `${uploaded.width}×${uploaded.height}` 
+            : '加载中';
+        
+        // 判断尺寸关系
+        let sizeStatus = '';
+        if (original && uploaded && original.width && original.height && uploaded.width && uploaded.height) {
+            if (original.width === uploaded.width && original.height === uploaded.height) {
+                sizeStatus = '🟢';
+            } else if (uploaded.width * uploaded.height > original.width * original.height) {
+                sizeStatus = '🔴';
+            } else {
+                sizeStatus = '🟡';
+            }
+        }
+        
+        dimensionsDisplay.innerHTML = `
+            <div style="margin-bottom: 2px;">📎 ${origDimensions}</div>
+            <div style="margin-bottom: 2px;">🔄 ${upDimensions}</div>
+            <div style="font-size: 8px; opacity: 0.8;">${sizeStatus}</div>
+        `;
+    };
+    
+    updateToolbarDimensions();
     
     // 创建关闭按钮
     const closeButton = document.createElement('button');
@@ -2411,7 +2453,12 @@ function createComparisonModal(original, uploaded, newImage) {
     // 组装工具栏（纵向排列）
     toolbar.appendChild(title);
     toolbar.appendChild(modeButtons);
+    toolbar.appendChild(dimensionsDisplay);
     toolbar.appendChild(closeButton);
+    
+    modeButtons.appendChild(sideBySideBtn);
+    modeButtons.appendChild(sliderBtn);
+    modeButtons.appendChild(blinkBtn);
     
     // 创建主要对比区域容器
     const mainContainer = document.createElement('div');
@@ -2526,27 +2573,64 @@ function createComparisonModal(original, uploaded, newImage) {
             `;
             
             const leftLabel = document.createElement('div');
-            leftLabel.textContent = '原图';
             leftLabel.style.cssText = `
                 color: white;
                 font-size: 14px;
                 margin-bottom: 10px;
                 font-weight: 500;
+                text-align: center;
+                line-height: 1.3;
             `;
             
             const rightLabel = document.createElement('div');
-            rightLabel.textContent = '对比图';
             rightLabel.style.cssText = `
                 color: white;
                 font-size: 14px;
                 margin-bottom: 10px;
                 font-weight: 500;
+                text-align: center;
+                line-height: 1.3;
             `;
             
+            // 获取图片尺寸并设置标签内容
+            const getImageDimensions = (img, imageInfo, defaultName) => {
+                if (imageInfo && imageInfo.width && imageInfo.height) {
+                    return `${defaultName}\n${imageInfo.width} × ${imageInfo.height}px`;
+                } else if (img && img.complete && img.naturalWidth > 0) {
+                    return `${defaultName}\n${img.naturalWidth} × ${img.naturalHeight}px`;
+                } else {
+                    return `${defaultName}\n加载中...`;
+                }
+            };
+            
+            // 设置标签内容，包含尺寸信息
+            leftLabel.innerHTML = getImageDimensions(originalImg, original, '原图').replace('\n', '<br>');
+            rightLabel.innerHTML = getImageDimensions(uploadedImg, uploaded, '对比图').replace('\n', '<br>');
+            
+            // 克隆图片并添加加载事件监听器以更新尺寸信息
+            const originalImgClone = originalImg.cloneNode();
+            const uploadedImgClone = uploadedImg.cloneNode();
+            
+            // 为原图添加加载完成事件
+            originalImgClone.addEventListener('load', () => {
+                if (originalImgClone.naturalWidth > 0 && originalImgClone.naturalHeight > 0) {
+                    leftLabel.innerHTML = `原图<br>${originalImgClone.naturalWidth} × ${originalImgClone.naturalHeight}px`;
+                    updateToolbarDimensions(); // 更新工具栏尺寸信息
+                }
+            });
+            
+            // 为对比图添加加载完成事件
+            uploadedImgClone.addEventListener('load', () => {
+                if (uploadedImgClone.naturalWidth > 0 && uploadedImgClone.naturalHeight > 0) {
+                    rightLabel.innerHTML = `对比图<br>${uploadedImgClone.naturalWidth} × ${uploadedImgClone.naturalHeight}px`;
+                    updateToolbarDimensions(); // 更新工具栏尺寸信息
+                }
+            });
+            
             leftContainer.appendChild(leftLabel);
-            leftContainer.appendChild(originalImg.cloneNode());
+            leftContainer.appendChild(originalImgClone);
             rightContainer.appendChild(rightLabel);
-            rightContainer.appendChild(uploadedImg.cloneNode());
+            rightContainer.appendChild(uploadedImgClone);
             
             // 将右侧容器添加到左侧位置，左侧容器添加到右侧位置
             comparisonArea.appendChild(rightContainer);
@@ -2578,6 +2662,40 @@ function createComparisonModal(original, uploaded, newImage) {
                 border-radius: 8px;
             `;
             
+            // 创建尺寸信息显示区域
+            const dimensionsInfo = document.createElement('div');
+            dimensionsInfo.style.cssText = `
+                position: absolute;
+                top: 10px;
+                left: 10px;
+                background: rgba(0, 0, 0, 0.8);
+                color: white;
+                padding: 8px 12px;
+                border-radius: 6px;
+                font-size: 12px;
+                font-weight: 500;
+                z-index: 15;
+                line-height: 1.3;
+                backdrop-filter: blur(5px);
+            `;
+            
+            // 获取并显示尺寸信息
+            const updateDimensionsInfo = () => {
+                const origDimensions = (original && original.width && original.height) 
+                    ? `${original.width} × ${original.height}px` 
+                    : '加载中...';
+                const upDimensions = (uploaded && uploaded.width && uploaded.height) 
+                    ? `${uploaded.width} × ${uploaded.height}px` 
+                    : '加载中...';
+                
+                dimensionsInfo.innerHTML = `
+                    <div>📎 原图: ${origDimensions}</div>
+                    <div>🔄 对比: ${upDimensions}</div>
+                `;
+            };
+            
+            updateDimensionsInfo();
+            
             const baseImg = originalImg.cloneNode();
             baseImg.style.cssText = `
                 position: absolute;
@@ -2587,6 +2705,14 @@ function createComparisonModal(original, uploaded, newImage) {
                 height: 100%;
                 object-fit: contain;
             `;
+            
+            // 为原图添加加载事件监听器
+            baseImg.addEventListener('load', () => {
+                if (baseImg.naturalWidth > 0 && baseImg.naturalHeight > 0) {
+                    updateDimensionsInfo();
+                    updateToolbarDimensions(); // 更新工具栏尺寸信息
+                }
+            });
             
             const overlayImg = uploadedImg.cloneNode();
             overlayImg.style.cssText = `
@@ -2598,6 +2724,14 @@ function createComparisonModal(original, uploaded, newImage) {
                 object-fit: contain;
                 clip-path: polygon(0 0, 50% 0, 50% 100%, 0 100%);
             `;
+            
+            // 为对比图添加加载事件监听器
+            overlayImg.addEventListener('load', () => {
+                if (overlayImg.naturalWidth > 0 && overlayImg.naturalHeight > 0) {
+                    updateDimensionsInfo();
+                    updateToolbarDimensions(); // 更新工具栏尺寸信息
+                }
+            });
             
             const slider = document.createElement('div');
             slider.style.cssText = `
@@ -2657,6 +2791,7 @@ function createComparisonModal(original, uploaded, newImage) {
             sliderContainer.appendChild(baseImg);
             sliderContainer.appendChild(overlayImg);
             sliderContainer.appendChild(slider);
+            sliderContainer.appendChild(dimensionsInfo);
             comparisonArea.appendChild(sliderContainer);
             
         } else if (mode === 'blink') {
@@ -2685,6 +2820,40 @@ function createComparisonModal(original, uploaded, newImage) {
                 align-items: center;
             `;
             
+            // 创建尺寸信息显示区域
+            const dimensionsInfo = document.createElement('div');
+            dimensionsInfo.style.cssText = `
+                position: absolute;
+                top: 10px;
+                left: 10px;
+                background: rgba(0, 0, 0, 0.8);
+                color: white;
+                padding: 8px 12px;
+                border-radius: 6px;
+                font-size: 12px;
+                font-weight: 500;
+                z-index: 15;
+                line-height: 1.3;
+                backdrop-filter: blur(5px);
+            `;
+            
+            // 获取并显示尺寸信息
+            const updateDimensionsInfo = () => {
+                const origDimensions = (original && original.width && original.height) 
+                    ? `${original.width} × ${original.height}px` 
+                    : '加载中...';
+                const upDimensions = (uploaded && uploaded.width && uploaded.height) 
+                    ? `${uploaded.width} × ${uploaded.height}px` 
+                    : '加载中...';
+                
+                dimensionsInfo.innerHTML = `
+                    <div>📎 原图: ${origDimensions}</div>
+                    <div>🔄 对比: ${upDimensions}</div>
+                `;
+            };
+            
+            updateDimensionsInfo();
+            
             const img1 = originalImg.cloneNode();
             const img2 = uploadedImg.cloneNode();
             
@@ -2704,6 +2873,21 @@ function createComparisonModal(original, uploaded, newImage) {
                 opacity: 0;
                 transition: opacity 0.1s ease;
             `;
+            
+            // 为图片添加加载事件监听器
+            img1.addEventListener('load', () => {
+                if (img1.naturalWidth > 0 && img1.naturalHeight > 0) {
+                    updateDimensionsInfo();
+                    updateToolbarDimensions(); // 更新工具栏尺寸信息
+                }
+            });
+            
+            img2.addEventListener('load', () => {
+                if (img2.naturalWidth > 0 && img2.naturalHeight > 0) {
+                    updateDimensionsInfo();
+                    updateToolbarDimensions(); // 更新工具栏尺寸信息
+                }
+            });
             
             let isShowingSecond = false;
             const blinkInterval = setInterval(() => {
@@ -2738,6 +2922,7 @@ function createComparisonModal(original, uploaded, newImage) {
             blinkContainer.appendChild(img1);
             blinkContainer.appendChild(img2);
             blinkContainer.appendChild(indicator);
+            blinkContainer.appendChild(dimensionsInfo);
             comparisonArea.appendChild(blinkContainer);
         }
     };
