@@ -2153,45 +2153,162 @@ function createComparisonModal(original, uploaded, newImage) {
         left: 0;
         width: 100%;
         height: 100%;
-        background: rgba(0, 0, 0, 0.8);
+        background: rgba(0, 0, 0, 0.95);
         z-index: 999999;
         display: flex;
-        justify-content: center;
-        align-items: center;
+        flex-direction: column;
         backdrop-filter: blur(5px);
     `;
     
-    // 创建对比内容容器
-    const content = document.createElement('div');
-    content.style.cssText = `
-        background: white;
-        border-radius: 12px;
-        padding: 30px;
-        max-width: 95%;
-        max-height: 95%;
-        min-width: 1000px;
-        overflow: auto;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    // 创建顶部工具栏
+    const toolbar = document.createElement('div');
+    toolbar.style.cssText = `
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 15px 30px;
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.2);
     `;
     
     // 创建标题
     const title = document.createElement('h2');
     title.textContent = '图片对比';
     title.style.cssText = `
-        margin: 0 0 20px 0;
-        text-align: center;
-        color: #333;
+        margin: 0;
+        color: white;
         font-family: Arial, sans-serif;
+        font-size: 18px;
+        font-weight: 500;
+    `;
+    
+    // 创建对比模式切换按钮组
+    const modeButtons = document.createElement('div');
+    modeButtons.style.cssText = `
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    `;
+    
+    // 当前对比模式
+    let currentMode = 'side-by-side';
+    
+    // 创建模式按钮
+    const createModeButton = (mode, text, icon) => {
+        const button = document.createElement('button');
+        button.innerHTML = `${icon} ${text}`;
+        button.style.cssText = `
+            padding: 8px 16px;
+            background: ${mode === currentMode ? 'rgba(33, 150, 243, 0.8)' : 'rgba(255, 255, 255, 0.2)'};
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 12px;
+            font-family: Arial, sans-serif;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        `;
+        
+        button.addEventListener('mouseenter', () => {
+            if (mode !== currentMode) {
+                button.style.background = 'rgba(255, 255, 255, 0.3)';
+            }
+        });
+        
+        button.addEventListener('mouseleave', () => {
+            if (mode !== currentMode) {
+                button.style.background = 'rgba(255, 255, 255, 0.2)';
+            }
+        });
+        
+        button.addEventListener('click', () => {
+            currentMode = mode;
+            updateModeButtons();
+            switchComparisonMode(mode);
+        });
+        
+        return button;
+    };
+    
+    const sideBySideBtn = createModeButton('side-by-side', '并排对比', '📊');
+    const sliderBtn = createModeButton('slider', '滑动对比', '🔄');
+    const blinkBtn = createModeButton('blink', '闪烁对比', '⚡');
+    
+    const updateModeButtons = () => {
+        [sideBySideBtn, sliderBtn, blinkBtn].forEach(btn => {
+            const mode = btn.textContent.includes('并排') ? 'side-by-side' : 
+                        btn.textContent.includes('滑动') ? 'slider' : 'blink';
+            btn.style.background = mode === currentMode ? 
+                'rgba(33, 150, 243, 0.8)' : 'rgba(255, 255, 255, 0.2)';
+        });
+    };
+    
+    modeButtons.appendChild(sideBySideBtn);
+    modeButtons.appendChild(sliderBtn);
+    modeButtons.appendChild(blinkBtn);
+    
+    // 创建关闭按钮
+    const closeButton = document.createElement('button');
+    closeButton.innerHTML = '✖️';
+    closeButton.style.cssText = `
+        padding: 8px 12px;
+        background: rgba(244, 67, 54, 0.8);
+        color: white;
+        border: none;
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 14px;
+        transition: all 0.3s ease;
+        backdrop-filter: blur(10px);
+    `;
+    
+    closeButton.addEventListener('mouseenter', () => {
+        closeButton.style.background = 'rgba(244, 67, 54, 1)';
+        closeButton.style.transform = 'scale(1.1)';
+    });
+    
+    closeButton.addEventListener('mouseleave', () => {
+        closeButton.style.background = 'rgba(244, 67, 54, 0.8)';
+        closeButton.style.transform = 'scale(1)';
+    });
+    
+    closeButton.addEventListener('click', () => {
+        closeComparisonModal();
+    });
+    
+    // 组装工具栏
+    toolbar.appendChild(title);
+    toolbar.appendChild(modeButtons);
+    toolbar.appendChild(closeButton);
+    
+    // 创建主要对比区域容器
+    const mainContainer = document.createElement('div');
+    mainContainer.style.cssText = `
+        flex: 1;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 20px;
+        overflow: hidden;
     `;
     
     // 创建图片对比区域
     const comparisonArea = document.createElement('div');
+    comparisonArea.id = 'comparison-area';
     comparisonArea.style.cssText = `
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 30px;
-        margin-bottom: 30px;
-        min-height: 600px;
+        position: relative;
+        width: 100%;
+        height: 100%;
+        max-width: 1400px;
+        max-height: 800px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+        overflow: hidden;
     `;
     
     // 验证参数并创建图片区域
@@ -2210,17 +2327,284 @@ function createComparisonModal(original, uploaded, newImage) {
         } : '无uploaded'
     });
     
-    // 创建原图区域
-    const originalArea = createImageArea('原图 (不可变更)', original ? original.src : null, original);
+    // 创建简化的图片元素
+    const createSimpleImage = (src, alt) => {
+        const img = document.createElement('img');
+        img.src = src;
+        img.alt = alt;
+        img.style.cssText = `
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            border-radius: 4px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        `;
+        return img;
+    };
     
-    // 创建上传图区域  
-    const uploadedArea = createImageArea('上传对比图', uploaded ? uploaded.src : null, uploaded);
+    // 创建原图和对比图
+    const originalImg = createSimpleImage(original ? original.src : '', '原图');
+    const uploadedImg = createSimpleImage(uploaded ? uploaded.src : '', '对比图');
     
-    comparisonArea.appendChild(originalArea);
-    comparisonArea.appendChild(uploadedArea);
+    // 模式切换函数
+    const switchComparisonMode = (mode) => {
+        // 清空对比区域
+        comparisonArea.innerHTML = '';
+        
+        if (mode === 'side-by-side') {
+            // 并排对比模式
+            comparisonArea.style.cssText = `
+                position: relative;
+                width: 100%;
+                height: 100%;
+                max-width: 1400px;
+                max-height: 800px;
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 20px;
+                background: rgba(255, 255, 255, 0.05);
+                border-radius: 8px;
+                padding: 20px;
+            `;
+            
+            const leftContainer = document.createElement('div');
+            leftContainer.style.cssText = `
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                background: rgba(0, 0, 0, 0.3);
+                border-radius: 8px;
+                padding: 15px;
+            `;
+            
+            const rightContainer = document.createElement('div');
+            rightContainer.style.cssText = `
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                background: rgba(0, 0, 0, 0.3);
+                border-radius: 8px;
+                padding: 15px;
+            `;
+            
+            const leftLabel = document.createElement('div');
+            leftLabel.textContent = '原图';
+            leftLabel.style.cssText = `
+                color: white;
+                font-size: 14px;
+                margin-bottom: 10px;
+                font-weight: 500;
+            `;
+            
+            const rightLabel = document.createElement('div');
+            rightLabel.textContent = '对比图';
+            rightLabel.style.cssText = `
+                color: white;
+                font-size: 14px;
+                margin-bottom: 10px;
+                font-weight: 500;
+            `;
+            
+            leftContainer.appendChild(leftLabel);
+            leftContainer.appendChild(originalImg.cloneNode());
+            rightContainer.appendChild(rightLabel);
+            rightContainer.appendChild(uploadedImg.cloneNode());
+            
+            comparisonArea.appendChild(leftContainer);
+            comparisonArea.appendChild(rightContainer);
+            
+        } else if (mode === 'slider') {
+            // 滑动对比模式
+            comparisonArea.style.cssText = `
+                position: relative;
+                width: 100%;
+                height: 100%;
+                max-width: 1400px;
+                max-height: 800px;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                background: rgba(255, 255, 255, 0.05);
+                border-radius: 8px;
+                overflow: hidden;
+            `;
+            
+            const sliderContainer = document.createElement('div');
+            sliderContainer.style.cssText = `
+                position: relative;
+                width: 90%;
+                height: 90%;
+                overflow: hidden;
+                border-radius: 8px;
+            `;
+            
+            const baseImg = originalImg.cloneNode();
+            baseImg.style.cssText = `
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                object-fit: contain;
+            `;
+            
+            const overlayImg = uploadedImg.cloneNode();
+            overlayImg.style.cssText = `
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                object-fit: contain;
+                clip-path: polygon(0 0, 50% 0, 50% 100%, 0 100%);
+            `;
+            
+            const slider = document.createElement('div');
+            slider.style.cssText = `
+                position: absolute;
+                top: 0;
+                left: 50%;
+                width: 4px;
+                height: 100%;
+                background: #2196F3;
+                cursor: ew-resize;
+                z-index: 10;
+                transform: translateX(-50%);
+                box-shadow: 0 0 10px rgba(33, 150, 243, 0.5);
+            `;
+            
+            const sliderHandle = document.createElement('div');
+            sliderHandle.style.cssText = `
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                width: 20px;
+                height: 20px;
+                background: #2196F3;
+                border: 2px solid white;
+                border-radius: 50%;
+                transform: translate(-50%, -50%);
+                cursor: ew-resize;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            `;
+            
+            slider.appendChild(sliderHandle);
+            
+            let isDragging = false;
+            
+            const updateSlider = (x) => {
+                const rect = sliderContainer.getBoundingClientRect();
+                const percentage = Math.max(0, Math.min(100, ((x - rect.left) / rect.width) * 100));
+                slider.style.left = percentage + '%';
+                overlayImg.style.clipPath = `polygon(0 0, ${percentage}% 0, ${percentage}% 100%, 0 100%)`;
+            };
+            
+            slider.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                e.preventDefault();
+            });
+            
+            document.addEventListener('mousemove', (e) => {
+                if (isDragging) {
+                    updateSlider(e.clientX);
+                }
+            });
+            
+            document.addEventListener('mouseup', () => {
+                isDragging = false;
+            });
+            
+            sliderContainer.appendChild(baseImg);
+            sliderContainer.appendChild(overlayImg);
+            sliderContainer.appendChild(slider);
+            comparisonArea.appendChild(sliderContainer);
+            
+        } else if (mode === 'blink') {
+            // 闪烁对比模式
+            comparisonArea.style.cssText = `
+                position: relative;
+                width: 100%;
+                height: 100%;
+                max-width: 1400px;
+                max-height: 800px;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                background: rgba(255, 255, 255, 0.05);
+                border-radius: 8px;
+            `;
+            
+            const blinkContainer = document.createElement('div');
+            blinkContainer.style.cssText = `
+                position: relative;
+                width: 90%;
+                height: 90%;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+            `;
+            
+            const img1 = originalImg.cloneNode();
+            const img2 = uploadedImg.cloneNode();
+            
+            img1.style.cssText = `
+                position: absolute;
+                max-width: 100%;
+                max-height: 100%;
+                object-fit: contain;
+                transition: opacity 0.1s ease;
+            `;
+            
+            img2.style.cssText = `
+                position: absolute;
+                max-width: 100%;
+                max-height: 100%;
+                object-fit: contain;
+                opacity: 0;
+                transition: opacity 0.1s ease;
+            `;
+            
+            let isShowingSecond = false;
+            const blinkInterval = setInterval(() => {
+                if (isShowingSecond) {
+                    img1.style.opacity = '1';
+                    img2.style.opacity = '0';
+                } else {
+                    img1.style.opacity = '0';
+                    img2.style.opacity = '1';
+                }
+                isShowingSecond = !isShowingSecond;
+            }, 800);
+            
+            // 保存interval以便清理
+            comparisonArea.blinkInterval = blinkInterval;
+            
+            const indicator = document.createElement('div');
+            indicator.style.cssText = `
+                position: absolute;
+                top: 20px;
+                left: 20px;
+                color: white;
+                background: rgba(0, 0, 0, 0.7);
+                padding: 8px 12px;
+                border-radius: 20px;
+                font-size: 12px;
+                font-weight: 500;
+                z-index: 10;
+            `;
+            indicator.textContent = '自动切换中...';
+            
+            blinkContainer.appendChild(img1);
+            blinkContainer.appendChild(img2);
+            blinkContainer.appendChild(indicator);
+            comparisonArea.appendChild(blinkContainer);
+        }
+    };
     
-    // 创建对比信息
-    const infoArea = createComparisonInfo(original, uploaded);
+    // 初始化为并排对比模式
+    switchComparisonMode('side-by-side');
     
     // 创建底部区域容器
     const footerArea = document.createElement('div');
@@ -2251,14 +2635,14 @@ function createComparisonModal(original, uploaded, newImage) {
     `;
     
     // 创建美化的关闭按钮
-    const closeButton = document.createElement('button');
-    closeButton.innerHTML = `
+    const footerCloseButton = document.createElement('button');
+    footerCloseButton.innerHTML = `
         <span style="display: flex; align-items: center; gap: 8px;">
             <span style="font-size: 16px;">✖️</span>
             关闭对比
         </span>
     `;
-    closeButton.style.cssText = `
+    footerCloseButton.style.cssText = `
         padding: 12px 25px;
         background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
         color: white;
@@ -2275,45 +2659,115 @@ function createComparisonModal(original, uploaded, newImage) {
     `;
     
     // 按钮悬停效果
-    closeButton.addEventListener('mouseenter', () => {
-        closeButton.style.transform = 'translateY(-2px)';
-        closeButton.style.boxShadow = '0 6px 16px rgba(33, 150, 243, 0.4)';
-        closeButton.style.background = 'linear-gradient(135deg, #1976D2 0%, #1565C0 100%)';
+    footerCloseButton.addEventListener('mouseenter', () => {
+        footerCloseButton.style.transform = 'translateY(-2px)';
+        footerCloseButton.style.boxShadow = '0 6px 16px rgba(33, 150, 243, 0.4)';
+        footerCloseButton.style.background = 'linear-gradient(135deg, #1976D2 0%, #1565C0 100%)';
     });
     
-    closeButton.addEventListener('mouseleave', () => {
-        closeButton.style.transform = 'translateY(0)';
-        closeButton.style.boxShadow = '0 4px 12px rgba(33, 150, 243, 0.3)';
-        closeButton.style.background = 'linear-gradient(135deg, #2196F3 0%, #1976D2 100%)';
+    footerCloseButton.addEventListener('mouseleave', () => {
+        footerCloseButton.style.transform = 'translateY(0)';
+        footerCloseButton.style.boxShadow = '0 4px 12px rgba(33, 150, 243, 0.3)';
+        footerCloseButton.style.background = 'linear-gradient(135deg, #2196F3 0%, #1976D2 100%)';
     });
     
     // 按钮点击效果
-    closeButton.addEventListener('mousedown', () => {
-        closeButton.style.transform = 'translateY(1px) scale(0.98)';
+    footerCloseButton.addEventListener('mousedown', () => {
+        footerCloseButton.style.transform = 'translateY(1px) scale(0.98)';
     });
     
-    closeButton.addEventListener('mouseup', () => {
-        closeButton.style.transform = 'translateY(-2px) scale(1)';
+    footerCloseButton.addEventListener('mouseup', () => {
+        footerCloseButton.style.transform = 'translateY(-2px) scale(1)';
     });
     
-    closeButton.addEventListener('click', () => {
+    footerCloseButton.addEventListener('click', () => {
         closeComparisonModal();
     });
     
-    // 组装底部区域
-    footerArea.appendChild(hintText);
-    footerArea.appendChild(closeButton);
+    // 添加模式切换按钮事件监听器
+    // 按钮已在上面创建，直接获取引用
     
-    // 组装底部区域
-    footerArea.appendChild(hintText);
-    footerArea.appendChild(closeButton);
+    const updateActiveButton = (activeBtn) => {
+        [sideBySideBtn, sliderBtn, blinkBtn].forEach(btn => {
+            btn.style.background = 'rgba(255, 255, 255, 0.1)';
+            btn.style.color = 'rgba(255, 255, 255, 0.8)';
+        });
+        activeBtn.style.background = '#2196F3';
+        activeBtn.style.color = 'white';
+    };
+    
+    sideBySideBtn.addEventListener('click', () => {
+        // 清理之前的interval
+        if (comparisonArea.blinkInterval) {
+            clearInterval(comparisonArea.blinkInterval);
+            comparisonArea.blinkInterval = null;
+        }
+        switchComparisonMode('side-by-side');
+        updateActiveButton(sideBySideBtn);
+    });
+    
+    sliderBtn.addEventListener('click', () => {
+        // 清理之前的interval
+        if (comparisonArea.blinkInterval) {
+            clearInterval(comparisonArea.blinkInterval);
+            comparisonArea.blinkInterval = null;
+        }
+        switchComparisonMode('slider');
+        updateActiveButton(sliderBtn);
+    });
+    
+    blinkBtn.addEventListener('click', () => {
+        // 清理之前的interval
+        if (comparisonArea.blinkInterval) {
+            clearInterval(comparisonArea.blinkInterval);
+            comparisonArea.blinkInterval = null;
+        }
+        switchComparisonMode('blink');
+        updateActiveButton(blinkBtn);
+    });
+    
+    // 设置初始活动按钮
+    updateActiveButton(sideBySideBtn);
+    
+    // 创建简化的底部区域
+    const simpleFooter = document.createElement('div');
+    simpleFooter.style.cssText = `
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 15px;
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 0 0 12px 12px;
+    `;
+    
+    // 创建提示信息
+    const simpleHint = document.createElement('div');
+    simpleHint.innerHTML = '💡 按 <kbd>ESC</kbd> 或点击背景关闭 | 🖱️ 拖拽滑块对比图片';
+    simpleHint.style.cssText = `
+        color: rgba(255, 255, 255, 0.8);
+        font-size: 13px;
+        text-align: center;
+    `;
+    
+    const kbdElements = simpleHint.querySelectorAll('kbd');
+    kbdElements.forEach(kbd => {
+        kbd.style.cssText = `
+            background: rgba(255, 255, 255, 0.2);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 11px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        `;
+    });
+    
+    simpleFooter.appendChild(simpleHint);
     
     // 组装弹窗
-    content.appendChild(title);
-    content.appendChild(comparisonArea);
-    content.appendChild(infoArea);
-    content.appendChild(footerArea);
-    comparisonModal.appendChild(content);
+    mainContainer.appendChild(toolbar);
+    mainContainer.appendChild(comparisonArea);
+    mainContainer.appendChild(simpleFooter);
+    comparisonModal.appendChild(mainContainer);
     
     // 点击背景关闭
     comparisonModal.addEventListener('click', (e) => {
@@ -2356,20 +2810,22 @@ function createImageArea(title, src, imageInfo) {
     
     const area = document.createElement('div');
     area.style.cssText = `
-        text-align: center;
-        border: 2px solid #e0e0e0;
-        border-radius: 8px;
-        padding: 15px;
-        background: #f9f9f9;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: transparent;
+        padding: 10px;
     `;
     
-    const titleElement = document.createElement('h3');
+    const titleElement = document.createElement('div');
     titleElement.textContent = title;
     titleElement.style.cssText = `
-        margin: 0 0 10px 0;
-        color: #666;
-        font-family: Arial, sans-serif;
-        font-size: 16px;
+        color: white;
+        font-size: 14px;
+        margin-bottom: 10px;
+        font-weight: 500;
+        text-align: center;
     `;
     
     const img = document.createElement('img');
@@ -2420,14 +2876,11 @@ function createImageArea(title, src, imageInfo) {
     }
     
     img.style.cssText = `
-        width: 100%;
         max-width: 100%;
-        min-height: 400px;
-        max-height: 600px;
+        max-height: 100%;
         object-fit: contain;
-        border: 2px solid #ddd;
-        border-radius: 8px;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+        border-radius: 4px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
     `;
     
     const info = document.createElement('div');
