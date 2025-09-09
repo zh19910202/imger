@@ -269,6 +269,22 @@ function closeComparisonModal() {
             window.currentHandleEscKey = null;
         }
     }
+    
+    // 清理右侧工具栏 - 更新选择器以匹配当前的right值
+    const toolbar = document.querySelector('div[style*="position: fixed"][style*="right: 5px"]');
+    if (toolbar && toolbar.parentNode) {
+        toolbar.parentNode.removeChild(toolbar);
+        debugLog('右侧工具栏已清理');
+    }
+    
+    // 备用清理方法：通过其他特征查找工具栏
+    const toolbars = document.querySelectorAll('div[style*="position: fixed"][style*="transform: translateY(-50%)"][style*="width: 80px"]');
+    toolbars.forEach(tb => {
+        if (tb && tb.parentNode) {
+            tb.parentNode.removeChild(tb);
+            debugLog('通过备用方法清理了工具栏');
+        }
+    });
 }
 
 // 处理键盘事件
@@ -868,6 +884,19 @@ function cleanup() {
         comparisonModal.parentNode.removeChild(comparisonModal);
         comparisonModal = null;
     }
+    // 清理右侧工具栏 - 更新选择器以匹配当前的right值
+    const toolbar = document.querySelector('div[style*="position: fixed"][style*="right: 5px"]');
+    if (toolbar && toolbar.parentNode) {
+        toolbar.parentNode.removeChild(toolbar);
+    }
+    
+    // 备用清理方法：通过其他特征查找工具栏
+    const toolbars = document.querySelectorAll('div[style*="position: fixed"][style*="transform: translateY(-50%)"][style*="width: 80px"]');
+    toolbars.forEach(tb => {
+        if (tb && tb.parentNode) {
+            tb.parentNode.removeChild(tb);
+        }
+    });
     // 重置对比页面状态
     isComparisonModalOpen = false;
     // 清理调试面板
@@ -2160,35 +2189,57 @@ function createComparisonModal(original, uploaded, newImage) {
         backdrop-filter: blur(5px);
     `;
     
-    // 创建顶部工具栏
+    // 创建顶部工具栏（移动到右侧）
     const toolbar = document.createElement('div');
     toolbar.style.cssText = `
+        position: fixed;
+        top: 50%;
+        right: 5px;
+        transform: translateY(-50%);
         display: flex;
-        justify-content: space-between;
+        flex-direction: column;
         align-items: center;
-        padding: 15px 30px;
-        background: rgba(255, 255, 255, 0.1);
-        backdrop-filter: blur(10px);
-        border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        gap: 12px;
+        padding: 16px 12px;
+        background: rgba(0, 0, 0, 0.9);
+        backdrop-filter: blur(15px);
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        z-index: 1000000;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+        max-height: 85vh;
+        overflow-y: auto;
+        width: 80px;
+        box-sizing: border-box;
     `;
     
     // 创建标题
-    const title = document.createElement('h2');
-    title.textContent = '图片对比';
+    const title = document.createElement('div');
+    title.textContent = '对比';
     title.style.cssText = `
         margin: 0;
-        color: white;
-        font-family: Arial, sans-serif;
-        font-size: 18px;
-        font-weight: 500;
+        color: rgba(255, 255, 255, 0.95);
+        font-family: 'Microsoft YaHei', Arial, sans-serif;
+        font-size: 13px;
+        font-weight: 600;
+        text-align: center;
+        line-height: 1.2;
+        letter-spacing: 1px;
+        padding: 8px 4px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        width: 100%;
+        box-sizing: border-box;
     `;
     
     // 创建对比模式切换按钮组
     const modeButtons = document.createElement('div');
     modeButtons.style.cssText = `
         display: flex;
-        gap: 10px;
+        flex-direction: column;
+        gap: 6px;
         align-items: center;
+        width: 100%;
+        padding: 8px 0;
     `;
     
     // 当前对比模式
@@ -2197,29 +2248,64 @@ function createComparisonModal(original, uploaded, newImage) {
     // 创建模式按钮
     const createModeButton = (mode, text, icon) => {
         const button = document.createElement('button');
-        button.innerHTML = `${icon} ${text}`;
+        
+        // 创建按钮内容容器
+        const buttonContent = document.createElement('div');
+        buttonContent.style.cssText = `
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+        `;
+        
+        const iconElement = document.createElement('div');
+        iconElement.textContent = icon;
+        iconElement.style.cssText = `
+            font-size: 16px;
+            line-height: 1;
+        `;
+        
+        const textElement = document.createElement('div');
+        textElement.textContent = text;
+        textElement.style.cssText = `
+            font-size: 9px;
+            line-height: 1;
+            font-weight: 500;
+            white-space: nowrap;
+        `;
+        
+        buttonContent.appendChild(iconElement);
+        buttonContent.appendChild(textElement);
+        button.appendChild(buttonContent);
+        
         button.style.cssText = `
-            padding: 8px 16px;
-            background: ${mode === currentMode ? 'rgba(33, 150, 243, 0.8)' : 'rgba(255, 255, 255, 0.2)'};
+            padding: 8px 6px;
+            background: ${mode === currentMode ? 'rgba(33, 150, 243, 0.9)' : 'rgba(255, 255, 255, 0.15)'};
             color: white;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            border-radius: 20px;
+            border: 1px solid ${mode === currentMode ? 'rgba(33, 150, 243, 0.6)' : 'rgba(255, 255, 255, 0.25)'};
+            border-radius: 12px;
             cursor: pointer;
-            font-size: 12px;
-            font-family: Arial, sans-serif;
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
             transition: all 0.3s ease;
             backdrop-filter: blur(10px);
+            width: 100%;
+            box-sizing: border-box;
+            min-height: 50px;
         `;
         
         button.addEventListener('mouseenter', () => {
             if (mode !== currentMode) {
-                button.style.background = 'rgba(255, 255, 255, 0.3)';
+                button.style.background = 'rgba(255, 255, 255, 0.25)';
+                button.style.borderColor = 'rgba(255, 255, 255, 0.4)';
+                button.style.transform = 'scale(1.02)';
             }
         });
         
         button.addEventListener('mouseleave', () => {
             if (mode !== currentMode) {
-                button.style.background = 'rgba(255, 255, 255, 0.2)';
+                button.style.background = 'rgba(255, 255, 255, 0.15)';
+                button.style.borderColor = 'rgba(255, 255, 255, 0.25)';
+                button.style.transform = 'scale(1)';
             }
         });
         
@@ -2238,10 +2324,19 @@ function createComparisonModal(original, uploaded, newImage) {
     
     const updateModeButtons = () => {
         [sideBySideBtn, sliderBtn, blinkBtn].forEach(btn => {
-            const mode = btn.textContent.includes('并排') ? 'side-by-side' : 
-                        btn.textContent.includes('滑动') ? 'slider' : 'blink';
-            btn.style.background = mode === currentMode ? 
-                'rgba(33, 150, 243, 0.8)' : 'rgba(255, 255, 255, 0.2)';
+            const textContent = btn.querySelector('div:last-child').textContent;
+            const mode = textContent.includes('并排') ? 'side-by-side' : 
+                        textContent.includes('滑动') ? 'slider' : 'blink';
+            
+            if (mode === currentMode) {
+                btn.style.background = 'rgba(33, 150, 243, 0.9)';
+                btn.style.borderColor = 'rgba(33, 150, 243, 0.6)';
+                btn.style.transform = 'scale(1)';
+            } else {
+                btn.style.background = 'rgba(255, 255, 255, 0.15)';
+                btn.style.borderColor = 'rgba(255, 255, 255, 0.25)';
+                btn.style.transform = 'scale(1)';
+            }
         });
     };
     
@@ -2251,34 +2346,69 @@ function createComparisonModal(original, uploaded, newImage) {
     
     // 创建关闭按钮
     const closeButton = document.createElement('button');
-    closeButton.innerHTML = '✖️';
-    closeButton.style.cssText = `
-        padding: 8px 12px;
-        background: rgba(244, 67, 54, 0.8);
-        color: white;
-        border: none;
-        border-radius: 50%;
-        cursor: pointer;
+    
+    const closeContent = document.createElement('div');
+    closeContent.style.cssText = `
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+    `;
+    
+    const closeIcon = document.createElement('div');
+    closeIcon.textContent = '✖️';
+    closeIcon.style.cssText = `
         font-size: 14px;
+        line-height: 1;
+    `;
+    
+    const closeText = document.createElement('div');
+    closeText.textContent = '关闭';
+    closeText.style.cssText = `
+        font-size: 9px;
+        line-height: 1;
+        font-weight: 500;
+    `;
+    
+    closeContent.appendChild(closeIcon);
+    closeContent.appendChild(closeText);
+    closeButton.appendChild(closeContent);
+    
+    closeButton.style.cssText = `
+        padding: 8px 6px;
+        background: rgba(244, 67, 54, 0.85);
+        color: white;
+        border: 1px solid rgba(244, 67, 54, 0.6);
+        border-radius: 12px;
+        cursor: pointer;
+        font-family: 'Microsoft YaHei', Arial, sans-serif;
         transition: all 0.3s ease;
         backdrop-filter: blur(10px);
+        width: 100%;
+        box-sizing: border-box;
+        margin-top: 8px;
+        min-height: 45px;
     `;
     
     closeButton.addEventListener('mouseenter', () => {
         closeButton.style.background = 'rgba(244, 67, 54, 1)';
-        closeButton.style.transform = 'scale(1.1)';
+        closeButton.style.borderColor = 'rgba(244, 67, 54, 0.8)';
+        closeButton.style.transform = 'scale(1.05)';
+        closeButton.style.boxShadow = '0 4px 12px rgba(244, 67, 54, 0.4)';
     });
     
     closeButton.addEventListener('mouseleave', () => {
-        closeButton.style.background = 'rgba(244, 67, 54, 0.8)';
+        closeButton.style.background = 'rgba(244, 67, 54, 0.85)';
+        closeButton.style.borderColor = 'rgba(244, 67, 54, 0.6)';
         closeButton.style.transform = 'scale(1)';
+        closeButton.style.boxShadow = 'none';
     });
     
     closeButton.addEventListener('click', () => {
         closeComparisonModal();
     });
     
-    // 组装工具栏
+    // 组装工具栏（纵向排列）
     toolbar.appendChild(title);
     toolbar.appendChild(modeButtons);
     toolbar.appendChild(closeButton);
@@ -2290,8 +2420,10 @@ function createComparisonModal(original, uploaded, newImage) {
         display: flex;
         justify-content: center;
         align-items: center;
-        padding: 20px;
+        padding: 0;
         overflow: hidden;
+        width: 100%;
+        height: 100%;
     `;
     
     // 创建图片对比区域
@@ -2299,16 +2431,17 @@ function createComparisonModal(original, uploaded, newImage) {
     comparisonArea.id = 'comparison-area';
     comparisonArea.style.cssText = `
         position: relative;
-        width: 100%;
+        width: calc(100% - 95px);
         height: 100%;
         max-width: 1400px;
-        max-height: 800px;
+        max-height: 100vh;
         display: flex;
         justify-content: center;
         align-items: center;
-        background: rgba(255, 255, 255, 0.05);
+        background: rgba(255, 255, 255, 0.02);
         border-radius: 8px;
         overflow: hidden;
+        margin-right: 5px;
     `;
     
     // 验证参数并创建图片区域
@@ -2355,16 +2488,17 @@ function createComparisonModal(original, uploaded, newImage) {
             // 并排对比模式
             comparisonArea.style.cssText = `
                 position: relative;
-                width: 100%;
+                width: calc(100% - 95px);
                 height: 100%;
                 max-width: 1400px;
-                max-height: 800px;
+                max-height: 100vh;
                 display: grid;
                 grid-template-columns: 1fr 1fr;
-                gap: 20px;
-                background: rgba(255, 255, 255, 0.05);
+                gap: 15px;
+                background: rgba(255, 255, 255, 0.02);
                 border-radius: 8px;
-                padding: 20px;
+                padding: 15px;
+                margin-right: 5px;
             `;
             
             const leftContainer = document.createElement('div');
@@ -2373,9 +2507,10 @@ function createComparisonModal(original, uploaded, newImage) {
                 flex-direction: column;
                 align-items: center;
                 justify-content: center;
-                background: rgba(0, 0, 0, 0.3);
+                background: rgba(0, 0, 0, 0.2);
                 border-radius: 8px;
-                padding: 15px;
+                padding: 12px;
+                height: 100%;
             `;
             
             const rightContainer = document.createElement('div');
@@ -2384,9 +2519,10 @@ function createComparisonModal(original, uploaded, newImage) {
                 flex-direction: column;
                 align-items: center;
                 justify-content: center;
-                background: rgba(0, 0, 0, 0.3);
+                background: rgba(0, 0, 0, 0.2);
                 border-radius: 8px;
-                padding: 15px;
+                padding: 12px;
+                height: 100%;
             `;
             
             const leftLabel = document.createElement('div');
@@ -2412,23 +2548,25 @@ function createComparisonModal(original, uploaded, newImage) {
             rightContainer.appendChild(rightLabel);
             rightContainer.appendChild(uploadedImg.cloneNode());
             
-            comparisonArea.appendChild(leftContainer);
+            // 将右侧容器添加到左侧位置，左侧容器添加到右侧位置
             comparisonArea.appendChild(rightContainer);
+            comparisonArea.appendChild(leftContainer);
             
         } else if (mode === 'slider') {
             // 滑动对比模式
             comparisonArea.style.cssText = `
                 position: relative;
-                width: 100%;
+                width: calc(100% - 95px);
                 height: 100%;
                 max-width: 1400px;
-                max-height: 800px;
+                max-height: 100vh;
                 display: flex;
                 justify-content: center;
                 align-items: center;
-                background: rgba(255, 255, 255, 0.05);
+                background: rgba(255, 255, 255, 0.02);
                 border-radius: 8px;
                 overflow: hidden;
+                margin-right: 5px;
             `;
             
             const sliderContainer = document.createElement('div');
@@ -2525,15 +2663,16 @@ function createComparisonModal(original, uploaded, newImage) {
             // 闪烁对比模式
             comparisonArea.style.cssText = `
                 position: relative;
-                width: 100%;
+                width: calc(100% - 95px);
                 height: 100%;
                 max-width: 1400px;
-                max-height: 800px;
+                max-height: 100vh;
                 display: flex;
                 justify-content: center;
                 align-items: center;
-                background: rgba(255, 255, 255, 0.05);
+                background: rgba(255, 255, 255, 0.02);
                 border-radius: 8px;
+                margin-right: 5px;
             `;
             
             const blinkContainer = document.createElement('div');
@@ -2729,45 +2868,12 @@ function createComparisonModal(original, uploaded, newImage) {
     // 设置初始活动按钮
     updateActiveButton(sideBySideBtn);
     
-    // 创建简化的底部区域
-    const simpleFooter = document.createElement('div');
-    simpleFooter.style.cssText = `
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        padding: 15px;
-        background: rgba(0, 0, 0, 0.3);
-        border-radius: 0 0 12px 12px;
-    `;
-    
-    // 创建提示信息
-    const simpleHint = document.createElement('div');
-    simpleHint.innerHTML = '💡 按 <kbd>ESC</kbd> 或点击背景关闭 | 🖱️ 拖拽滑块对比图片';
-    simpleHint.style.cssText = `
-        color: rgba(255, 255, 255, 0.8);
-        font-size: 13px;
-        text-align: center;
-    `;
-    
-    const kbdElements = simpleHint.querySelectorAll('kbd');
-    kbdElements.forEach(kbd => {
-        kbd.style.cssText = `
-            background: rgba(255, 255, 255, 0.2);
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-family: monospace;
-            font-size: 11px;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-        `;
-    });
-    
-    simpleFooter.appendChild(simpleHint);
-    
-    // 组装弹窗
-    mainContainer.appendChild(toolbar);
+    // 组装弹窗（不包含工具栏和底部提示）
     mainContainer.appendChild(comparisonArea);
-    mainContainer.appendChild(simpleFooter);
     comparisonModal.appendChild(mainContainer);
+    
+    // 将工具栏添加到页面（独立定位）
+    document.body.appendChild(toolbar);
     
     // 点击背景关闭
     comparisonModal.addEventListener('click', (e) => {
