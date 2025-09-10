@@ -9,6 +9,7 @@ let lastHoveredImage = null;
 let selectedImage = null;
 let notificationAudio = null;
 let soundEnabled = true; // 音效开关状态
+let autoCompareEnabled = true; // 自动对比开关状态
 let dimensionTooltip = null; // 尺寸提示框元素
 let originalImage = null; // 存储原图引用用于对比（在单个页面生命周期内不可变更）
 let originalImageLocked = false; // 原图锁定状态，防止在同一页面被覆盖
@@ -84,6 +85,9 @@ function initializeScript() {
     // 加载F1设置
     loadF1Settings();
     
+    // 加载自动对比设置
+    loadAutoCompareSettings();
+    
     // 初始化音效
     initializeAudio();
     
@@ -104,6 +108,10 @@ function initializeScript() {
             if (changes.f1MaxRuns) {
                 f1MaxRuns = changes.f1MaxRuns.newValue;
                 console.log('F1最大执行次数设置已更新:', f1MaxRuns);
+            }
+            if (changes.autoCompareEnabled) {
+                autoCompareEnabled = changes.autoCompareEnabled.newValue;
+                console.log('自动对比设置已更新:', autoCompareEnabled);
             }
         }
     });
@@ -966,6 +974,19 @@ function loadF1Settings() {
     }
 }
 
+// 加载自动对比设置
+function loadAutoCompareSettings() {
+    try {
+        chrome.storage.sync.get({ autoCompareEnabled: true }, (items) => {
+            autoCompareEnabled = items.autoCompareEnabled;
+            console.log('自动对比设置已加载:', autoCompareEnabled);
+        });
+    } catch (error) {
+        console.error('加载自动对比设置失败:', error);
+        autoCompareEnabled = true; // 默认开启
+    }
+}
+
 // 播放通知音效
 function playNotificationSound() {
     try {
@@ -1309,11 +1330,14 @@ function handleImageUpload(file, inputElement) {
                 pendingComparisonTimeouts.splice(index, 1);
             }
             
-            // 只有在应该自动对比时才执行（即用户刚上传了图片）
-            if (shouldAutoCompare) {
+            // 只有在应该自动对比且开关开启时才执行（即用户刚上传了图片）
+            if (shouldAutoCompare && autoCompareEnabled) {
                 debugLog('用户上传图片触发的自动对比');
                 shouldAutoCompare = false; // 重置标记，避免重复触发
                 performImageComparison();
+            } else if (shouldAutoCompare && !autoCompareEnabled) {
+                debugLog('跳过自动对比 - 自动对比功能已关闭');
+                shouldAutoCompare = false; // 重置标记
             } else {
                 debugLog('跳过自动对比 - 非用户上传触发');
             }
@@ -4978,9 +5002,12 @@ function handleCOSImageDetection(data) {
         }
     }
     
-    // 自动触发智能对比（如果需要）
-    if (shouldAutoCompare && capturedOriginalImage) {
+    // 自动触发智能对比（如果需要且开关开启）
+    if (shouldAutoCompare && autoCompareEnabled && capturedOriginalImage) {
         triggerSmartComparison();
+    } else if (shouldAutoCompare && !autoCompareEnabled) {
+        debugLog('跳过自动智能对比 - 自动对比功能已关闭');
+        shouldAutoCompare = false; // 重置标记
     }
 }
 

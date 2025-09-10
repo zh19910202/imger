@@ -40,3 +40,11 @@ coverage/
 .env.development.local
 .env.test.local
 .env.production.local
+
+# 测试文件
+test_*.html
+test_*.js
+test_*.css
+*_test.html
+*_test.js
+*_test.css

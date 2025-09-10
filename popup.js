@@ -2,6 +2,7 @@
 const defaultSettings = {
   autoOpenImages: true,
   soundEnabled: true,
+  autoCompareEnabled: true,
   f1Interval: 800,
   f1MaxRuns: 0
 };
@@ -11,6 +12,7 @@ function loadSettings() {
   chrome.storage.sync.get(defaultSettings, (items) => {
     document.getElementById('autoOpenToggle').checked = items.autoOpenImages;
     document.getElementById('soundToggle').checked = items.soundEnabled;
+    document.getElementById('autoCompareToggle').checked = items.autoCompareEnabled;
     document.getElementById('f1Interval').value = items.f1Interval;
     document.getElementById('f1MaxRuns').value = items.f1MaxRuns;
   });
@@ -34,6 +36,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const autoOpenImages = event.target.checked;
     chrome.storage.sync.set({ autoOpenImages }, () => {
       console.log('自动打开图片设置已更新:', autoOpenImages);
+    });
+  });
+  
+  // 自动对比开关事件
+  document.getElementById('autoCompareToggle').addEventListener('change', (event) => {
+    const autoCompareEnabled = event.target.checked;
+    chrome.storage.sync.set({ autoCompareEnabled }, () => {
+      console.log('自动对比设置已更新:', autoCompareEnabled);
     });
   });
   
