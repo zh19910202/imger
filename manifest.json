@@ -22,7 +22,19 @@
   },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "AnnotateFlow Assistant"
+    "default_title": "AnnotateFlow Assistant",
+    "default_icon": {
+      "16": "icon.png",
+      "32": "icon.png",
+      "48": "icon.png",
+      "128": "icon.png"
+    }
+  },
+  "icons": {
+    "16": "icon.png",
+    "32": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
   },
   "content_scripts": [
     {
