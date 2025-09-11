@@ -9,6 +9,7 @@ Thumbs.db
 # 编辑器文件
 .vscode/
 .idea/
+*.code-workspace
 *.swp
 *.swo
 
