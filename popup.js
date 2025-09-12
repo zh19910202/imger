@@ -7,14 +7,20 @@ const defaultSettings = {
   f1MaxRuns: 0
 };
 
-// 加载设置
+ // 加载设置（增加DOM健壮性）
 function loadSettings() {
   chrome.storage.sync.get(defaultSettings, (items) => {
-    document.getElementById('autoOpenToggle').checked = items.autoOpenImages;
-    document.getElementById('soundToggle').checked = items.soundEnabled;
-    document.getElementById('autoCompareToggle').checked = items.autoCompareEnabled;
-    document.getElementById('f1Interval').value = items.f1Interval;
-    document.getElementById('f1MaxRuns').value = items.f1MaxRuns;
+    const autoOpenEl = document.getElementById('autoOpenToggle');
+    const soundEl = document.getElementById('soundToggle');
+    const autoCompareEl = document.getElementById('autoCompareToggle');
+    const f1IntervalEl = document.getElementById('f1Interval');
+    const f1MaxRunsEl = document.getElementById('f1MaxRuns');
+
+    if (autoOpenEl) autoOpenEl.checked = !!items.autoOpenImages;
+    if (soundEl) soundEl.checked = !!items.soundEnabled;
+    if (autoCompareEl) autoCompareEl.checked = !!items.autoCompareEnabled;
+    if (f1IntervalEl) f1IntervalEl.value = items.f1Interval ?? defaultSettings.f1Interval;
+    if (f1MaxRunsEl) f1MaxRunsEl.value = items.f1MaxRuns ?? defaultSettings.f1MaxRuns;
   });
 }
 
@@ -24,7 +30,8 @@ document.addEventListener('DOMContentLoaded', () => {
   loadSettings();
   
   // 音效开关事件
-  document.getElementById('soundToggle').addEventListener('change', (event) => {
+  const soundToggle = document.getElementById('soundToggle');
+  if (soundToggle) soundToggle.addEventListener('change', (event) => {
     const soundEnabled = event.target.checked;
     chrome.storage.sync.set({ soundEnabled }, () => {
       console.log('音效设置已更新:', soundEnabled);
@@ -32,7 +39,8 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   
   // 自动打开图片开关事件
-  document.getElementById('autoOpenToggle').addEventListener('change', (event) => {
+  const autoOpenToggle = document.getElementById('autoOpenToggle');
+  if (autoOpenToggle) autoOpenToggle.addEventListener('change', (event) => {
     const autoOpenImages = event.target.checked;
     chrome.storage.sync.set({ autoOpenImages }, () => {
       console.log('自动打开图片设置已更新:', autoOpenImages);
@@ -40,7 +48,8 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   
   // 自动对比开关事件
-  document.getElementById('autoCompareToggle').addEventListener('change', (event) => {
+  const autoCompareToggle = document.getElementById('autoCompareToggle');
+  if (autoCompareToggle) autoCompareToggle.addEventListener('change', (event) => {
     const autoCompareEnabled = event.target.checked;
     chrome.storage.sync.set({ autoCompareEnabled }, () => {
       console.log('自动对比设置已更新:', autoCompareEnabled);
@@ -48,16 +57,22 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   
   // F1 间隔设置事件
-  document.getElementById('f1Interval').addEventListener('change', (event) => {
-    const f1Interval = parseInt(event.target.value) || 800;
+  const f1IntervalInput = document.getElementById('f1Interval');
+  if (f1IntervalInput) f1IntervalInput.addEventListener('change', (event) => {
+    const v = Number.parseInt(event.target.value, 10);
+    const f1Interval = Number.isFinite(v) && v >= 100 && v <= 5000 ? v : defaultSettings.f1Interval;
+    event.target.value = f1Interval;
     chrome.storage.sync.set({ f1Interval }, () => {
       console.log('F1间隔设置已更新:', f1Interval);
     });
   });
   
   // F1 最大执行次数设置事件
-  document.getElementById('f1MaxRuns').addEventListener('change', (event) => {
-    const f1MaxRuns = parseInt(event.target.value) || 0;
+  const f1MaxRunsInput = document.getElementById('f1MaxRuns');
+  if (f1MaxRunsInput) f1MaxRunsInput.addEventListener('change', (event) => {
+    const v = Number.parseInt(event.target.value, 10);
+    const f1MaxRuns = Number.isFinite(v) && v >= 0 && v <= 1000 ? v : defaultSettings.f1MaxRuns;
+    event.target.value = f1MaxRuns;
     chrome.storage.sync.set({ f1MaxRuns }, () => {
       console.log('F1最大执行次数设置已更新:', f1MaxRuns);
     });

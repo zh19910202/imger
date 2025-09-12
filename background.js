@@ -2,13 +2,57 @@
 // Service Worker初始化管理 - 解决Manifest V3浏览器重启问题
 // =============================================================================
 
-// 全局状态管理
+ // 全局状态管理
 let downloadListener = null;
 let nativePort = null;
 let isConnecting = false;
 let connectionPromise = null;
 let isInitialized = false;
 let webRequestListenerAdded = false;
+
+// 常量集中管理（不改变逻辑，仅去除硬编码分散）
+const COS_DOMAIN = 'aidata-1258344706.cos.ap-guangzhou.myqcloud.com';
+const WEBREQUEST_TYPES = ["image"];
+const IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff'];
+
+ // 轻量日志开关（默认开启）
+let LOG_VERBOSE = true; // 可被存储覆盖
+try {
+  chrome.storage?.sync?.get?.({ debugLogs: true }, (cfg) => {
+    if (typeof cfg?.debugLogs === 'boolean') {
+      LOG_VERBOSE = cfg.debugLogs;
+    }
+  });
+} catch (_) {}
+
+// 纯函数：是否 JPEG
+function isJpegUrl(u) {
+  const l = u.toLowerCase();
+  return !!(l.match(/\.(jpe?g)(\?|$)/) || l.includes('jpeg') || l.includes('jpg'));
+}
+
+// 纯函数：图片类别
+function resolveImageType(u) {
+  const isOriginalImage = u.includes('/target/');
+  const isModifiedImage = u.includes('/attachment/');
+  const imageType = isOriginalImage ? '原图' : (isModifiedImage ? '修改图' : '其他图片');
+  return { isOriginalImage, isModifiedImage, imageType };
+}
+
+function buildCosImageMessage(url, details, stage, extra = {}) {
+  const { isOriginalImage, isModifiedImage, imageType } = resolveImageType(url);
+  return {
+    type: 'COS_IMAGE_DETECTED',
+    data: {
+      url,
+      isOriginal: isOriginalImage,
+      isModified: isModifiedImage,
+      imageType,
+      stage,
+      ...extra
+    }
+  };
+}
 
 // 网络请求拦截功能
 function initializeNetworkInterception() {
@@ -17,32 +61,28 @@ function initializeNetworkInterception() {
     return;
   }
 
-  console.log('初始化网络请求拦截功能');
-  console.log('🚀 [网络拦截] 开始注册拦截器...');
+  if (LOG_VERBOSE) {
+    console.log('初始化网络请求拦截功能');
+    console.log('🚀 [网络拦截] 开始注册拦截器...');
+  }
   
   // 拦截所有图片类型的请求
   chrome.webRequest.onBeforeRequest.addListener(
     (details) => {
-      // 只拦截指定腾讯云COS域名的JPEG图片
-      const isTargetDomain = details.url.includes('aidata-1258344706.cos.ap-guangzhou.myqcloud.com');
-      const isJpeg = details.url.toLowerCase().match(/\.(jpe?g)(\?|$)/) || 
-                    details.url.toLowerCase().includes('jpeg') ||
-                    details.url.toLowerCase().includes('jpg');
-      
+      const url = details.url;
+      const isTargetDomain = url.includes(COS_DOMAIN);
+      const isJpeg = isJpegUrl(url);
+
       if (isTargetDomain && isJpeg) {
-        console.log('🎯 [COS拦截] JPEG图片请求:', details.url);
-        
-        // 区分原图和修改图
-        const isOriginalImage = details.url.includes('/target/');
-        const isModifiedImage = details.url.includes('/attachment/');
-        
-        const imageType = isOriginalImage ? '原图' : 
-                         isModifiedImage ? '修改图' : '其他图片';
-        
-        console.log(`📸 [图片类型] ${imageType}: ${details.url}`);
-        
+        const { isOriginalImage, isModifiedImage, imageType } = resolveImageType(url);
+
+        if (LOG_VERBOSE) {
+          console.log('🎯 [COS拦截] JPEG图片请求:', url);
+          console.log(`📸 [图片类型] ${imageType}: ${url}`);
+        }
+
         const logData = {
-          url: details.url,
+          url: url,
           method: details.method,
           type: details.type,
           tabId: details.tabId,
@@ -56,24 +96,16 @@ function initializeNetworkInterception() {
           }
         };
         
-        console.log('🔍 [COS拦截] 详细信息:', logData);
+        if (LOG_VERBOSE) console.log('🔍 [COS拦截] 详细信息:', logData);
         
         // 发送网络请求数据到content script
-        chrome.tabs.sendMessage(details.tabId, {
-          type: 'COS_IMAGE_DETECTED',
-          data: {
-            url: details.url,
-            method: details.method,
-            type: details.type,
-            timeStamp: details.timeStamp,
-            initiator: details.initiator,
-            isJpeg: true,
-            isOriginal: isOriginalImage,
-            isModified: isModifiedImage,
-            imageType: imageType,
-            stage: 'request'
-          }
-        }).catch(() => {
+        chrome.tabs.sendMessage(details.tabId, buildCosImageMessage(url, details, 'request', {
+          method: details.method,
+          type: details.type,
+          timeStamp: details.timeStamp,
+          initiator: details.initiator,
+          isJpeg: true
+        })).catch(() => {
           // 忽略发送失败（可能content script还未加载）
         });
       }
@@ -91,33 +123,26 @@ function initializeNetworkInterception() {
   // 拦截响应头，获取更多图片信息
   chrome.webRequest.onHeadersReceived.addListener(
     (details) => {
-      // 只拦截指定腾讯云COS域名的JPEG图片
-      const isTargetDomain = details.url.includes('aidata-1258344706.cos.ap-guangzhou.myqcloud.com');
-      const isJpegByUrl = details.url.toLowerCase().match(/\.(jpe?g)(\?|$)/) || 
-                         details.url.toLowerCase().includes('jpeg') ||
-                         details.url.toLowerCase().includes('jpg');
-      
+      const url = details.url;
+      const isTargetDomain = url.includes(COS_DOMAIN);
+      const isJpegByUrl = isJpegUrl(url);
+
       if (isTargetDomain && isJpegByUrl) {
-        const contentType = details.responseHeaders?.find(h => 
+        const contentType = details.responseHeaders?.find(h =>
           h.name.toLowerCase() === 'content-type'
         )?.value;
-        
-        const contentLength = details.responseHeaders?.find(h => 
+
+        const contentLength = details.responseHeaders?.find(h =>
           h.name.toLowerCase() === 'content-length'
         )?.value;
-        
-        // 检测是否为JPEG类型（通过Content-Type或URL）
+
         const isJpegByContentType = contentType && contentType.toLowerCase().includes('jpeg');
         const isJpeg = isJpegByContentType || isJpegByUrl;
-        
-        // 区分原图和修改图
-        const isOriginalImage = details.url.includes('/target/');
-        const isModifiedImage = details.url.includes('/attachment/');
-        const imageType = isOriginalImage ? '原图' : 
-                         isModifiedImage ? '修改图' : '其他图片';
-        
+
+        const { isOriginalImage, isModifiedImage, imageType } = resolveImageType(url);
+
         const logData = {
-          url: details.url,
+          url: url,
           statusCode: details.statusCode,
           contentType: contentType,
           contentLength: contentLength ? `${contentLength} bytes` : 'unknown',
@@ -131,27 +156,19 @@ function initializeNetworkInterception() {
           }
         };
         
-        console.log(`📥 [COS拦截] ${imageType}响应头:`, logData);
+        if (LOG_VERBOSE) console.log(`📥 [COS拦截] ${imageType}响应头:`, logData);
         
         // 发送响应数据到content script
-        chrome.tabs.sendMessage(details.tabId, {
-          type: 'COS_IMAGE_DETECTED',
-          data: {
-            url: details.url,
-            statusCode: details.statusCode,
-            contentType: contentType,
-            contentLength: contentLength,
-            isJpeg: isJpeg,
-            isOriginal: isOriginalImage,
-            isModified: isModifiedImage,
-            imageType: imageType,
-            jpegDetection: {
-              byContentType: isJpegByContentType,
-              byUrl: isJpegByUrl
-            },
-            stage: 'response'
+        chrome.tabs.sendMessage(details.tabId, buildCosImageMessage(url, details, 'response', {
+          statusCode: details.statusCode,
+          contentType: contentType,
+          contentLength: contentLength,
+          isJpeg: isJpeg,
+          jpegDetection: {
+            byContentType: isJpegByContentType,
+            byUrl: isJpegByUrl
           }
-        }).catch(() => {
+        })).catch(() => {
           // 忽略发送失败
         });
       }
@@ -168,21 +185,15 @@ function initializeNetworkInterception() {
   // 拦截请求完成事件
   chrome.webRequest.onCompleted.addListener(
     (details) => {
-      // 只拦截指定腾讯云COS域名的JPEG图片
-      const isTargetDomain = details.url.includes('aidata-1258344706.cos.ap-guangzhou.myqcloud.com');
-      const isJpegByUrl = details.url.toLowerCase().match(/\.(jpe?g)(\?|$)/) || 
-                         details.url.toLowerCase().includes('jpeg') ||
-                         details.url.toLowerCase().includes('jpg');
-      
+      const url = details.url;
+      const isTargetDomain = url.includes(COS_DOMAIN);
+      const isJpegByUrl = isJpegUrl(url);
+
       if (isTargetDomain && isJpegByUrl) {
-        // 区分原图和修改图
-        const isOriginalImage = details.url.includes('/target/');
-        const isModifiedImage = details.url.includes('/attachment/');
-        const imageType = isOriginalImage ? '原图' : 
-                         isModifiedImage ? '修改图' : '其他图片';
-        
+        const { isOriginalImage, isModifiedImage, imageType } = resolveImageType(url);
+
         const logData = {
-          url: details.url,
+          url: url,
           statusCode: details.statusCode,
           tabId: details.tabId,
           timeStamp: new Date(details.timeStamp).toLocaleString(),
@@ -190,21 +201,13 @@ function initializeNetworkInterception() {
           isJpeg: isJpegByUrl
         };
         
-        console.log(`✅ [COS拦截] ${imageType}请求完成:`, logData);
+        if (LOG_VERBOSE) console.log(`✅ [COS拦截] ${imageType}请求完成:`, logData);
         
         // 发送完成状态到content script
-        chrome.tabs.sendMessage(details.tabId, {
-          type: 'COS_IMAGE_DETECTED',
-          data: {
-            url: details.url,
-            statusCode: details.statusCode,
-            isJpeg: isJpegByUrl,
-            isOriginal: isOriginalImage,
-            isModified: isModifiedImage,
-            imageType: imageType,
-            stage: 'completed'
-          }
-        }).catch(() => {
+        chrome.tabs.sendMessage(details.tabId, buildCosImageMessage(url, details, 'completed', {
+          statusCode: details.statusCode,
+          isJpeg: isJpegByUrl
+        })).catch(() => {
           // 忽略发送失败
         });
       }
@@ -280,7 +283,7 @@ function startKeepAlive() {
   
   // 定期执行
   setInterval(keepAlive, KEEP_ALIVE_INTERVAL);
-  console.log('Keep-alive机制已启动');
+  if (LOG_VERBOSE) console.log('Keep-alive机制已启动');
 }
 
 // =============================================================================
@@ -289,7 +292,7 @@ function startKeepAlive() {
 
 // 扩展安装/更新事件
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('onInstalled事件触发');
+  if (LOG_VERBOSE) console.log('onInstalled事件触发');
   initializeExtension().then(() => {
     startKeepAlive();
   });
@@ -297,7 +300,7 @@ chrome.runtime.onInstalled.addListener(() => {
 
 // 浏览器启动事件
 chrome.runtime.onStartup.addListener(() => {
-  console.log('onStartup事件触发');
+  if (LOG_VERBOSE) console.log('onStartup事件触发');
   isInitialized = false; // 重置初始化状态
   initializeExtension().then(() => {
     startKeepAlive();
@@ -307,7 +310,7 @@ chrome.runtime.onStartup.addListener(() => {
 // 标签页激活事件 - 触发初始化
 chrome.tabs.onActivated.addListener((activeInfo) => {
   if (!isInitialized) {
-    console.log('标签页激活，触发初始化检查');
+    if (LOG_VERBOSE) console.log('标签页激活，触发初始化检查');
     initializeExtension().then(() => {
       startKeepAlive();
     });
@@ -317,7 +320,7 @@ chrome.tabs.onActivated.addListener((activeInfo) => {
 // 标签页更新事件 - 触发初始化 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (!isInitialized && tab.url && tab.url.includes('qlabel.tencent.com')) {
-    console.log('目标页面加载，触发初始化检查');
+    if (LOG_VERBOSE) console.log('目标页面加载，触发初始化检查');
     initializeExtension().then(() => {
       startKeepAlive();
     });
@@ -325,7 +328,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 });
 
 // Service Worker立即启动初始化
-console.log('Service Worker启动，开始初始化');
+if (LOG_VERBOSE) console.log('Service Worker启动，开始初始化');
 initializeExtension().then(() => {
   startKeepAlive();
 });
@@ -363,7 +366,7 @@ function initializeNativeMessaging() {
       
       // 优化消息监听器 - 只处理相关消息
       port.onMessage.addListener((response) => {
-        console.log('Native Host响应:', response);
+        if (LOG_VERBOSE) console.log('Native Host响应:', response);
         
         // 处理文件打开响应
         if (response.success !== undefined) {
@@ -378,7 +381,7 @@ function initializeNativeMessaging() {
       });
       
       port.onDisconnect.addListener(() => {
-        console.log('Native Host连接断开');
+        if (LOG_VERBOSE) console.log('Native Host连接断开');
         nativePort = null;
         isConnecting = false;
         connectionPromise = null;
@@ -386,7 +389,7 @@ function initializeNativeMessaging() {
       
       nativePort = port;
       isConnecting = false;
-      console.log('Native Messaging连接已建立');
+      if (LOG_VERBOSE) console.log('Native Messaging连接已建立');
       resolve(port);
       
     } catch (error) {
@@ -407,7 +410,7 @@ function initializeDownloadListener() {
   }
   
   downloadListener = (delta) => {
-    console.log('下载状态变化:', delta);
+    if (LOG_VERBOSE) console.log('下载状态变化:', delta);
     
     // 检查下载是否完成
     if (delta.state && delta.state.current === 'complete') {
@@ -420,31 +423,30 @@ function initializeDownloadListener() {
           console.log('下载项信息:', download);
           
           // 检查是否是图片文件
-          const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff'];
           const filename = download.filename || '';
-          const isImage = imageExtensions.some(ext => 
-            filename.toLowerCase().endsWith(ext)
-          );
+          const isImage = IMAGE_EXTS.some(ext => filename.toLowerCase().endsWith(ext));
           
-          console.log('文件名:', filename);
-          console.log('是否为图片:', isImage);
+          if (LOG_VERBOSE) {
+            console.log('文件名:', filename);
+            console.log('是否为图片:', isImage);
+          }
           
           if (isImage) {
             // 获取用户设置
             chrome.storage.sync.get({autoOpenImages: true}, (settings) => {
-              console.log('自动打开设置:', settings.autoOpenImages);
+              if (LOG_VERBOSE) console.log('自动打开设置:', settings.autoOpenImages);
               
               if (settings.autoOpenImages) {
-                console.log('尝试自动打开图片');
+                if (LOG_VERBOSE) console.log('尝试自动打开图片');
                 
                 // 立即尝试打开图片，使用更智能的文件就绪检测
                 openImageWithBestMethod(delta.id, download.filename);
               } else {
-                console.log('用户设置不自动打开图片');
+                if (LOG_VERBOSE) console.log('用户设置不自动打开图片');
               }
             });
           } else {
-            console.log('非图片文件，不自动打开');
+            if (LOG_VERBOSE) console.log('非图片文件，不自动打开');
           }
         }
       });
@@ -456,20 +458,20 @@ function initializeDownloadListener() {
 
 // 通过多种方式打开图片 (不依赖用户手势) - 优化版本
 function openImageWithBestMethod(downloadId, filePath) {
-  console.log('尝试打开图片，下载ID:', downloadId, '文件路径:', filePath);
+  if (LOG_VERBOSE) console.log('尝试打开图片，下载ID:', downloadId, '文件路径:', filePath);
   
   // 简化的文件就绪检测 - 直接尝试打开，减少延迟
   if (nativePort) {
-    console.log('使用现有Native Host连接');
+    if (LOG_VERBOSE) console.log('使用现有Native Host连接');
     // 直接尝试打开，不进行复杂的文件检查
     setTimeout(() => {
       tryNativeHostOpen(filePath);
     }, 50); // 最小延迟确保文件写入完成
   } else {
-    console.log('Native Host未连接，尝试连接');
+    if (LOG_VERBOSE) console.log('Native Host未连接，尝试连接');
     initializeNativeMessaging()
       .then(() => {
-        console.log('Native Host连接成功，打开图片');
+        if (LOG_VERBOSE) console.log('Native Host连接成功，打开图片');
         // 连接成功后稍微延迟确保稳定
         setTimeout(() => {
           tryNativeHostOpen(filePath);
@@ -538,7 +540,7 @@ function checkFileReadyIfNeeded(filePath, callback, retryCount = 0) {
 
 // 通过Native Host打开图片 - 优化版本
 function tryNativeHostOpen(filePath) {
-  console.log('使用Native Host打开图片');
+  if (LOG_VERBOSE) console.log('使用Native Host打开图片');
   
   if (!nativePort) {
     console.error('Native Host未连接，无法打开图片');
@@ -547,7 +549,7 @@ function tryNativeHostOpen(filePath) {
   }
   
   try {
-    console.log('发送打开请求到Native Host:', filePath);
+    if (LOG_VERBOSE) console.log('发送打开请求到Native Host:', filePath);
     
     // 创建唯一的打开请求ID
     const openId = `open_${Date.now()}`;
@@ -558,7 +560,7 @@ function tryNativeHostOpen(filePath) {
       open_id: openId
     });
     
-    console.log('Native Host打开请求已发送，等待系统处理');
+    if (LOG_VERBOSE) console.log('Native Host打开请求已发送，等待系统处理');
     
   } catch (error) {
     console.error('Native Host方法失败:', error);
@@ -567,7 +569,7 @@ function tryNativeHostOpen(filePath) {
 
 // 显示通知提示用户手动打开
 function showOpenFileNotification(filePath) {
-  console.log('显示打开文件通知');
+  if (LOG_VERBOSE) console.log('显示打开文件通知');
   
   chrome.notifications.create({
     type: 'basic',
@@ -594,7 +596,7 @@ async function downloadImage(imageUrl, pageUrl) {
 // 支持自定义文件名的下载函数
 async function downloadImageWithCustomName(imageUrl, pageUrl, customFilename) {
   try {
-    console.log('开始下载图片:', imageUrl);
+    if (LOG_VERBOSE) console.log('开始下载图片:', imageUrl);
     
     let filename;
     if (customFilename) {
@@ -611,7 +613,7 @@ async function downloadImageWithCustomName(imageUrl, pageUrl, customFilename) {
       }
     }
     
-    console.log('文件名:', filename);
+    if (LOG_VERBOSE) console.log('文件名:', filename);
     
     // 开始下载
     const downloadId = await chrome.downloads.download({
@@ -631,7 +633,7 @@ async function downloadImageWithCustomName(imageUrl, pageUrl, customFilename) {
 
 // 处理来自popup和content script的消息
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log('收到消息:', request);
+  if (LOG_VERBOSE) console.log('收到消息:', request);
   
   if (request.action === "downloadImage") {
     // 支持自定义文件名
@@ -696,7 +698,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 // COS图片代理获取函数
 async function fetchCOSImageProxy(imageUrl) {
   try {
-    console.log('🌐 代理获取COS图片:', imageUrl);
+    if (LOG_VERBOSE) console.log('🌐 代理获取COS图片:', imageUrl);
     
     // 使用background script获取图片（无跨域限制）
     const response = await fetch(imageUrl, {
@@ -725,11 +727,13 @@ async function fetchCOSImageProxy(imageUrl) {
       dataUrl: `data:${blob.type};base64,${base64}`
     };
     
-    console.log('✅ COS图片代理获取成功:', {
-      url: imageUrl,
-      size: blob.size,
-      type: blob.type
-    });
+    if (LOG_VERBOSE) {
+      console.log('✅ COS图片代理获取成功:', {
+        url: imageUrl,
+        size: blob.size,
+        type: blob.type
+      });
+    }
     
     return result;
     

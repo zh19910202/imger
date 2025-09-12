@@ -68,6 +68,8 @@ def open_file_with_default_app(file_path, open_id=None):
     """使用系统默认应用打开文件"""
     try:
         system = platform.system().lower()
+        # 规范化路径，提升兼容性
+        file_path = str(Path(file_path).expanduser().resolve())
         
         if system == "windows":
             os.startfile(file_path)
