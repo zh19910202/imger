@@ -1,5 +1,5 @@
 {
-  "name": "annotateflow-assistant",
+  "name": "auxis",
   "version": "2.3.0",
   "description": "Chrome extension for Tencent QLabel annotation platform with fast image download and keyboard shortcuts",
   "main": "content.js",
@@ -16,14 +16,14 @@
     "qlabel",
     "tencent"
   ],
-  "author": "AnnotateFlow Assistant Team",
+  "author": "Auxis Team",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-username/annotateflow-assistant.git"
+    "url": "https://github.com/your-username/auxis.git"
   },
   "bugs": {
-    "url": "https://github.com/your-username/annotateflow-assistant/issues"
+    "url": "https://github.com/your-username/auxis/issues"
   },
-  "homepage": "https://github.com/your-username/annotateflow-assistant#readme"
+  "homepage": "https://github.com/your-username/auxis#readme"
 }

@@ -1,4 +1,4 @@
-# AnnotateFlow Assistant - Chrome扩展
+# Auxis - Chrome扩展
 
 一个专为腾讯QLabel标注平台设计的Chrome扩展，提供图片快捷下载和标注操作快捷键功能。
 
