@@ -60,7 +60,7 @@ if (document.readyState === 'loading') {
 function initializeScript() {
     console.log('=== AnnotateFlow Assistant v2.0 已加载 ===');
     console.log('专为腾讯QLabel标注平台设计');
-    console.log('支持功能: D键下载图片, 空格键跳过, S键提交标注, A键上传图片, F键查看历史, C键智能图片对比, Z键调试模式, V键检查文件输入, B键重新检测原图, N键从缓存获取图片, P键竞速获取原图');
+    console.log('支持功能: D键下载图片, 空格键跳过, S键提交标注, A键上传图片, F键查看历史, W键智能图片对比, Z键调试模式, I键检查文件输入, B键重新检测原图, N键从缓存获取图片, P键竞速获取原图');
     console.log('Chrome对象:', typeof chrome);
     console.log('Chrome.runtime:', typeof chrome?.runtime);
     console.log('扩展ID:', chrome?.runtime?.id);
@@ -456,10 +456,10 @@ function handleKeydown(event) {
             }
         }
     }
-    // 处理C键 - 智能图片对比
-    else if (key === 'c') {
+    // 处理W键 - 智能图片对比
+    else if (key === 'w') {
         event.preventDefault();
-        debugLog('手动触发智能图片对比 (C键)');
+        debugLog('手动触发智能图片对比 (W键)');
         showNotification('启动智能图片对比...', 1000);
         triggerSmartComparisonWithFallback();
     }
@@ -468,8 +468,8 @@ function handleKeydown(event) {
         event.preventDefault();
         toggleDebugMode();
     }
-    // 处理V键 - 手动检查所有文件输入状态
-    else if (key === 'v') {
+    // 处理I键 - 手动检查所有文件输入状态
+    else if (key === 'i') {
         event.preventDefault();
         debugLog('手动触发文件输入状态检查');
         checkForFileInputChanges();
@@ -4826,8 +4826,8 @@ document.addEventListener('keydown', function(event) {
 
 // 移除：R键相关逻辑（模式切换、资源提取测试）
 
-// 删除T键测试功能，合并到C键
-// T键: 手动测试智能对比 - 已删除，请使用C键
+// 删除T键测试功能，合并到W键
+// T键: 手动测试智能对比 - 已删除，请使用W键
 
 // 智能图片对比 - 包含回退逻辑
 function triggerSmartComparisonWithFallback() {
