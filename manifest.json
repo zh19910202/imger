@@ -44,7 +44,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["notification.mp3"],
+      "resources": ["notification.mp3", "runninghub-config.json"],
       "matches": ["https://qlabel.tencent.com/*", "http://localhost:*/*", "file://*/*"]
     }
   ]

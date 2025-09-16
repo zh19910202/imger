@@ -1,0 +1,35 @@
+{
+  "defaultWorkflow": {
+    "workflowId": "1904136902449209346",
+    "nodeInfoList": [
+      {
+        "nodeId": "6",
+        "fieldName": "text",
+        "fieldValue": "{PROMPT}"
+      }
+    ]
+  },
+  "workflows": {
+    "image_generation": {
+      "workflowId": "1904136902449209346",
+      "nodeInfoList": [
+        {
+          "nodeId": "6",
+          "fieldName": "text",
+          "fieldValue": "{PROMPT}"
+        }
+      ]
+    },
+    "example_workflow": {
+      "workflowId": "另一个工作流ID",
+      "description": "示例工作流配置",
+      "nodeInfoList": [
+        {
+          "nodeId": "节点ID",
+          "fieldName": "字段名",
+          "fieldValue": "{PROMPT}"
+        }
+      ]
+    }
+  }
+}

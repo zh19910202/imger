@@ -5820,21 +5820,60 @@ function closeDimensionCheckModal() {
 }
 
 // 提交尺寸检查结果
-function submitDimensionCheck(comment) {
+async function submitDimensionCheck(comment) {
     debugLog('提交尺寸检查结果', { comment });
     
-    // 这里可以添加提交逻辑，比如：
-    // 1. 保存标注信息到本地存储
-    // 2. 发送到服务器
-    // 3. 触发其他相关操作
+    // 检查是否有原图
+    if (!originalImage) {
+        showNotification('未找到原图，无法上传', 3000);
+        return;
+    }
     
-    showNotification(`标注已提交${comment ? ': ' + comment : ''}`, 2000);
+    // 获取API Key
+    let apiKey = localStorage.getItem('runninghub_api_key');
+    if (!apiKey) {
+        apiKey = prompt('请输入您的Running Hub API Key:');
+        if (!apiKey) {
+            showNotification('未提供API Key，取消上传', 2000);
+            return;
+        }
+        localStorage.setItem('runninghub_api_key', apiKey);
+    }
     
-    // 关闭模态框
+    try {
+        showNotification('正在上传图片到Running Hub...', 0);
+        const imageFile = await convertImageToFile(originalImage);
+        const result = await uploadToRunningHub(imageFile, apiKey, comment);
+        
+        // 解析API响应
+        const response = JSON.parse(result);
+        if (response.code === 0) {
+            const fileName = response.data.fileName;
+            showNotification(`图片上传成功！正在创建工作流任务...`, 2000);
+            debugLog('Running Hub上传成功:', response);
+            
+            // 图片上传成功后，调用工作流API
+            const workflowResult = await createWorkflowTask(apiKey, comment || '1 girl in classroom');
+            
+            // 解析工作流响应
+            const workflowResponse = JSON.parse(workflowResult);
+            if (workflowResponse.code === 0) {
+                const taskId = workflowResponse.data.taskId;
+                const taskStatus = workflowResponse.data.taskStatus;
+                showNotification(`任务创建成功！\n任务ID: ${taskId}\n状态: ${taskStatus}${comment ? '\n需求: ' + comment : ''}`, 5000);
+                debugLog('工作流任务创建成功:', workflowResponse);
+            } else {
+                throw new Error('工作流创建失败: ' + (workflowResponse.msg || '未知错误'));
+            }
+        } else {
+            throw new Error(response.msg || '上传失败');
+        }
+    } catch (error) {
+        debugLog('上传失败:', error);
+        showNotification('上传失败: ' + error.message, 3000);
+    }
+    
     closeDimensionCheckModal();
-    
-    // 可以选择是否自动进行下一步操作，比如提交当前任务
-    // 这里暂时不自动操作，让用户手动决定
 }
 
 // R键功能：手动触发图片尺寸检查
@@ -6030,4 +6069,160 @@ async function validateAndShowDimensionCheckModal(imageInfo, isDimensionValid) {
             lastDimensionCheckInfo = null; // 清除无效信息
         }
     }
+}
+
+// 将图片元素转换为文件对象
+async function convertImageToFile(imgElement) {
+    return new Promise((resolve, reject) => {
+        try {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // 设置canvas尺寸
+            canvas.width = imgElement.naturalWidth || imgElement.width;
+            canvas.height = imgElement.naturalHeight || imgElement.height;
+            
+            // 绘制图片到canvas
+            ctx.drawImage(imgElement, 0, 0);
+            
+            // 转换为blob
+            canvas.toBlob((blob) => {
+                if (blob) {
+                    const file = new File([blob], 'original_image.png', { type: 'image/png' });
+                    resolve(file);
+                } else {
+                    reject(new Error('无法转换图片为文件'));
+                }
+            }, 'image/png');
+            
+        } catch (error) {
+            reject(error);
+        }
+    });
+}
+
+// 上传到Running Hub API
+async function uploadToRunningHub(imageFile, apiKey, comment) {
+    const myHeaders = new Headers();
+    myHeaders.append("Host", "www.runninghub.cn");
+    
+    const formdata = new FormData();
+    formdata.append("apiKey", apiKey);
+    formdata.append("file", imageFile, imageFile.name);
+    formdata.append("fileType", "image");
+    
+    // 如果有备注，也添加到请求中
+    if (comment) {
+        formdata.append("description", comment);
+    }
+    
+    const requestOptions = {
+        method: 'POST',
+        headers: myHeaders,
+        body: formdata,
+        redirect: 'follow'
+    };
+    
+    const response = await fetch("https://www.runninghub.cn/task/openapi/upload", requestOptions);
+    
+    if (!response.ok) {
+        throw new Error(`HTTP错误: ${response.status}`);
+    }
+    
+    const result = await response.text();
+    return result;
+}
+
+// Running Hub工作流配置缓存
+let RUNNINGHUB_CONFIG = null;
+
+// 加载Running Hub配置文件
+async function loadRunningHubConfig() {
+    if (RUNNINGHUB_CONFIG) {
+        return RUNNINGHUB_CONFIG; // 如果已加载，直接返回缓存
+    }
+    
+    try {
+        const configUrl = chrome.runtime.getURL('runninghub-config.json');
+        const response = await fetch(configUrl);
+        
+        if (!response.ok) {
+            throw new Error(`配置文件加载失败: ${response.status}`);
+        }
+        
+        RUNNINGHUB_CONFIG = await response.json();
+        debugLog('Running Hub配置加载成功:', RUNNINGHUB_CONFIG);
+        return RUNNINGHUB_CONFIG;
+        
+    } catch (error) {
+        debugLog('配置文件加载失败，使用默认配置:', error);
+        
+        // 如果配置文件加载失败，使用默认配置
+        RUNNINGHUB_CONFIG = {
+            defaultWorkflow: {
+                workflowId: "1904136902449209346",
+                nodeInfoList: [
+                    {
+                        nodeId: "6",
+                        fieldName: "text",
+                        fieldValue: "{PROMPT}"
+                    }
+                ]
+            }
+        };
+        
+        return RUNNINGHUB_CONFIG;
+    }
+}
+
+// 创建Running Hub工作流任务
+async function createWorkflowTask(apiKey, prompt, workflowName = 'defaultWorkflow') {
+    const myHeaders = new Headers();
+    myHeaders.append("Host", "www.runninghub.cn");
+    myHeaders.append("Content-Type", "application/json");
+    
+    // 加载配置文件
+    const config = await loadRunningHubConfig();
+    
+    // 获取工作流配置
+    let workflowConfig;
+    if (workflowName === 'defaultWorkflow') {
+        workflowConfig = config.defaultWorkflow;
+    } else {
+        workflowConfig = config.workflows[workflowName] || config.defaultWorkflow;
+    }
+    
+    if (!workflowConfig) {
+        throw new Error(`未找到工作流配置: ${workflowName}`);
+    }
+    
+    // 深拷贝配置并替换prompt占位符
+    const nodeInfoList = JSON.parse(JSON.stringify(workflowConfig.nodeInfoList));
+    nodeInfoList.forEach(node => {
+        if (node.fieldValue === "{PROMPT}") {
+            node.fieldValue = prompt;
+        }
+    });
+    
+    const raw = JSON.stringify({
+        "apiKey": apiKey,
+        "workflowId": workflowConfig.workflowId,
+        "nodeInfoList": nodeInfoList
+    });
+    
+    const requestOptions = {
+        method: 'POST',
+        headers: myHeaders,
+        body: raw,
+        redirect: 'follow'
+    };
+    
+    const response = await fetch("https://www.runninghub.cn/task/openapi/create", requestOptions);
+    
+    if (!response.ok) {
+        throw new Error(`HTTP错误: ${response.status}`);
+    }
+    
+    const result = await response.text();
+    return result;
 }
