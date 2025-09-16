@@ -60,7 +60,7 @@ if (document.readyState === 'loading') {
 function initializeScript() {
     console.log('=== AnnotateFlow Assistant v2.0 已加载 ===');
     console.log('专为腾讯QLabel标注平台设计');
-    console.log('支持功能: D键下载图片, 空格键跳过, S键提交标注, A键上传图片, F键查看历史, W键智能图片对比, Z键调试模式, I键检查文件输入, B键重新检测原图, N键从缓存获取图片, P键竞速获取原图');
+    console.log('支持功能: D键下载图片, 空格键跳过, S键提交标注, A键上传图片, F键查看历史, W键智能图片对比, Z键调试模式, I键检查文件输入, B键重新检测原图, N键从缓存获取图片, P键竞速获取原图, F2键尺寸检查');
     console.log('Chrome对象:', typeof chrome);
     console.log('Chrome.runtime:', typeof chrome?.runtime);
     console.log('扩展ID:', chrome?.runtime?.id);
@@ -492,6 +492,12 @@ function handleKeydown(event) {
         // 已移除：revisionLog调用
         // 已移除：printRevisionModeStatus();
         showNotification('已打印图片状态，请查看调试面板', 2000);
+    }
+    // 处理F2键 - 检查图片尺寸并显示标注界面
+    else if (event.key === 'F2') {
+        event.preventDefault();
+        debugLog('F2键触发 - 检查图片尺寸');
+        checkImageDimensionsAndShowModal();
     }
 }
 
@@ -5235,4 +5241,343 @@ function updateComparisonInRevisionMode() {
         // 显示新的对比
         triggerSmartComparison();
     }
+}
+
+// F2键功能：检查图片尺寸并显示标注界面
+let dimensionCheckModal = null;
+let isDimensionCheckModalOpen = false;
+
+async function checkImageDimensionsAndShowModal() {
+    debugLog('开始检查图片尺寸');
+    
+    // 如果模态框已经打开，直接返回
+    if (isDimensionCheckModalOpen) {
+        debugLog('尺寸检查模态框已打开，跳过');
+        return;
+    }
+    
+    try {
+        // 获取当前原图
+        if (!originalImage) {
+            debugLog('未找到原图，尝试重新检测');
+            recordOriginalImages();
+            
+            // 等待一下再检查
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            if (!originalImage) {
+                showNotification('未找到原图，请等待页面加载完成', 3000);
+                return;
+            }
+        }
+        
+        const width = originalImage.width;
+        const height = originalImage.height;
+        
+        debugLog('检查图片尺寸', { width, height });
+        
+        // 检查尺寸是否符合要求（长宽都是8的倍数）
+        const isWidthValid = width % 8 === 0;
+        const isHeightValid = height % 8 === 0;
+        const isDimensionValid = isWidthValid && isHeightValid;
+        
+        debugLog('尺寸检查结果', {
+            width,
+            height,
+            isWidthValid,
+            isHeightValid,
+            isDimensionValid
+        });
+        
+        if (isDimensionValid) {
+            // 尺寸符合要求，显示标注模态框
+            showDimensionCheckModal(originalImage, true);
+        } else {
+            // 尺寸不符合要求，显示提示并自动跳过
+            showNotification(`图片尺寸不符合要求 (${width}×${height})，自动跳过...`, 2000);
+            debugLog('图片尺寸不符合要求，执行自动跳过');
+            
+            // 延迟执行跳过操作
+            setTimeout(() => {
+                autoSkipToValidImage();
+            }, 1000);
+        }
+        
+    } catch (error) {
+        debugLog('检查图片尺寸时出错', error);
+        showNotification('检查图片尺寸时出错', 2000);
+    }
+}
+
+// 自动跳过到符合要求的图片
+async function autoSkipToValidImage() {
+    debugLog('开始自动跳过到符合要求的图片');
+    
+    let attempts = 0;
+    const maxAttempts = 10; // 最多尝试10次
+    
+    while (attempts < maxAttempts) {
+        attempts++;
+        debugLog(`第${attempts}次尝试跳过`);
+        
+        // 执行跳过操作（使用空格键功能）
+        const skipButton = findButtonByText(['跳过', 'Skip', '下一个', 'Next', '继续', 'Continue']);
+        if (skipButton) {
+            clickButton(skipButton, '跳过');
+            
+            // 等待页面加载
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            // 重新检测原图
+            originalImageLocked = false;
+            originalImage = null;
+            recordOriginalImages();
+            
+            // 等待原图检测完成
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            if (originalImage) {
+                const width = originalImage.width;
+                const height = originalImage.height;
+                const isDimensionValid = (width % 8 === 0) && (height % 8 === 0);
+                
+                debugLog(`第${attempts}次检查结果`, {
+                    width,
+                    height,
+                    isDimensionValid
+                });
+                
+                if (isDimensionValid) {
+                    debugLog('找到符合要求的图片');
+                    showNotification(`找到符合要求的图片 (${width}×${height})`, 2000);
+                    showDimensionCheckModal(originalImage, true);
+                    return;
+                }
+            }
+        } else {
+            debugLog('未找到跳过按钮');
+            showNotification('未找到跳过按钮，停止自动跳过', 2000);
+            break;
+        }
+    }
+    
+    debugLog(`已尝试${attempts}次，未找到符合要求的图片`);
+    showNotification(`已尝试${attempts}次，未找到符合要求的图片`, 3000);
+}
+
+// 显示尺寸检查模态框
+function showDimensionCheckModal(imageInfo, isDimensionValid) {
+    if (isDimensionCheckModalOpen) {
+        return;
+    }
+    
+    debugLog('显示尺寸检查模态框', { isDimensionValid });
+    
+    // 创建模态框容器
+    dimensionCheckModal = document.createElement('div');
+    dimensionCheckModal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.8);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 10000;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    `;
+    
+    // 创建模态框内容
+    const modalContent = document.createElement('div');
+    modalContent.style.cssText = `
+        background: white;
+        border-radius: 12px;
+        padding: 24px;
+        max-width: 600px;
+        max-height: 80vh;
+        overflow-y: auto;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        position: relative;
+    `;
+    
+    const statusColor = isDimensionValid ? '#10b981' : '#ef4444';
+    const statusText = isDimensionValid ? '✓ 尺寸符合要求' : '✗ 尺寸不符合要求';
+    
+    modalContent.innerHTML = `
+        <div style="text-align: center; margin-bottom: 20px;">
+            <h2 style="margin: 0 0 10px 0; color: #1f2937; font-size: 24px;">图片尺寸检查</h2>
+            <div style="color: ${statusColor}; font-size: 18px; font-weight: 600;">${statusText}</div>
+        </div>
+        
+        <div style="text-align: center; margin-bottom: 20px;">
+            <img src="${imageInfo.src}" style="max-width: 100%; max-height: 300px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);" />
+        </div>
+        
+        <div style="background: #f9fafb; padding: 16px; border-radius: 8px; margin-bottom: 20px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                <div>
+                    <span style="color: #6b7280; font-size: 14px;">宽度:</span>
+                    <div style="font-size: 18px; font-weight: 600; color: ${imageInfo.width % 8 === 0 ? '#10b981' : '#ef4444'};">
+                        ${imageInfo.width}px ${imageInfo.width % 8 === 0 ? '✓' : '✗'}
+                    </div>
+                </div>
+                <div>
+                    <span style="color: #6b7280; font-size: 14px;">高度:</span>
+                    <div style="font-size: 18px; font-weight: 600; color: ${imageInfo.height % 8 === 0 ? '#10b981' : '#ef4444'};">
+                        ${imageInfo.height}px ${imageInfo.height % 8 === 0 ? '✓' : '✗'}
+                    </div>
+                </div>
+            </div>
+            <div style="color: #6b7280; font-size: 14px; text-align: center;">
+                要求：长宽都必须是8的倍数
+            </div>
+        </div>
+        
+        ${isDimensionValid ? `
+        <div style="margin-bottom: 20px;">
+            <label style="display: block; margin-bottom: 8px; color: #374151; font-weight: 500;">标注备注:</label>
+            <textarea id="dimensionCheckTextarea" placeholder="请输入标注备注..." style="
+                width: 100%;
+                height: 80px;
+                padding: 12px;
+                border: 2px solid #e5e7eb;
+                border-radius: 8px;
+                font-size: 14px;
+                resize: vertical;
+                box-sizing: border-box;
+                font-family: inherit;
+            "></textarea>
+        </div>
+        ` : ''}
+        
+        <div style="display: flex; gap: 12px; justify-content: flex-end;">
+            <button id="dimensionCheckCloseBtn" style="
+                padding: 10px 20px;
+                border: 2px solid #d1d5db;
+                background: white;
+                color: #374151;
+                border-radius: 8px;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 500;
+                transition: all 0.2s;
+            ">关闭</button>
+            ${isDimensionValid ? `
+            <button id="dimensionCheckSubmitBtn" style="
+                padding: 10px 20px;
+                border: none;
+                background: #3b82f6;
+                color: white;
+                border-radius: 8px;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 500;
+                transition: all 0.2s;
+            ">提交标注</button>
+            ` : ''}
+        </div>
+    `;
+    
+    dimensionCheckModal.appendChild(modalContent);
+    document.body.appendChild(dimensionCheckModal);
+    isDimensionCheckModalOpen = true;
+    
+    // 添加事件监听器
+    const closeBtn = modalContent.querySelector('#dimensionCheckCloseBtn');
+    const submitBtn = modalContent.querySelector('#dimensionCheckSubmitBtn');
+    const textarea = modalContent.querySelector('#dimensionCheckTextarea');
+    
+    // 关闭按钮事件
+    closeBtn.addEventListener('click', closeDimensionCheckModal);
+    
+    // 提交按钮事件
+    if (submitBtn) {
+        submitBtn.addEventListener('click', () => {
+            const comment = textarea ? textarea.value.trim() : '';
+            submitDimensionCheck(comment);
+        });
+    }
+    
+    // ESC键关闭
+    const handleEscKey = (e) => {
+        if (e.key === 'Escape') {
+            closeDimensionCheckModal();
+        }
+    };
+    document.addEventListener('keydown', handleEscKey);
+    
+    // 点击背景关闭
+    dimensionCheckModal.addEventListener('click', (e) => {
+        if (e.target === dimensionCheckModal) {
+            closeDimensionCheckModal();
+        }
+    });
+    
+    // 保存ESC处理函数以便后续移除
+    dimensionCheckModal._handleEscKey = handleEscKey;
+    
+    // 按钮悬停效果
+    closeBtn.addEventListener('mouseenter', () => {
+        closeBtn.style.background = '#f3f4f6';
+        closeBtn.style.borderColor = '#9ca3af';
+    });
+    closeBtn.addEventListener('mouseleave', () => {
+        closeBtn.style.background = 'white';
+        closeBtn.style.borderColor = '#d1d5db';
+    });
+    
+    if (submitBtn) {
+        submitBtn.addEventListener('mouseenter', () => {
+            submitBtn.style.background = '#2563eb';
+        });
+        submitBtn.addEventListener('mouseleave', () => {
+            submitBtn.style.background = '#3b82f6';
+        });
+    }
+    
+    debugLog('尺寸检查模态框已显示');
+}
+
+// 关闭尺寸检查模态框
+function closeDimensionCheckModal() {
+    if (!isDimensionCheckModalOpen || !dimensionCheckModal) {
+        return;
+    }
+    
+    debugLog('关闭尺寸检查模态框');
+    
+    // 移除ESC键监听器
+    if (dimensionCheckModal._handleEscKey) {
+        document.removeEventListener('keydown', dimensionCheckModal._handleEscKey);
+    }
+    
+    // 移除模态框
+    if (dimensionCheckModal.parentNode) {
+        dimensionCheckModal.parentNode.removeChild(dimensionCheckModal);
+    }
+    
+    dimensionCheckModal = null;
+    isDimensionCheckModalOpen = false;
+    
+    debugLog('尺寸检查模态框已关闭');
+}
+
+// 提交尺寸检查结果
+function submitDimensionCheck(comment) {
+    debugLog('提交尺寸检查结果', { comment });
+    
+    // 这里可以添加提交逻辑，比如：
+    // 1. 保存标注信息到本地存储
+    // 2. 发送到服务器
+    // 3. 触发其他相关操作
+    
+    showNotification(`标注已提交${comment ? ': ' + comment : ''}`, 2000);
+    
+    // 关闭模态框
+    closeDimensionCheckModal();
+    
+    // 可以选择是否自动进行下一步操作，比如提交当前任务
+    // 这里暂时不自动操作，让用户手动决定
 }
