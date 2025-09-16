@@ -60,7 +60,7 @@ if (document.readyState === 'loading') {
 function initializeScript() {
     console.log('=== AnnotateFlow Assistant v2.0 已加载 ===');
     console.log('专为腾讯QLabel标注平台设计');
-    console.log('支持功能: D键下载图片, 空格键跳过, S键提交标注, A键上传图片, F键查看历史, W键智能图片对比, Z键调试模式, I键检查文件输入, B键重新检测原图, N键重新检测原图, P键强制重新检测原图, F2键尺寸检查, R键重新弹出尺寸检查');
+    console.log('支持功能: D键下载图片, 空格键跳过, S键提交标注, A键上传图片, F键查看历史, W键智能图片对比, Z键调试模式, I键检查文件输入, B键重新检测原图, N键重新检测原图, P键强制重新检测原图, F2键尺寸检查, R键手动检查尺寸是否为8的倍数');
     console.log('🎯 原图检测: 只支持JPEG格式的COS原图 (.jpg/.jpeg)');
     console.log('Chrome对象:', typeof chrome);
     console.log('Chrome.runtime:', typeof chrome?.runtime);
@@ -500,11 +500,11 @@ function handleKeydown(event) {
         debugLog('F2键触发 - 检查图片尺寸');
         checkImageDimensionsAndShowModal();
     }
-    // 处理R键 - 重新弹出上次的尺寸检查模态框
+    // 处理R键 - 手动触发图片尺寸检查
     else if (key === 'r') {
         event.preventDefault();
-        debugLog('R键触发 - 重新弹出尺寸检查模态框');
-        reopenLastDimensionCheckModal();
+        debugLog('R键触发 - 手动检查图片尺寸是否为8的倍数');
+        manualDimensionCheck();
     }
 }
 
@@ -5641,46 +5641,89 @@ function submitDimensionCheck(comment) {
     // 这里暂时不自动操作，让用户手动决定
 }
 
-// R键功能：重新弹出上次的尺寸检查模态框
-function reopenLastDimensionCheckModal() {
-    debugLog('尝试重新弹出上次的尺寸检查模态框');
+// R键功能：手动触发图片尺寸检查
+async function manualDimensionCheck() {
+    debugLog('手动触发图片尺寸检查');
     
-    // 如果模态框已经打开，直接返回
-    if (isDimensionCheckModalOpen) {
-        debugLog('尺寸检查模态框已打开，无需重新弹出');
-        showNotification('尺寸检查模态框已打开', 1000);
-        return;
+    try {
+        // 获取当前原图
+        if (!originalImage) {
+            debugLog('未找到原图，尝试重新检测');
+            recordOriginalImages();
+            
+            // 等待一下再检查
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            if (!originalImage) {
+                showNotification('❌ 未找到原图，请等待页面加载完成', 3000);
+                return;
+            }
+        }
+        
+        const width = originalImage.width;
+        const height = originalImage.height;
+        
+        debugLog('手动检查图片尺寸', { width, height });
+        
+        // 检查尺寸是否符合要求（长宽都是8的倍数）
+        const isWidthValid = width % 8 === 0;
+        const isHeightValid = height % 8 === 0;
+        const isDimensionValid = isWidthValid && isHeightValid;
+        
+        debugLog('手动尺寸检查结果', {
+            width,
+            height,
+            isWidthValid,
+            isHeightValid,
+            isDimensionValid
+        });
+        
+        if (isDimensionValid) {
+            // 尺寸符合要求，弹出模态框
+            showNotification('✅ 图片尺寸符合要求，弹出模态框', 1500);
+            
+            // 保存检查信息
+            lastDimensionCheckInfo = {
+                imageInfo: {
+                    src: originalImage.src,
+                    width: width,
+                    height: height,
+                    name: originalImage.name || extractFileNameFromUrl(originalImage.src) || '原图'
+                },
+                isDimensionValid: true,
+                width: width,
+                height: height,
+                timestamp: Date.now()
+            };
+            
+            // 显示模态框
+            showDimensionCheckModal(originalImage, true);
+            
+        } else {
+            // 尺寸不符合要求，系统提示
+            const widthStatus = isWidthValid ? '✅' : '❌';
+            const heightStatus = isHeightValid ? '✅' : '❌';
+            
+            showNotification(
+                `❌ 图片尺寸不符合要求！\n` +
+                `宽度: ${width}px ${widthStatus} (${isWidthValid ? '是' : '不是'}8的倍数)\n` +
+                `高度: ${height}px ${heightStatus} (${isHeightValid ? '是' : '不是'}8的倍数)\n` +
+                `要求: 长宽都必须是8的倍数`, 
+                4000
+            );
+            
+            debugLog('图片尺寸不符合要求', {
+                width, height,
+                widthRemainder: width % 8,
+                heightRemainder: height % 8,
+                isWidthValid, isHeightValid
+            });
+        }
+        
+    } catch (error) {
+        debugLog('手动检查图片尺寸时出错', error);
+        showNotification('❌ 检查图片尺寸时出错: ' + error.message, 3000);
     }
-    
-    // 检查是否有上次的检查信息
-    if (!lastDimensionCheckInfo) {
-        debugLog('没有上次的检查信息');
-        showNotification('没有可重新弹出的尺寸检查信息，请先按F2键检查', 2000);
-        return;
-    }
-    
-    // 检查信息是否过期（超过5分钟）
-    const now = Date.now();
-    const timeDiff = now - lastDimensionCheckInfo.timestamp;
-    const maxAge = 5 * 60 * 1000; // 5分钟
-    
-    if (timeDiff > maxAge) {
-        debugLog('上次检查信息已过期', { timeDiff, maxAge });
-        showNotification('上次检查信息已过期，请重新按F2键检查', 2000);
-        lastDimensionCheckInfo = null; // 清除过期信息
-        return;
-    }
-    
-    debugLog('重新弹出上次的尺寸检查模态框', {
-        width: lastDimensionCheckInfo.width,
-        height: lastDimensionCheckInfo.height,
-        isDimensionValid: lastDimensionCheckInfo.isDimensionValid,
-        ageMinutes: Math.round(timeDiff / 60000),
-        imageSrc: lastDimensionCheckInfo.imageInfo.src ? lastDimensionCheckInfo.imageInfo.src.substring(0, 50) + '...' : '无src'
-    });
-    
-    // 验证图片是否仍然可以加载
-    validateAndShowDimensionCheckModal(lastDimensionCheckInfo.imageInfo, lastDimensionCheckInfo.isDimensionValid);
 }
 
 // 验证图片并显示尺寸检查模态框
