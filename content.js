@@ -47,6 +47,56 @@ let userUploadedImage = null;
 // function loadModeState() { ... }
 // function saveModeState() { ... }
 
+// 检查并关闭模态框的辅助函数
+function checkAndCloseModalIfOpen(keyName) {
+    const modal = document.querySelector('.dimension-check-modal');
+    if (modal) {
+        console.log(`[${keyName.toUpperCase()}键] 检测到尺寸检查模态框已打开，先关闭模态框`);
+        modal.remove();
+        return true; // 返回true表示关闭了模态框
+    }
+    return false; // 返回false表示没有模态框需要关闭
+}
+
+// 确保模态框被关闭的函数
+function ensureModalClosed() {
+    const modal = document.querySelector('.dimension-check-modal');
+    if (modal) {
+        modal.remove();
+        console.log('[模态框管理] 强制关闭尺寸检查模态框');
+    }
+}
+
+// 检查并关闭模态框的辅助函数
+function checkAndCloseModalIfOpen(keyName) {
+    const modal = document.querySelector('.dimension-check-modal');
+    if (modal) {
+        console.log(`[${keyName.toUpperCase()}键] 检测到尺寸检查模态框已打开，先关闭模态框`);
+        modal.remove();
+        return true; // 返回true表示关闭了模态框
+    }
+    return false; // 返回false表示没有模态框需要关闭
+}
+
+// 确保模态框被关闭的函数
+function ensureModalClosed() {
+    const modal = document.querySelector('.dimension-check-modal');
+    if (modal) {
+        modal.remove();
+        console.log('[模态框管理] 强制关闭尺寸检查模态框');
+    }
+}
+function checkAndCloseModalIfOpen(currentKey) {
+    // 如果尺寸检查模态框打开，且不是ESC键和R键，先关闭模态框
+    if (isDimensionCheckModalOpen && currentKey !== 'escape' && currentKey !== 'r') {
+        debugLog('检测到模态框打开，先关闭模态框', { key: currentKey });
+        closeDimensionCheckModal();
+        showNotification('模态框已关闭，请重新按键执行操作', 1500);
+        return true; // 返回true表示已关闭模态框
+    }
+    return false; // 返回false表示没有模态框需要关闭
+}
+
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', initializeScript);
 
@@ -60,7 +110,7 @@ if (document.readyState === 'loading') {
 function initializeScript() {
     console.log('=== AnnotateFlow Assistant v2.0 已加载 ===');
     console.log('专为腾讯QLabel标注平台设计');
-    console.log('支持功能: D键下载图片, 空格键跳过, S键提交标注, A键上传图片, F键查看历史, W键智能图片对比, Z键调试模式, I键检查文件输入, B键重新检测原图, N键重新检测原图, P键强制重新检测原图, F2键尺寸检查, R键手动检查尺寸是否为8的倍数');
+    console.log('支持功能: D键下载图片, 空格键跳过, S键提交标注, A键上传图片, F键查看历史, W键智能图片对比, Z键调试模式, I键检查文件输入, B键重新检测原图, N键重新检测原图, P键/F2键智能尺寸检查, R键手动检查尺寸是否为8的倍数');
     console.log('🎯 原图检测: 只支持JPEG格式的COS原图 (.jpg/.jpeg)');
     console.log('Chrome对象:', typeof chrome);
     console.log('Chrome.runtime:', typeof chrome?.runtime);
@@ -304,6 +354,11 @@ function handleKeydown(event) {
     }
     // 处理F1键 - 连续执行“标记无效”(X键逻辑)并自动确认弹窗（再次按F1停止）
     else if (event.key === 'F1') {
+        // 检查并关闭模态框
+        if (checkAndCloseModalIfOpen('f1')) {
+            return; // 如果关闭了模态框，停止执行
+        }
+        
         event.preventDefault();
         if (!f1AutoInvalidating) {
             f1AutoInvalidating = true;
@@ -349,6 +404,11 @@ function handleKeydown(event) {
     
     // 处理D键 - 下载图片
     if (key === 'd') {
+        // 检查并关闭模态框
+        if (checkAndCloseModalIfOpen(key)) {
+            return; // 如果关闭了模态框，停止执行
+        }
+        
         // 阻止默认行为
         event.preventDefault();
         
@@ -364,6 +424,9 @@ function handleKeydown(event) {
     }
     // 处理空格键 - 点击"跳过"按钮
     else if (event.code === 'Space') {
+        // 检查并关闭模态框（但不停止执行，继续执行跳过功能）
+        checkAndCloseModalIfOpen('space');
+        
         // 如果对比页面打开，先关闭对比
         if (isComparisonModalOpen) {
             closeComparisonModal();
@@ -385,6 +448,9 @@ function handleKeydown(event) {
     }
     // 处理S键 - 点击"提交并继续标注"按钮
     else if (key === 's') {
+        // 检查并关闭模态框（但不停止执行，继续执行提交功能）
+        checkAndCloseModalIfOpen('s');
+        
         // 如果对比页面打开，先关闭对比
         if (isComparisonModalOpen) {
             closeComparisonModal();
@@ -410,6 +476,9 @@ function handleKeydown(event) {
     }
     // 处理A键 - 点击"上传图片"按钮
     else if (key === 'a') {
+        // 检查并关闭模态框（但不停止执行，继续执行上传功能）
+        checkAndCloseModalIfOpen('a');
+        
         const uploadButton = findButtonByText(['上传图片', '上传', 'Upload', '选择图片', '选择文件']);
         if (uploadButton) {
             event.preventDefault();
@@ -420,6 +489,9 @@ function handleKeydown(event) {
     }
     // 处理F键 - 点击"查看历史"链接
     else if (key === 'f') {
+        // 检查并关闭模态框（但不停止执行，继续执行查看历史功能）
+        checkAndCloseModalIfOpen('f');
+        
         const historyLink = findLinkByText(['点击查看历史', '查看历史', '历史', 'History', '历史记录', '查看记录']);
         if (historyLink) {
             event.preventDefault();
@@ -430,6 +502,11 @@ function handleKeydown(event) {
     }
     // 处理X键 - 点击"标记无效"按钮
     else if (key === 'x') {
+        // 检查并关闭模态框
+        if (checkAndCloseModalIfOpen('x')) {
+            return; // 如果关闭了模态框，停止执行
+        }
+        
         // 如果对比页面打开，先关闭对比
         if (isComparisonModalOpen) {
             closeComparisonModal();
@@ -459,6 +536,9 @@ function handleKeydown(event) {
     }
     // 处理W键 - 智能图片对比
     else if (key === 'w') {
+        // 检查并关闭模态框（但不停止执行，继续执行智能对比功能）
+        checkAndCloseModalIfOpen('w');
+        
         event.preventDefault();
         debugLog('手动触发智能图片对比 (W键)');
         showNotification('启动智能图片对比...', 1000);
@@ -466,11 +546,21 @@ function handleKeydown(event) {
     }
     // 处理Z键 - 切换调试模式
     else if (key === 'z') {
+        // 检查并关闭模态框
+        if (checkAndCloseModalIfOpen('z')) {
+            return; // 如果关闭了模态框，停止执行
+        }
+        
         event.preventDefault();
         toggleDebugMode();
     }
     // 处理I键 - 手动检查所有文件输入状态
     else if (key === 'i') {
+        // 检查并关闭模态框
+        if (checkAndCloseModalIfOpen('i')) {
+            return; // 如果关闭了模态框，停止执行
+        }
+        
         event.preventDefault();
         debugLog('手动触发文件输入状态检查');
         checkForFileInputChanges();
@@ -478,6 +568,11 @@ function handleKeydown(event) {
     }
     // 处理B键 - 手动重新检测原图
     else if (key === 'b') {
+        // 检查并关闭模态框
+        if (checkAndCloseModalIfOpen('b')) {
+            return; // 如果关闭了模态框，停止执行
+        }
+        
         event.preventDefault();
         debugLog('手动重新检测原图');
         // 解锁原图并重新检测
@@ -489,6 +584,11 @@ function handleKeydown(event) {
     // 移除：R键模式切换逻辑
     // 处理M键 - 手动打印图片状态
     else if (key === 'm') {
+        // 检查并关闭模态框
+        if (checkAndCloseModalIfOpen('m')) {
+            return; // 如果关闭了模态框，停止执行
+        }
+        
         event.preventDefault();
         // 已移除：revisionLog调用
         // 已移除：printRevisionModeStatus();
@@ -496,6 +596,11 @@ function handleKeydown(event) {
     }
     // 处理F2键 - 检查图片尺寸并显示标注界面
     else if (event.key === 'F2') {
+        // 检查并关闭模态框
+        if (checkAndCloseModalIfOpen('f2')) {
+            return; // 如果关闭了模态框，停止执行
+        }
+        
         event.preventDefault();
         debugLog('F2键触发 - 检查图片尺寸');
         checkImageDimensionsAndShowModal();
@@ -1428,22 +1533,26 @@ function recordOriginalImages() {
     if (targetImages.length === 0) {
         debugLog('所有特定选择器未找到图片，尝试查找所有带data-v属性的图片');
         
-        // 查找所有带 data-v- 开头属性的图片
+        // 查找所有带 data-v- 开头属性的JPEG图片
         const allImages = document.querySelectorAll('img[src]');
         const dataVImages = Array.from(allImages).filter(img => {
-            return Array.from(img.attributes).some(attr => 
+            const hasDataV = Array.from(img.attributes).some(attr => 
                 attr.name.startsWith('data-v-')
             );
+            const isJpeg = isJpegImage(img.src);
+            return hasDataV && isJpeg;
         });
         
-        debugLog('找到带data-v属性的图片', dataVImages.length);
+        debugLog('找到带data-v属性的JPEG图片', dataVImages.length);
         targetImages = dataVImages;
-        usedSelector = '带data-v属性的图片';
+        usedSelector = '带data-v属性的JPEG图片';
         
         if (targetImages.length === 0) {
-            debugLog('仍未找到，使用所有图片作为备选');
-            targetImages = allImages;
-            usedSelector = '所有图片';
+            debugLog('仍未找到，使用所有JPEG图片作为备选');
+            const jpegImages = Array.from(allImages).filter(img => isJpegImage(img.src));
+            targetImages = jpegImages;
+            usedSelector = '所有JPEG图片';
+            debugLog('找到JPEG图片数量', jpegImages.length);
         }
     }
     
@@ -1483,56 +1592,68 @@ function recordOriginalImages() {
     
     let mainImage = null;
     
-    // 方法1：优先选择最精确选择器找到的已加载图片
+    // 方法1：优先选择最精确选择器找到的已加载JPEG图片
     const exactSelector = 'div[data-v-92a52416].safe-image img[data-v-92a52416][src]';
     const exactImages = document.querySelectorAll(exactSelector);
     if (exactImages.length > 0) {
         mainImage = Array.from(exactImages).find(img => {
             const isLoaded = img.complete && img.naturalWidth > 0 && img.naturalHeight > 0;
-            if (isLoaded) {
-                debugLog('找到精确选择器且已加载的原图', {
+            const isJpeg = isJpegImage(img.src);
+            if (isLoaded && isJpeg) {
+                debugLog('找到精确选择器且已加载的JPEG原图', {
                     src: img.src.substring(0, 50) + '...',
                     naturalWidth: img.naturalWidth,
                     naturalHeight: img.naturalHeight,
                     selector: exactSelector
                 });
             }
-            return isLoaded;
+            return isLoaded && isJpeg;
         });
         
-        // 如果没有已加载的，选择第一个
+        // 如果没有已加载的JPEG，选择第一个JPEG
         if (!mainImage) {
-            mainImage = exactImages[0];
-            debugLog('选择精确选择器的第一个图片（可能未完全加载）', {
-                src: mainImage.src ? mainImage.src.substring(0, 50) + '...' : '无src',
-                complete: mainImage.complete
-            });
+            mainImage = Array.from(exactImages).find(img => isJpegImage(img.src));
+            if (mainImage) {
+                debugLog('选择精确选择器的第一个JPEG图片（可能未完全加载）', {
+                    src: mainImage.src ? mainImage.src.substring(0, 50) + '...' : '无src',
+                    complete: mainImage.complete
+                });
+            } else {
+                debugLog('精确选择器未找到JPEG格式图片');
+            }
         }
     }
     
-    // 方法2：如果精确选择器没找到，从候选图片中选择
+    // 方法2：如果精确选择器没找到，从候选图片中选择（只选择JPEG格式）
     if (!mainImage && targetImages.length > 0) {
-        // 优先选择已加载且在safe-image容器中的图片
+        // 优先选择已加载且在safe-image容器中的JPEG图片
         mainImage = Array.from(targetImages).find(img => {
             const isInSafeImage = img.closest('.safe-image') !== null;
             const isLoaded = img.complete && img.naturalWidth > 0 && img.naturalHeight > 0;
-            return isInSafeImage && isLoaded;
+            const isJpeg = isJpegImage(img.src);
+            return isInSafeImage && isLoaded && isJpeg;
         });
         
         if (mainImage) {
-            debugLog('找到safe-image容器中的已加载图片');
+            debugLog('找到safe-image容器中的已加载JPEG图片');
         } else {
-            // 选择第一个已加载的图片
+            // 选择第一个已加载的JPEG图片
             mainImage = Array.from(targetImages).find(img => {
-                return img.complete && img.naturalWidth > 0 && img.naturalHeight > 0;
+                const isLoaded = img.complete && img.naturalWidth > 0 && img.naturalHeight > 0;
+                const isJpeg = isJpegImage(img.src);
+                return isLoaded && isJpeg;
             });
             
             if (mainImage) {
-                debugLog('找到已加载的候选图片');
+                debugLog('找到已加载的候选JPEG图片');
             } else {
-                // 选择第一个候选图片
-                mainImage = targetImages[0];
-                debugLog('选择第一个候选图片（可能未加载）');
+                // 选择第一个JPEG候选图片
+                mainImage = Array.from(targetImages).find(img => isJpegImage(img.src));
+                if (mainImage) {
+                    debugLog('选择第一个JPEG候选图片（可能未加载）');
+                } else {
+                    debugLog('未找到任何JPEG格式的候选图片');
+                }
             }
         }
     }
@@ -1584,6 +1705,31 @@ function recordOriginalImages() {
     }
 }
 
+// 检查图片是否为JPEG格式
+function isJpegImage(url) {
+    if (!url) return false;
+    
+    const lowerUrl = url.toLowerCase();
+    
+    // 检查文件扩展名
+    const hasJpegExt = /\.(jpe?g)(\?|$)/i.test(url);
+    
+    // 检查URL中是否包含JPEG关键词
+    const hasJpegKeyword = lowerUrl.includes('jpeg') || lowerUrl.includes('jpg');
+    
+    const result = hasJpegExt || hasJpegKeyword;
+    
+    if (!result) {
+        debugLog('非JPEG格式图片', {
+            url: url.substring(0, 100) + '...',
+            hasJpegExt,
+            hasJpegKeyword
+        });
+    }
+    
+    return result;
+}
+
 // 从URL中提取文件名
 function extractFileNameFromUrl(url) {
     if (!url) return '未知';
@@ -1624,6 +1770,15 @@ function recordImageAsOriginal(img) {
             existingOriginal: originalImage.src.substring(0, 50) + '...',
             attemptedNew: img.src ? img.src.substring(0, 50) + '...' : '无src',
             currentPage: currentPageUrl.substring(0, 50) + '...'
+        });
+        return;
+    }
+    
+    // 验证图片格式：只接受JPEG格式的原图
+    if (!img.src || !isJpegImage(img.src)) {
+        debugLog('跳过非JPEG格式的图片', {
+            src: img.src ? img.src.substring(0, 100) + '...' : '无src',
+            reason: '不是JPEG格式'
         });
         return;
     }
@@ -4853,13 +5008,14 @@ function selectBestImage(results) {
 // 简化：P键强制重新检测原图（忽略锁定状态）
 document.addEventListener('keydown', function(event) {
     if (!isInInputField(event.target) && event.key.toLowerCase() === 'p') {
+        // 检查并关闭模态框
+        if (checkAndCloseModalIfOpen('p')) {
+            return; // 如果关闭了模态框，停止执行
+        }
+        
         event.preventDefault();
-        debugLog('强制重新检测原图 (P键)');
-        showNotification('强制重新检测原图...', 1000);
-        // 强制解锁并重新检测
-        originalImageLocked = false;
-        originalImage = null;
-        recordOriginalImages();
+        debugLog('P键触发：智能尺寸检查 (与F2键功能相同)');
+        checkImageDimensionsAndShowModal();
     }
 });
 
@@ -5281,102 +5437,36 @@ let dimensionCheckModal = null;
 let isDimensionCheckModalOpen = false;
 let lastDimensionCheckInfo = null; // 保存上次检查的图片信息，用于R键重新弹出
 
+// F2键：智能尺寸检查 - 复用R键逻辑，如果不符合要求则自动跳过直到找到合适图片
 async function checkImageDimensionsAndShowModal() {
-    debugLog('开始检查图片尺寸');
-    
-    // 如果模态框已经打开，直接返回
-    if (isDimensionCheckModalOpen) {
-        debugLog('尺寸检查模态框已打开，跳过');
-        return;
-    }
-    
-    try {
-        // 获取当前原图
-        if (!originalImage) {
-            debugLog('未找到原图，尝试重新检测');
-            recordOriginalImages();
-            
-            // 等待一下再检查
-            await new Promise(resolve => setTimeout(resolve, 500));
-            
-            if (!originalImage) {
-                showNotification('未找到原图，请等待页面加载完成', 3000);
-                return;
-            }
-        }
-        
-        const width = originalImage.width;
-        const height = originalImage.height;
-        
-        debugLog('检查图片尺寸', { width, height });
-        
-        // 检查尺寸是否符合要求（长宽都是8的倍数）
-        const isWidthValid = width % 8 === 0;
-        const isHeightValid = height % 8 === 0;
-        const isDimensionValid = isWidthValid && isHeightValid;
-        
-        debugLog('尺寸检查结果', {
-            width,
-            height,
-            isWidthValid,
-            isHeightValid,
-            isDimensionValid
-        });
-        
-        // 保存检查信息，用于R键重新弹出
-        // 创建一个稳定的图片信息副本，避免引用失效
-        lastDimensionCheckInfo = {
-            imageInfo: {
-                src: originalImage.src,
-                width: width,
-                height: height,
-                name: originalImage.name || extractFileNameFromUrl(originalImage.src) || '原图'
-            },
-            isDimensionValid: isDimensionValid,
-            width: width,
-            height: height,
-            timestamp: Date.now()
-        };
-        
-        debugLog('保存尺寸检查信息', {
-            src: lastDimensionCheckInfo.imageInfo.src ? lastDimensionCheckInfo.imageInfo.src.substring(0, 50) + '...' : '无src',
-            width: lastDimensionCheckInfo.width,
-            height: lastDimensionCheckInfo.height,
-            isDimensionValid: lastDimensionCheckInfo.isDimensionValid
-        });
-        
-        if (isDimensionValid) {
-            // 尺寸符合要求，显示标注模态框
-            showDimensionCheckModal(originalImage, true);
-        } else {
-            // 尺寸不符合要求，显示提示并自动跳过
-            showNotification(`图片尺寸不符合要求 (${width}×${height})，自动跳过...`, 2000);
-            debugLog('图片尺寸不符合要求，执行自动跳过');
-            
-            // 延迟执行跳过操作
-            setTimeout(() => {
-                autoSkipToValidImage();
-            }, 1000);
-        }
-        
-    } catch (error) {
-        debugLog('检查图片尺寸时出错', error);
-        showNotification('检查图片尺寸时出错', 2000);
-    }
+    debugLog('F2键触发：智能尺寸检查');
+    await autoSkipToValidImageWithRKeyLogic();
 }
 
-// 自动跳过到符合要求的图片
-async function autoSkipToValidImage() {
-    debugLog('开始自动跳过到符合要求的图片');
+// 自动跳过到符合要求的图片，使用R键逻辑
+async function autoSkipToValidImageWithRKeyLogic() {
+    debugLog('开始智能跳过到符合要求的图片');
     
     let attempts = 0;
     const maxAttempts = 10; // 最多尝试10次
     
     while (attempts < maxAttempts) {
         attempts++;
-        debugLog(`第${attempts}次尝试跳过`);
+        debugLog(`第${attempts}次尝试检查图片`);
         
-        // 执行跳过操作（使用空格键功能）
+        // 执行R键的逻辑：手动尺寸检查
+        const checkResult = await manualDimensionCheck();
+        
+        if (checkResult === true) {
+            // 找到符合要求的图片，R键逻辑已经显示了模态框
+            debugLog('找到符合要求的图片，停止自动跳过');
+            showNotification(`经过${attempts}次检查，找到符合要求的图片`, 2000);
+            return;
+        }
+        
+        // 图片不符合要求，执行跳过操作
+        debugLog(`第${attempts}次图片不符合要求，执行跳过`);
+        
         const skipButton = findButtonByText(['跳过', 'Skip', '下一个', 'Next', '继续', 'Continue']);
         if (skipButton) {
             clickButton(skipButton, '跳过');
@@ -5392,23 +5482,10 @@ async function autoSkipToValidImage() {
             // 等待原图检测完成
             await new Promise(resolve => setTimeout(resolve, 1000));
             
-            if (originalImage) {
-                const width = originalImage.width;
-                const height = originalImage.height;
-                const isDimensionValid = (width % 8 === 0) && (height % 8 === 0);
-                
-                debugLog(`第${attempts}次检查结果`, {
-                    width,
-                    height,
-                    isDimensionValid
-                });
-                
-                if (isDimensionValid) {
-                    debugLog('找到符合要求的图片');
-                    showNotification(`找到符合要求的图片 (${width}×${height})`, 2000);
-                    showDimensionCheckModal(originalImage, true);
-                    return;
-                }
+            if (!originalImage) {
+                debugLog('跳过后未找到新的原图');
+                showNotification('跳过后未找到新的原图，停止自动跳过', 2000);
+                break;
             }
         } else {
             debugLog('未找到跳过按钮');
@@ -5421,6 +5498,8 @@ async function autoSkipToValidImage() {
     showNotification(`已尝试${attempts}次，未找到符合要求的图片`, 3000);
 }
 
+
+
 // 显示尺寸检查模态框
 function showDimensionCheckModal(imageInfo, isDimensionValid) {
     if (isDimensionCheckModalOpen) {
@@ -5431,110 +5510,230 @@ function showDimensionCheckModal(imageInfo, isDimensionValid) {
     
     // 创建模态框容器
     dimensionCheckModal = document.createElement('div');
+    dimensionCheckModal.className = 'dimension-check-modal';
     dimensionCheckModal.style.cssText = `
         position: fixed;
         top: 0;
         left: 0;
         width: 100%;
         height: 100%;
-        background: rgba(0, 0, 0, 0.8);
+        background: rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(8px);
         display: flex;
         justify-content: center;
         align-items: center;
         z-index: 10000;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        animation: fadeIn 0.2s ease-out;
     `;
     
     // 创建模态框内容
     const modalContent = document.createElement('div');
     modalContent.style.cssText = `
-        background: white;
-        border-radius: 12px;
-        padding: 24px;
-        max-width: 600px;
-        max-height: 80vh;
+        background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+        border-radius: 16px;
+        padding: 32px;
+        max-width: 580px;
+        width: 90%;
+        max-height: 85vh;
         overflow-y: auto;
-        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.8);
         position: relative;
+        transform: scale(0.95);
+        animation: modalSlideIn 0.3s ease-out forwards;
     `;
     
-    const statusColor = isDimensionValid ? '#10b981' : '#ef4444';
-    const statusText = isDimensionValid ? '✓ 尺寸符合要求' : '✗ 尺寸不符合要求';
+    const statusColor = isDimensionValid ? '#059669' : '#dc2626';
+    const statusBgColor = isDimensionValid ? '#ecfdf5' : '#fef2f2';
+    const statusIcon = isDimensionValid ? '✓' : '✗';
+    const statusText = isDimensionValid ? '尺寸符合要求' : '尺寸不符合要求';
     
     modalContent.innerHTML = `
-        <div style="text-align: center; margin-bottom: 20px;">
-            <h2 style="margin: 0 0 10px 0; color: #1f2937; font-size: 24px;">图片尺寸检查</h2>
-            <div style="color: ${statusColor}; font-size: 18px; font-weight: 600;">${statusText}</div>
+        <button id="dimensionCheckCloseBtn" style="
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: #6b7280;
+            transition: all 0.2s ease;
+        ">×</button>
+        
+        <div style="text-align: center; margin-bottom: 24px;">
+            <div style="
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                padding: 12px 20px;
+                background: ${statusBgColor};
+                border: 2px solid ${statusColor};
+                border-radius: 50px;
+                font-size: 16px;
+                font-weight: 600;
+                color: ${statusColor};
+            ">
+                <span style="font-size: 18px;">${statusIcon}</span>
+                ${statusText}
+            </div>
         </div>
         
-        <div style="text-align: center; margin-bottom: 20px;">
-            <img src="${imageInfo.src}" style="max-width: 100%; max-height: 300px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);" />
+        <div style="text-align: center; margin-bottom: 24px;">
+            <img src="${imageInfo.src}" style="
+                max-width: 100%; 
+                max-height: 320px; 
+                border-radius: 12px; 
+                box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+                border: 3px solid #ffffff;
+            " />
         </div>
         
-        <div style="background: #f9fafb; padding: 16px; border-radius: 8px; margin-bottom: 20px;">
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
-                <div>
-                    <span style="color: #6b7280; font-size: 14px;">宽度:</span>
-                    <div style="font-size: 18px; font-weight: 600; color: ${imageInfo.width % 8 === 0 ? '#10b981' : '#ef4444'};">
-                        ${imageInfo.width}px ${imageInfo.width % 8 === 0 ? '✓' : '✗'}
+        <div style="
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            border: 1px solid #e2e8f0;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+        ">
+            <div style="display: flex; justify-content: space-around; margin-bottom: 16px;">
+                <div style="text-align: center;">
+                    <div style="color: #64748b; font-size: 13px; font-weight: 500; margin-bottom: 4px;">宽度</div>
+                    <div style="
+                        font-size: 24px; 
+                        font-weight: 700; 
+                        color: ${imageInfo.width % 8 === 0 ? '#059669' : '#dc2626'};
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 6px;
+                    ">
+                        ${imageInfo.width}px
+                        <span style="font-size: 16px;">${imageInfo.width % 8 === 0 ? '✓' : '✗'}</span>
                     </div>
                 </div>
-                <div>
-                    <span style="color: #6b7280; font-size: 14px;">高度:</span>
-                    <div style="font-size: 18px; font-weight: 600; color: ${imageInfo.height % 8 === 0 ? '#10b981' : '#ef4444'};">
-                        ${imageInfo.height}px ${imageInfo.height % 8 === 0 ? '✓' : '✗'}
+                <div style="width: 1px; background: #e2e8f0; margin: 0 16px;"></div>
+                <div style="text-align: center;">
+                    <div style="color: #64748b; font-size: 13px; font-weight: 500; margin-bottom: 4px;">高度</div>
+                    <div style="
+                        font-size: 24px; 
+                        font-weight: 700; 
+                        color: ${imageInfo.height % 8 === 0 ? '#059669' : '#dc2626'};
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 6px;
+                    ">
+                        ${imageInfo.height}px
+                        <span style="font-size: 16px;">${imageInfo.height % 8 === 0 ? '✓' : '✗'}</span>
                     </div>
                 </div>
             </div>
-            <div style="color: #6b7280; font-size: 14px; text-align: center;">
+            <div style="
+                text-align: center;
+                color: #64748b;
+                font-size: 13px;
+                font-weight: 500;
+                padding: 8px 16px;
+                background: rgba(255, 255, 255, 0.7);
+                border-radius: 8px;
+            ">
                 要求：长宽都必须是8的倍数
             </div>
         </div>
         
         ${isDimensionValid ? `
-        <div style="margin-bottom: 20px;">
-            <label style="display: block; margin-bottom: 8px; color: #374151; font-weight: 500;">标注备注:</label>
-            <textarea id="dimensionCheckTextarea" placeholder="请输入标注备注..." style="
-                width: 100%;
-                height: 80px;
-                padding: 12px;
-                border: 2px solid #e5e7eb;
-                border-radius: 8px;
+        <div style="margin-bottom: 24px;">
+            <label style="
+                display: block; 
+                margin-bottom: 12px; 
+                color: #374151; 
+                font-weight: 600;
                 font-size: 14px;
+            ">修改需求</label>
+            <textarea id="dimensionCheckTextarea" placeholder="请描述对图片的修改需求..." style="
+                width: 100%;
+                height: 90px;
+                padding: 16px;
+                border: 2px solid #e2e8f0;
+                border-radius: 12px;
+                font-size: 14px;
+                font-family: inherit;
                 resize: vertical;
                 box-sizing: border-box;
-                font-family: inherit;
+                background: #ffffff;
+                transition: all 0.2s ease;
+                outline: none;
             "></textarea>
         </div>
         ` : ''}
         
-        <div style="display: flex; gap: 12px; justify-content: flex-end;">
-            <button id="dimensionCheckCloseBtn" style="
-                padding: 10px 20px;
-                border: 2px solid #d1d5db;
-                background: white;
-                color: #374151;
-                border-radius: 8px;
-                cursor: pointer;
-                font-size: 14px;
-                font-weight: 500;
-                transition: all 0.2s;
-            ">关闭</button>
+        <div style="display: flex; gap: 12px; justify-content: center; margin-top: 8px;">
             ${isDimensionValid ? `
             <button id="dimensionCheckSubmitBtn" style="
-                padding: 10px 20px;
+                padding: 14px 28px;
                 border: none;
-                background: #3b82f6;
+                background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
                 color: white;
-                border-radius: 8px;
+                border-radius: 12px;
                 cursor: pointer;
-                font-size: 14px;
-                font-weight: 500;
-                transition: all 0.2s;
-            ">提交标注</button>
+                font-size: 15px;
+                font-weight: 600;
+                transition: all 0.2s ease;
+                box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+                min-width: 120px;
+            ">提交需求</button>
             ` : ''}
         </div>
     `;
+    
+    // 添加CSS动画样式
+    if (!document.querySelector('#dimension-modal-styles')) {
+        const styles = document.createElement('style');
+        styles.id = 'dimension-modal-styles';
+        styles.textContent = `
+            @keyframes fadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+            }
+            
+            @keyframes modalSlideIn {
+                from { 
+                    transform: scale(0.9) translateY(-20px);
+                    opacity: 0;
+                }
+                to { 
+                    transform: scale(1) translateY(0);
+                    opacity: 1;
+                }
+            }
+            
+            .dimension-check-modal button:hover {
+                transform: translateY(-1px);
+            }
+            
+            .dimension-check-modal textarea:focus {
+                border-color: #3b82f6 !important;
+                box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+            }
+            
+            .dimension-check-modal #dimensionCheckCloseBtn:hover {
+                background: rgba(0, 0, 0, 0.15) !important;
+            }
+            
+            .dimension-check-modal #dimensionCheckSubmitBtn:hover {
+                transform: translateY(-1px) !important;
+                box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4) !important;
+            }
+        `;
+        document.head.appendChild(styles);
+    }
     
     dimensionCheckModal.appendChild(modalContent);
     document.body.appendChild(dimensionCheckModal);
@@ -5657,10 +5856,30 @@ async function manualDimensionCheck() {
             }
         }
         
-        const width = originalImage.width;
-        const height = originalImage.height;
+        // 创建新的Image对象来获取真实的图片尺寸
+        const img = new Image();
         
-        debugLog('手动检查图片尺寸', { width, height });
+        // 等待图片加载完成
+        const loadPromise = new Promise((resolve, reject) => {
+            img.onload = () => {
+                resolve({ width: img.naturalWidth, height: img.naturalHeight });
+            };
+            img.onerror = () => {
+                reject(new Error('图片加载失败'));
+            };
+        });
+        
+        // 设置超时
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('图片加载超时')), 5000);
+        });
+        
+        img.src = originalImage.src;
+        
+        // 等待图片加载或超时
+        const { width, height } = await Promise.race([loadPromise, timeoutPromise]);
+        
+        debugLog('手动检查图片尺寸', { width, height, src: originalImage.src });
         
         // 检查尺寸是否符合要求（长宽都是8的倍数）
         const isWidthValid = width % 8 === 0;
@@ -5693,8 +5912,17 @@ async function manualDimensionCheck() {
                 timestamp: Date.now()
             };
             
+            // 创建包含正确尺寸信息的图片对象
+            const imageInfoForModal = {
+                src: originalImage.src,
+                width: width,
+                height: height,
+                name: originalImage.name || extractFileNameFromUrl(originalImage.src) || '原图'
+            };
+            
             // 显示模态框
-            showDimensionCheckModal(originalImage, true);
+            showDimensionCheckModal(imageInfoForModal, true);
+            return true; // 返回true表示符合要求
             
         } else {
             // 尺寸不符合要求，系统提示
@@ -5713,13 +5941,16 @@ async function manualDimensionCheck() {
                 width, height,
                 widthRemainder: width % 8,
                 heightRemainder: height % 8,
-                isWidthValid, isHeightValid
+                isWidthValid, isHeightValid,
+                src: originalImage.src
             });
+            return false; // 返回false表示不符合要求
         }
         
     } catch (error) {
         debugLog('手动检查图片尺寸时出错', error);
         showNotification('❌ 检查图片尺寸时出错: ' + error.message, 3000);
+        return false; // 出错时返回false
     }
 }
 
