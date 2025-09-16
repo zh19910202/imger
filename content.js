@@ -60,7 +60,7 @@ if (document.readyState === 'loading') {
 function initializeScript() {
     console.log('=== AnnotateFlow Assistant v2.0 已加载 ===');
     console.log('专为腾讯QLabel标注平台设计');
-    console.log('支持功能: D键下载图片, 空格键跳过, S键提交标注, A键上传图片, F键查看历史, W键智能图片对比, Z键调试模式, I键检查文件输入, B键重新检测原图, N键从缓存获取图片, P键竞速获取原图, F2键尺寸检查');
+    console.log('支持功能: D键下载图片, 空格键跳过, S键提交标注, A键上传图片, F键查看历史, W键智能图片对比, Z键调试模式, I键检查文件输入, B键重新检测原图, N键从缓存获取图片, P键竞速获取原图, F2键尺寸检查, R键重新弹出尺寸检查');
     console.log('Chrome对象:', typeof chrome);
     console.log('Chrome.runtime:', typeof chrome?.runtime);
     console.log('扩展ID:', chrome?.runtime?.id);
@@ -498,6 +498,12 @@ function handleKeydown(event) {
         event.preventDefault();
         debugLog('F2键触发 - 检查图片尺寸');
         checkImageDimensionsAndShowModal();
+    }
+    // 处理R键 - 重新弹出上次的尺寸检查模态框
+    else if (key === 'r') {
+        event.preventDefault();
+        debugLog('R键触发 - 重新弹出尺寸检查模态框');
+        reopenLastDimensionCheckModal();
     }
 }
 
@@ -5246,6 +5252,7 @@ function updateComparisonInRevisionMode() {
 // F2键功能：检查图片尺寸并显示标注界面
 let dimensionCheckModal = null;
 let isDimensionCheckModalOpen = false;
+let lastDimensionCheckInfo = null; // 保存上次检查的图片信息，用于R键重新弹出
 
 async function checkImageDimensionsAndShowModal() {
     debugLog('开始检查图片尺寸');
@@ -5288,6 +5295,15 @@ async function checkImageDimensionsAndShowModal() {
             isHeightValid,
             isDimensionValid
         });
+        
+        // 保存检查信息，用于R键重新弹出
+        lastDimensionCheckInfo = {
+            imageInfo: originalImage,
+            isDimensionValid: isDimensionValid,
+            width: width,
+            height: height,
+            timestamp: Date.now()
+        };
         
         if (isDimensionValid) {
             // 尺寸符合要求，显示标注模态框
@@ -5580,4 +5596,47 @@ function submitDimensionCheck(comment) {
     
     // 可以选择是否自动进行下一步操作，比如提交当前任务
     // 这里暂时不自动操作，让用户手动决定
+}
+
+// R键功能：重新弹出上次的尺寸检查模态框
+function reopenLastDimensionCheckModal() {
+    debugLog('尝试重新弹出上次的尺寸检查模态框');
+    
+    // 如果模态框已经打开，直接返回
+    if (isDimensionCheckModalOpen) {
+        debugLog('尺寸检查模态框已打开，无需重新弹出');
+        showNotification('尺寸检查模态框已打开', 1000);
+        return;
+    }
+    
+    // 检查是否有上次的检查信息
+    if (!lastDimensionCheckInfo) {
+        debugLog('没有上次的检查信息');
+        showNotification('没有可重新弹出的尺寸检查信息，请先按F2键检查', 2000);
+        return;
+    }
+    
+    // 检查信息是否过期（超过5分钟）
+    const now = Date.now();
+    const timeDiff = now - lastDimensionCheckInfo.timestamp;
+    const maxAge = 5 * 60 * 1000; // 5分钟
+    
+    if (timeDiff > maxAge) {
+        debugLog('上次检查信息已过期', { timeDiff, maxAge });
+        showNotification('上次检查信息已过期，请重新按F2键检查', 2000);
+        lastDimensionCheckInfo = null; // 清除过期信息
+        return;
+    }
+    
+    debugLog('重新弹出上次的尺寸检查模态框', {
+        width: lastDimensionCheckInfo.width,
+        height: lastDimensionCheckInfo.height,
+        isDimensionValid: lastDimensionCheckInfo.isDimensionValid,
+        ageMinutes: Math.round(timeDiff / 60000)
+    });
+    
+    // 重新显示模态框
+    showDimensionCheckModal(lastDimensionCheckInfo.imageInfo, lastDimensionCheckInfo.isDimensionValid);
+    
+    showNotification('已重新弹出尺寸检查模态框', 1000);
 }
