@@ -1841,8 +1841,8 @@ function isImageUrl(url) {
     
     const lowerUrl = url.toLowerCase();
     
-    // 图片文件扩展名
-    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', '.tiff', '.ico'];
+    // 图片文件扩展名（只支持JPEG格式的原图）
+    const imageExtensions = ['.jpg', '.jpeg'];
     const hasImageExt = imageExtensions.some(ext => lowerUrl.includes(ext));
     
     // 后端API图片路径关键词
@@ -1853,9 +1853,9 @@ function isImageUrl(url) {
         '/static/image', '/public/image', '/storage/image'
     ];
     
-    // 图片相关关键词
+    // 图片相关关键词（只保留JPEG相关）
     const imageKeywords = [
-        'image', 'img', 'picture', 'photo', 'pic', 'jpeg', 'jpg', 'png',
+        'image', 'img', 'picture', 'photo', 'pic', 'jpeg', 'jpg',
         'upload', 'media', 'attachment', 'file'
     ];
     
@@ -1922,13 +1922,10 @@ function hasImageHeaders(response) {
         
         // 检查Content-Type
         const hasImageContentType = lowerContentType.startsWith('image/') ||
-                                   lowerContentType.includes('jpeg') ||
-                                   lowerContentType.includes('png') ||
-                                   lowerContentType.includes('gif') ||
-                                   lowerContentType.includes('webp');
+                                   lowerContentType.includes('jpeg');
         
-        // 检查Content-Disposition中的文件名
-        const hasImageFilename = /\.(jpe?g|png|gif|webp|bmp|svg|tiff)[";\s]/i.test(lowerDisposition);
+        // 检查Content-Disposition中的文件名（只支持JPEG格式）
+        const hasImageFilename = /\.(jpe?g)[";\s]/i.test(lowerDisposition);
         
         // 检查是否是二进制内容
         const isBinaryContent = lowerContentType.includes('application/octet-stream') ||
@@ -2315,7 +2312,7 @@ function observeResourceLoading() {
     // 监听所有资源的加载事件
     const observer = new PerformanceObserver((list) => {
         for (const entry of list.getEntries()) {
-            if (entry.initiatorType === 'img' || entry.name.match(/\.(jpg|jpeg|png|gif|bmp|webp)(\?|$)/i)) {
+            if (entry.initiatorType === 'img' || entry.name.match(/\.(jpg|jpeg)(\?|$)/i)) {
                 debugLog('性能API检测到图片资源', {
                     name: entry.name.substring(0, 100) + '...',
                     size: entry.transferSize,
