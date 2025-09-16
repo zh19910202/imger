@@ -5297,13 +5297,26 @@ async function checkImageDimensionsAndShowModal() {
         });
         
         // 保存检查信息，用于R键重新弹出
+        // 创建一个稳定的图片信息副本，避免引用失效
         lastDimensionCheckInfo = {
-            imageInfo: originalImage,
+            imageInfo: {
+                src: originalImage.src,
+                width: width,
+                height: height,
+                name: originalImage.name || extractFileNameFromUrl(originalImage.src) || '原图'
+            },
             isDimensionValid: isDimensionValid,
             width: width,
             height: height,
             timestamp: Date.now()
         };
+        
+        debugLog('保存尺寸检查信息', {
+            src: lastDimensionCheckInfo.imageInfo.src ? lastDimensionCheckInfo.imageInfo.src.substring(0, 50) + '...' : '无src',
+            width: lastDimensionCheckInfo.width,
+            height: lastDimensionCheckInfo.height,
+            isDimensionValid: lastDimensionCheckInfo.isDimensionValid
+        });
         
         if (isDimensionValid) {
             // 尺寸符合要求，显示标注模态框
@@ -5632,11 +5645,88 @@ function reopenLastDimensionCheckModal() {
         width: lastDimensionCheckInfo.width,
         height: lastDimensionCheckInfo.height,
         isDimensionValid: lastDimensionCheckInfo.isDimensionValid,
-        ageMinutes: Math.round(timeDiff / 60000)
+        ageMinutes: Math.round(timeDiff / 60000),
+        imageSrc: lastDimensionCheckInfo.imageInfo.src ? lastDimensionCheckInfo.imageInfo.src.substring(0, 50) + '...' : '无src'
     });
     
-    // 重新显示模态框
-    showDimensionCheckModal(lastDimensionCheckInfo.imageInfo, lastDimensionCheckInfo.isDimensionValid);
+    // 验证图片是否仍然可以加载
+    validateAndShowDimensionCheckModal(lastDimensionCheckInfo.imageInfo, lastDimensionCheckInfo.isDimensionValid);
+}
+
+// 验证图片并显示尺寸检查模态框
+async function validateAndShowDimensionCheckModal(imageInfo, isDimensionValid) {
+    debugLog('验证图片资源并显示模态框', {
+        src: imageInfo.src ? imageInfo.src.substring(0, 50) + '...' : '无src'
+    });
     
-    showNotification('已重新弹出尺寸检查模态框', 1000);
+    try {
+        // 创建一个新的图片对象来验证资源是否可用
+        const testImg = new Image();
+        
+        // 设置超时时间
+        const timeout = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('图片加载超时')), 5000);
+        });
+        
+        // 图片加载Promise
+        const loadPromise = new Promise((resolve, reject) => {
+            testImg.onload = function() {
+                debugLog('图片验证成功', {
+                    naturalWidth: this.naturalWidth,
+                    naturalHeight: this.naturalHeight,
+                    expectedWidth: imageInfo.width,
+                    expectedHeight: imageInfo.height
+                });
+                
+                // 验证尺寸是否匹配
+                if (this.naturalWidth === imageInfo.width && this.naturalHeight === imageInfo.height) {
+                    resolve(true);
+                } else {
+                    debugLog('图片尺寸不匹配，可能是不同的图片', {
+                        actual: `${this.naturalWidth}×${this.naturalHeight}`,
+                        expected: `${imageInfo.width}×${imageInfo.height}`
+                    });
+                    resolve(false);
+                }
+            };
+            
+            testImg.onerror = function() {
+                debugLog('图片加载失败');
+                reject(new Error('图片加载失败'));
+            };
+        });
+        
+        // 开始加载图片
+        testImg.src = imageInfo.src;
+        
+        // 等待加载完成或超时
+        const isValid = await Promise.race([loadPromise, timeout]);
+        
+        if (isValid) {
+            // 图片验证成功，显示模态框
+            showDimensionCheckModal(imageInfo, isDimensionValid);
+            showNotification('已重新弹出尺寸检查模态框', 1000);
+        } else {
+            // 图片尺寸不匹配，提示用户重新检查
+            showNotification('保存的图片信息已过期，请重新按F2键检查', 3000);
+            lastDimensionCheckInfo = null; // 清除无效信息
+        }
+        
+    } catch (error) {
+        debugLog('图片验证失败', error);
+        
+        // 图片加载失败，尝试使用当前原图
+        if (originalImage && originalImage.src) {
+            debugLog('图片验证失败，尝试使用当前原图');
+            showNotification('原图片资源失效，使用当前原图重新检查...', 2000);
+            
+            // 重新执行F2键检查逻辑
+            setTimeout(() => {
+                checkImageDimensionsAndShowModal();
+            }, 500);
+        } else {
+            showNotification('图片资源失效且未找到当前原图，请重新按F2键检查', 3000);
+            lastDimensionCheckInfo = null; // 清除无效信息
+        }
+    }
 }
