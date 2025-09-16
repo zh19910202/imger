@@ -25,16 +25,60 @@ try {
   });
 } catch (_) {}
 
-// 纯函数：是否 JPEG
+// 纯函数：是否图片URL - 增强后端检测
 function isJpegUrl(u) {
   const l = u.toLowerCase();
   return !!(l.match(/\.(jpe?g)(\?|$)/) || l.includes('jpeg') || l.includes('jpg'));
 }
 
-// 纯函数：图片类别
+// 增强的图片URL检测函数
+function isImageUrl(url) {
+  if (!url) return false;
+  
+  const lowerUrl = url.toLowerCase();
+  
+  // 图片扩展名检测
+  const imageExts = /\.(jpe?g|png|gif|webp|bmp|svg|tiff|ico)(\?|#|$)/i;
+  const hasImageExt = imageExts.test(url);
+  
+  // 后端API图片路径检测
+  const backendImagePaths = [
+    '/api/image', '/api/upload', '/api/media', '/api/file',
+    '/upload/image', '/media/image', '/attachment/',
+    '/resource/image', '/storage/image'
+  ];
+  
+  const hasBackendImagePath = backendImagePaths.some(path => lowerUrl.includes(path));
+  
+  // 图片相关关键词
+  const imageKeywords = ['image', 'img', 'picture', 'photo', 'media'];
+  const hasImageKeyword = imageKeywords.some(keyword => lowerUrl.includes(keyword));
+  
+  // Base64或Blob URL
+  const isDataUrl = lowerUrl.startsWith('data:image/') || lowerUrl.startsWith('blob:');
+  
+  return hasImageExt || hasBackendImagePath || 
+         (hasImageKeyword && lowerUrl.includes('/api/')) || isDataUrl;
+}
+
+// 纯函数：图片类别 - 增强COS原图检测
 function resolveImageType(u) {
-  const isOriginalImage = u.includes('/target/');
-  const isModifiedImage = u.includes('/attachment/');
+  const lowerUrl = u.toLowerCase();
+  
+  // COS原图特征检测 - 只检测JPEG格式的原图
+  const isOriginalImage = isJpegUrl(u) && (
+                         lowerUrl.includes('/target/') || 
+                         lowerUrl.includes('/target/dataset/') ||
+                         (lowerUrl.includes('cos.ap-guangzhou.myqcloud.com') && 
+                          (lowerUrl.includes('/target/') || lowerUrl.includes('dataset')))
+                         );
+  
+  // COS修改图特征检测
+  const isModifiedImage = lowerUrl.includes('/attachment/') ||
+                         lowerUrl.includes('/attachment/task-detail/') ||
+                         (lowerUrl.includes('cos.ap-guangzhou.myqcloud.com') && 
+                          lowerUrl.includes('/attachment/'));
+  
   const imageType = isOriginalImage ? '原图' : (isModifiedImage ? '修改图' : '其他图片');
   return { isOriginalImage, isModifiedImage, imageType };
 }
@@ -66,19 +110,36 @@ function initializeNetworkInterception() {
     console.log('🚀 [网络拦截] 开始注册拦截器...');
   }
   
-  // 拦截所有图片类型的请求
+  // 拦截所有图片类型的请求 - 增强后端图片检测
   chrome.webRequest.onBeforeRequest.addListener(
     (details) => {
       const url = details.url;
       const isTargetDomain = url.includes(COS_DOMAIN);
       const isJpeg = isJpegUrl(url);
-
-      if (isTargetDomain && isJpeg) {
+      
+      // 检测后端图片API
+      const isBackendImageApi = (
+        url.includes('/api/image') ||
+        url.includes('/api/upload') ||
+        url.includes('/api/media') ||
+        url.includes('/api/file') ||
+        url.includes('/upload/') ||
+        url.includes('/media/') ||
+        url.includes('/attachment/')
+      ) && (isJpegUrl(url) || url.toLowerCase().includes('image'));
+      
+      // 扩展检测条件
+      if ((isTargetDomain && isJpeg) || isBackendImageApi) {
         const { isOriginalImage, isModifiedImage, imageType } = resolveImageType(url);
 
         if (LOG_VERBOSE) {
-          console.log('🎯 [COS拦截] JPEG图片请求:', url);
+          console.log('🎯 [COS拦截] 图片请求:', url);
           console.log(`📸 [图片类型] ${imageType}: ${url}`);
+          
+          // 特别标记dataset路径的原图
+          if (isOriginalImage && url.includes('dataset')) {
+            console.log('🌟 [重要] 检测到dataset原图:', url.substring(0, 150));
+          }
         }
 
         const logData = {
@@ -114,20 +175,45 @@ function initializeNetworkInterception() {
       return {};
     },
     {
-      urls: ["*://aidata-1258344706.cos.ap-guangzhou.myqcloud.com/*"],
-      types: ["image"]
+      urls: [
+        "*://aidata-1258344706.cos.ap-guangzhou.myqcloud.com/*",
+        "*://*/api/image/*",
+        "*://*/api/upload/*", 
+        "*://*/api/media/*",
+        "*://*/api/file/*",
+        "*://*/upload/*",
+        "*://*/media/*",
+        "*://*/attachment/*",
+        "*://*/resource/*"
+      ],
+      types: ["image", "xmlhttprequest", "other"]
     },
     []
   );
 
-  // 拦截响应头，获取更多图片信息
+  // 拦截响应头，获取更多图片信息 - 增强后端检测
   chrome.webRequest.onHeadersReceived.addListener(
     (details) => {
       const url = details.url;
       const isTargetDomain = url.includes(COS_DOMAIN);
       const isJpegByUrl = isJpegUrl(url);
-
-      if (isTargetDomain && isJpegByUrl) {
+      
+      // 检测后端图片响应
+      const contentType = details.responseHeaders?.find(h =>
+        h.name.toLowerCase() === 'content-type'
+      )?.value?.toLowerCase() || '';
+      
+      const isBackendImage = (
+        url.includes('/api/') ||
+        url.includes('/upload/') ||
+        url.includes('/media/')
+      ) && (
+        contentType.startsWith('image/') ||
+        isJpegByUrl ||
+        contentType.includes('octet-stream')
+      );
+      
+      if ((isTargetDomain && isJpegByUrl) || isBackendImage) {
         const contentType = details.responseHeaders?.find(h =>
           h.name.toLowerCase() === 'content-type'
         )?.value;
@@ -176,20 +262,42 @@ function initializeNetworkInterception() {
       return {};
     },
     {
-      urls: ["*://aidata-1258344706.cos.ap-guangzhou.myqcloud.com/*"],
-      types: ["image"]
+      urls: [
+        "*://aidata-1258344706.cos.ap-guangzhou.myqcloud.com/*",
+        "*://*/api/image/*",
+        "*://*/api/upload/*", 
+        "*://*/api/media/*",
+        "*://*/api/file/*",
+        "*://*/upload/*",
+        "*://*/media/*",
+        "*://*/attachment/*",
+        "*://*/resource/*"
+      ],
+      types: ["image", "xmlhttprequest", "other"]
     },
     ["responseHeaders"]
   );
 
-  // 拦截请求完成事件
+  // 拦截请求完成事件 - 增强后端检测
   chrome.webRequest.onCompleted.addListener(
     (details) => {
       const url = details.url;
       const isTargetDomain = url.includes(COS_DOMAIN);
       const isJpegByUrl = isJpegUrl(url);
-
-      if (isTargetDomain && isJpegByUrl) {
+      
+      // 检测后端图片请求完成
+      const isBackendImageComplete = (
+        url.includes('/api/') ||
+        url.includes('/upload/') ||
+        url.includes('/media/') ||
+        url.includes('/attachment/')
+      ) && (
+        isJpegUrl(url) ||
+        url.toLowerCase().includes('image') ||
+        details.statusCode === 200
+      );
+      
+      if ((isTargetDomain && isJpegByUrl) || isBackendImageComplete) {
         const { isOriginalImage, isModifiedImage, imageType } = resolveImageType(url);
 
         const logData = {
