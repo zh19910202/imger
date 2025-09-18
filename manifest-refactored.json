@@ -1,0 +1,61 @@
+{
+  "manifest_version": 3,
+  "name": "Auxis (Refactored)",
+  "version": "2.5.0",
+  "description": "Annotation platform assistant (Refactored v2.0): Fast image download with D key, skip with Space, submit with S key, upload with A key, history with F key, mark invalid with X key (auto-confirm), batch invalid with F1, AI image processing with R key (RunningHub integration) - Modular Architecture",
+  "permissions": [
+    "downloads",
+    "contextMenus",
+    "activeTab",
+    "storage",
+    "notifications",
+    "tabs",
+    "nativeMessaging",
+    "webRequest"
+  ],
+  "host_permissions": [
+    "<all_urls>",
+    "*://aidata-1258344706.cos.ap-guangzhou.myqcloud.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Auxis (Refactored)",
+    "default_icon": {
+      "16": "icon.png",
+      "32": "icon.png",
+      "48": "icon.png",
+      "128": "icon.png"
+    }
+  },
+  "icons": {
+    "16": "icon.png",
+    "32": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://qlabel.tencent.com/*", "http://localhost:*/*", "file://*/*"],
+      "js": ["resource-extractor.js", "src/content.js"],
+      "type": "module"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "notification.mp3", 
+        "runninghub-config.json",
+        "src/modules/core/*.js",
+        "src/modules/image/*.js",
+        "src/modules/ui/*.js",
+        "src/modules/network/*.js",
+        "src/modules/utils/*.js",
+        "src/config/*.js"
+      ],
+      "matches": ["https://qlabel.tencent.com/*", "http://localhost:*/*", "file://*/*"]
+    }
+  ]
+}
