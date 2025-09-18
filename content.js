@@ -7913,22 +7913,18 @@ async function uploadImageToAnnotationPlatform(imageUrl, fileType, index) {
         debugLog('生成结果已直接上传到标注平台');
         showNotification(`✅ 生成结果已上传: ${file.name}`, 3000);
 
-        // 等待一下，然后检查是否需要额外操作
+        // 检查上传是否成功（通过检测页面变化）
         setTimeout(() => {
             // 检查是否有预览显示
             const previewImages = document.querySelectorAll('img[src*="blob:"], img[src*="data:"]');
             if (previewImages.length > 0) {
-                debugLog('检测到图片预览，上传可能成功');
-                showNotification('📸 图片已显示在页面中，上传成功！', 2000);
+                debugLog('检测到图片预览，上传成功');
+                showNotification('📸 图片已成功上传到标注页面', 2000);
+            } else {
+                debugLog('未检测到图片预览，可能需要手动检查');
+                showNotification('图片已上传，请检查页面显示', 2000);
             }
-
-            // 检查是否有提交按钮（可选的自动提交）
-            const submitButton = findButtonByText(['提交', '确认', '确定', 'Submit', 'Confirm', '保存', '继续']);
-            if (submitButton && confirm('图片已上传完成，是否自动提交？')) {
-                submitButton.click();
-                showNotification('已自动提交', 2000);
-            }
-        }, 2000);
+        }, 1500);
 
     } catch (error) {
         debugLog('直接上传生成结果失败:', error);
