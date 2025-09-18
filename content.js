@@ -5564,6 +5564,124 @@ async function autoSkipToValidImageWithRKeyLogic() {
 
 
 
+// 自动提取页面指令文本
+function extractInstructionText() {
+    try {
+        debugLog('开始提取页面指令文本');
+
+        // 精确选择器：基于提供的示例
+        const exactSelectors = [
+            'div[data-v-2f9c5f73][name="instruction"]',
+            'div[name="instruction"]',
+            'div[data-v-2f9c5f73]'
+        ];
+
+        // 通用选择器：寻找可能包含指令的元素
+        const generalSelectors = [
+            '[name="instruction"]',
+            '[class*="instruction"]',
+            '[id*="instruction"]',
+            'div[style*="font-size: 14px"]',
+            '.instruction',
+            '.task-instruction',
+            '.prompt',
+            '.description'
+        ];
+
+        // 合并所有选择器，精确选择器优先
+        const allSelectors = [...exactSelectors, ...generalSelectors];
+
+        let instructionText = '';
+
+        // 按优先级尝试每个选择器
+        for (const selector of allSelectors) {
+            const elements = document.querySelectorAll(selector);
+            debugLog(`尝试选择器: ${selector}`, { found: elements.length });
+
+            if (elements.length > 0) {
+                for (const element of elements) {
+                    const text = element.textContent?.trim() || element.innerText?.trim() || '';
+
+                    // 检查文本是否像指令（长度合理且包含中文或英文描述）
+                    if (text.length > 5 && text.length < 500) {
+                        // 检查是否包含指令性文字
+                        const instructionKeywords = [
+                            '添加', '更换', '修改', '改变', '调整', '设置', '变成', '换成',
+                            '背景', '妆容', '发型', '服装', '表情', '姿势', '颜色', '风格',
+                            'add', 'change', 'modify', 'replace', 'adjust', 'set', 'make',
+                            'background', 'makeup', 'hairstyle', 'clothing', 'expression'
+                        ];
+
+                        const containsInstruction = instructionKeywords.some(keyword =>
+                            text.toLowerCase().includes(keyword.toLowerCase())
+                        );
+
+                        if (containsInstruction) {
+                            instructionText = text;
+                            debugLog('找到指令文本', {
+                                selector: selector,
+                                text: text.substring(0, 100) + '...',
+                                element: element
+                            });
+                            break;
+                        }
+                    }
+                }
+
+                if (instructionText) break;
+            }
+        }
+
+        // 如果精确方法没找到，尝试文本内容搜索
+        if (!instructionText) {
+            debugLog('精确选择器未找到，尝试文本内容搜索');
+
+            const allDivs = document.querySelectorAll('div');
+            for (const div of allDivs) {
+                const text = div.textContent?.trim() || '';
+
+                // 寻找包含"为她"、"将背景"等指令性开头的文本
+                const instructionPatterns = [
+                    /^为她.*[。！]$/, // 以"为她"开头的句子
+                    /^将背景.*[。！]$/, // 以"将背景"开头的句子
+                    /^添加.*[。！]$/, // 以"添加"开头的句子
+                    /^修改.*[。！]$/, // 以"修改"开头的句子
+                    /^换成.*[。！]$/, // 以"换成"开头的句子
+                ];
+
+                if (text.length > 10 && text.length < 300) {
+                    const matchesPattern = instructionPatterns.some(pattern => pattern.test(text));
+                    if (matchesPattern) {
+                        instructionText = text;
+                        debugLog('通过文本模式找到指令', {
+                            text: text,
+                            element: div
+                        });
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (instructionText) {
+            debugLog('成功提取指令文本', {
+                text: instructionText,
+                length: instructionText.length
+            });
+
+            showNotification(`📝 已提取指令: ${instructionText.substring(0, 30)}...`, 2000);
+            return instructionText;
+        } else {
+            debugLog('未找到指令文本');
+            return '';
+        }
+
+    } catch (error) {
+        debugLog('提取指令文本失败:', error);
+        return '';
+    }
+}
+
 // 显示尺寸检查模态框
 function showDimensionCheckModal(imageInfo, isDimensionValid) {
     if (isDimensionCheckModalOpen) {
@@ -5833,6 +5951,29 @@ function showDimensionCheckModal(imageInfo, isDimensionValid) {
         };
 
         submitBtn.addEventListener('click', handleSubmit);
+    }
+
+    // 自动提取并填入指令文本（仅当textarea为空且图片尺寸有效时）
+    if (textarea && isDimensionValid && !textarea.value.trim()) {
+        debugLog('尝试自动提取指令文本填入输入框');
+        const instructionText = extractInstructionText();
+        if (instructionText) {
+            textarea.value = instructionText;
+            debugLog('指令文本已自动填入输入框', {
+                text: instructionText.substring(0, 50) + '...'
+            });
+            showNotification('已自动填入页面指令', 1500);
+
+            // 添加高亮效果提示用户
+            textarea.style.background = 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)';
+            textarea.style.border = '2px solid #f59e0b';
+
+            // 3秒后恢复正常样式
+            setTimeout(() => {
+                textarea.style.background = '#ffffff';
+                textarea.style.border = '2px solid #e2e8f0';
+            }, 3000);
+        }
     }
 
     // 检查是否有缓存需要恢复（在事件绑定后）
