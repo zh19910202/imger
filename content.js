@@ -780,6 +780,12 @@ function downloadImage(img) {
                     showNotification('开始下载图片...');
                     // 添加下载效果
                     addDownloadEffect(img);
+                    // 下载发起成功后，按你的需求将当前悬停图片标记为原图（不限制JPEG）
+                    try {
+                        recordImageAsOriginalFlexible(img);
+                    } catch (e) {
+                        console.warn('标记原图失败（宽松模式）:', e);
+                    }
                 } else {
                     console.error('下载请求失败');
                     showNotification('下载失败');
@@ -1762,7 +1768,9 @@ function extractFileNameFromUrl(url) {
     }
 }
 
-// 将图片记录为原图
+/**
+ * 原有严格版本：仅允许 JPEG
+ */
 function recordImageAsOriginal(img) {
     // 如果原图已经被锁定，不允许在同一页面内更改
     if (originalImageLocked && originalImage) {
@@ -1782,22 +1790,57 @@ function recordImageAsOriginal(img) {
         });
         return;
     }
-    
+
+    setOriginalImageCommon(img);
+}
+
+/**
+ * 宽松版本：允许常见位图格式（用于 D 键下载后“标记为原图”的需求）
+ */
+function recordImageAsOriginalFlexible(img) {
+    // 如果原图已经被锁定，不允许在同一页面内更改
+    if (originalImageLocked && originalImage) {
+        debugLog('原图已在当前页面锁定（宽松模式跳过）');
+        return;
+    }
+
+    if (!img || !img.src) {
+        debugLog('宽松模式：无有效图片可标记为原图');
+        return;
+    }
+    const url = img.src.toLowerCase();
+    const isRaster =
+        /\.(jpe?g|png|webp|gif|bmp|tiff)(\?|#|$)/i.test(url) ||
+        url.startsWith('data:image/') ||
+        url.startsWith('blob:');
+
+    if (!isRaster) {
+        debugLog('宽松模式：非位图格式，跳过标记', url.substring(0, 100) + '...');
+        return;
+    }
+
+    setOriginalImageCommon(img);
+}
+
+/**
+ * 设置 originalImage 的公共实现
+ */
+function setOriginalImageCommon(img) {
     const width = img.naturalWidth || img.width || 0;
     const height = img.naturalHeight || img.height || 0;
-    
+
     originalImage = {
         src: img.src,
         width: width,
         height: height,
-        name: extractFileNameFromUrl(img.src), // 添加文件名提取
+        name: extractFileNameFromUrl(img.src),
         element: img
     };
-    
+
     // 锁定原图，防止在当前页面内被覆盖
     originalImageLocked = true;
-    
-    debugLog('成功记录原图并锁定到当前页面', {
+
+    debugLog('成功记录原图并锁定到当前页面（通用）', {
         src: originalImage.src.substring(0, 50) + '...',
         width: originalImage.width,
         height: originalImage.height,
@@ -1807,7 +1850,7 @@ function recordImageAsOriginal(img) {
         locked: originalImageLocked,
         currentPage: currentPageUrl.substring(0, 50) + '...'
     });
-    
+
     console.log('记录原图:', originalImage.src);
     showNotification(`已锁定原图: ${width}×${height}`, 2000);
 }

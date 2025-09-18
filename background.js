@@ -705,34 +705,90 @@ async function downloadImage(imageUrl, pageUrl) {
 async function downloadImageWithCustomName(imageUrl, pageUrl, customFilename) {
   try {
     if (LOG_VERBOSE) console.log('开始下载图片:', imageUrl);
-    
-    let filename;
-    if (customFilename) {
-      filename = customFilename;
-    } else {
-      // 从URL中提取文件名
-      const url = new URL(imageUrl);
-      filename = url.pathname.split('/').pop();
-      
-      // 如果没有文件名或扩展名，生成一个
-      if (!filename || !filename.includes('.')) {
-        const timestamp = new Date().getTime();
-        filename = `image_${timestamp}.jpg`;
+
+    // 小工具：从 Content-Type 推断扩展名
+    const extFromContentType = (ct) => {
+      if (!ct) return null;
+      const m = ct.toLowerCase();
+      if (m.startsWith('image/')) {
+        const sub = m.split('/')[1].split(';')[0].trim();
+        // 常见映射
+        const map = {
+          'jpeg': '.jpg',
+          'jpg': '.jpg',
+          'png': '.png',
+          'gif': '.gif',
+          'webp': '.webp',
+          'bmp': '.bmp',
+          'tiff': '.tiff',
+          'svg+xml': '.svg',
+          'x-icon': '.ico',
+          'vnd.microsoft.icon': '.ico',
+          'heic': '.heic',
+          'heif': '.heif',
+          'avif': '.avif'
+        };
+        return map[sub] || (sub ? `.${sub.replace(/\W+/g, '')}` : null);
       }
-    }
-    
+      return null;
+    };
+
+    // 小工具：从 URL 推断文件名与扩展名
+    const parseFilenameFromUrl = (raw) => {
+      try {
+        const url = new URL(raw);
+        let name = url.pathname.split('/').pop() || '';
+        // 去除查询中可能的 filename 参数
+        const qpName = url.searchParams.get('filename') || url.searchParams.get('file') || url.searchParams.get('name');
+        if ((!name || !name.includes('.')) && qpName) {
+          name = qpName;
+        }
+        return name;
+      } catch {
+        return '';
+      }
+    };
+
+    // 小工具：确保文件名有扩展名，必要时通过 HEAD 获取
+    const ensureFilename = async (rawName) => {
+      let filename = rawName;
+      let hasExt = !!filename && filename.includes('.') && !filename.endsWith('.');
+      if (!filename || !hasExt) {
+        // 尝试 HEAD 请求探测 Content-Type
+        try {
+          const resp = await fetch(imageUrl, { method: 'HEAD' });
+          const ct = resp.headers.get('content-type') || '';
+          const ext = extFromContentType(ct);
+          const ts = Date.now();
+          if (!filename || filename === '' || filename.endsWith('.')) {
+            filename = `image_${ts}${ext || '.img'}`;
+          } else if (!hasExt) {
+            filename = `${filename}${ext || '.img'}`;
+          }
+        } catch {
+          // 无法探测时回退
+          const ts = Date.now();
+          filename = filename && filename !== '' ? `${filename}.img` : `image_${ts}.img`;
+        }
+      }
+      return filename;
+    };
+
+    let filename = customFilename || parseFilenameFromUrl(imageUrl);
+    filename = await ensureFilename(filename);
+
     if (LOG_VERBOSE) console.log('文件名:', filename);
-    
-    // 开始下载
+
+    // 开始下载（保持原始数据与格式，不转码）
     const downloadId = await chrome.downloads.download({
       url: imageUrl,
       filename: filename,
       saveAs: false
     });
-    
+
     console.log('下载ID:', downloadId);
     return downloadId;
-    
+
   } catch (error) {
     console.error('下载图片失败:', error);
     throw error;
