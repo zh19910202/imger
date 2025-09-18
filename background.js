@@ -9,6 +9,7 @@ let isConnecting = false;
 let connectionPromise = null;
 let isInitialized = false;
 let webRequestListenerAdded = false;
+let downloadAutoOpenMap = new Map(); // 跟踪每个下载的自动打开设置
 
 // 常量集中管理（不改变逻辑，仅去除硬编码分散）
 const COS_DOMAIN = 'aidata-1258344706.cos.ap-guangzhou.myqcloud.com';
@@ -540,21 +541,48 @@ function initializeDownloadListener() {
           }
           
           if (isImage) {
-            // 获取用户设置
-            chrome.storage.sync.get({autoOpenImages: true}, (settings) => {
-              if (LOG_VERBOSE) console.log('自动打开设置:', settings.autoOpenImages);
-              
-              if (settings.autoOpenImages) {
-                if (LOG_VERBOSE) console.log('尝试自动打开图片');
-                
-                // 立即尝试打开图片，使用更智能的文件就绪检测
-                openImageWithBestMethod(delta.id, download.filename);
-              } else {
-                if (LOG_VERBOSE) console.log('用户设置不自动打开图片');
-              }
-            });
+            // 检查这个特定下载的自动打开设置
+            const shouldAutoOpen = downloadAutoOpenMap.get(delta.id);
+
+            if (LOG_VERBOSE) {
+              console.log('下载完成处理:', {
+                downloadId: delta.id,
+                filename: filename,
+                shouldAutoOpen: shouldAutoOpen,
+                hasAutoOpenSetting: downloadAutoOpenMap.has(delta.id)
+              });
+            }
+
+            // 如果明确设置了不自动打开，跳过
+            if (shouldAutoOpen === false) {
+              if (LOG_VERBOSE) console.log('此下载设置为不自动打开，跳过');
+              downloadAutoOpenMap.delete(delta.id); // 清理映射
+              return;
+            }
+
+            // 获取用户的全局设置（仅当未明确设置时）
+            if (shouldAutoOpen === undefined) {
+              chrome.storage.sync.get({autoOpenImages: true}, (settings) => {
+                if (LOG_VERBOSE) console.log('使用全局自动打开设置:', settings.autoOpenImages);
+
+                if (settings.autoOpenImages) {
+                  if (LOG_VERBOSE) console.log('根据全局设置自动打开图片');
+                  openImageWithBestMethod(delta.id, download.filename);
+                } else {
+                  if (LOG_VERBOSE) console.log('全局设置不自动打开图片');
+                }
+
+                downloadAutoOpenMap.delete(delta.id); // 清理映射
+              });
+            } else {
+              // 明确设置为自动打开
+              if (LOG_VERBOSE) console.log('根据特定设置自动打开图片');
+              openImageWithBestMethod(delta.id, download.filename);
+              downloadAutoOpenMap.delete(delta.id); // 清理映射
+            }
           } else {
             if (LOG_VERBOSE) console.log('非图片文件，不自动打开');
+            downloadAutoOpenMap.delete(delta.id); // 清理映射
           }
         }
       });
@@ -701,10 +729,10 @@ async function downloadImage(imageUrl, pageUrl) {
   return downloadImageWithCustomName(imageUrl, pageUrl, null);
 }
 
-// 支持自定义文件名的下载函数
-async function downloadImageWithCustomName(imageUrl, pageUrl, customFilename) {
+// 支持自定义文件名和自动打开控制的下载函数
+async function downloadImageWithCustomName(imageUrl, pageUrl, customFilename, autoOpen = true) {
   try {
-    if (LOG_VERBOSE) console.log('开始下载图片:', imageUrl);
+    if (LOG_VERBOSE) console.log('开始下载图片:', imageUrl, { autoOpen });
 
     // 小工具：从 Content-Type 推断扩展名
     const extFromContentType = (ct) => {
@@ -786,7 +814,10 @@ async function downloadImageWithCustomName(imageUrl, pageUrl, customFilename) {
       saveAs: false
     });
 
-    console.log('下载ID:', downloadId);
+    // 保存自动打开设置
+    downloadAutoOpenMap.set(downloadId, autoOpen);
+
+    console.log('下载ID:', downloadId, '自动打开:', autoOpen);
     return downloadId;
 
   } catch (error) {
@@ -800,9 +831,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (LOG_VERBOSE) console.log('收到消息:', request);
   
   if (request.action === "downloadImage") {
-    // 支持自定义文件名
+    // 支持自定义文件名和自动打开控制
     const filename = request.filename || null;
-    downloadImageWithCustomName(request.imageUrl, sender.tab?.url || '', filename)
+    const autoOpen = request.autoOpen !== false; // 默认true，除非明确设置为false
+
+    downloadImageWithCustomName(request.imageUrl, sender.tab?.url || '', filename, autoOpen)
       .then(() => {
         sendResponse({success: true, message: '下载已开始'});
       })
@@ -859,11 +892,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
-// COS图片代理获取函数
+// COS图片代理获取函数 - 修复栈溢出版本
 async function fetchCOSImageProxy(imageUrl) {
   try {
     if (LOG_VERBOSE) console.log('🌐 代理获取COS图片:', imageUrl);
-    
+
     // 使用background script获取图片（无跨域限制）
     const response = await fetch(imageUrl, {
       method: 'GET',
@@ -871,36 +904,65 @@ async function fetchCOSImageProxy(imageUrl) {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
       }
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
-    
+
     // 获取blob数据
     const blob = await response.blob();
-    
-    // 转换为base64以便传递给content script
-    const arrayBuffer = await blob.arrayBuffer();
-    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-    
+
+    // 检查文件大小，如果太大则拒绝处理
+    if (blob.size > 50 * 1024 * 1024) { // 50MB限制
+      throw new Error(`图片文件过大: ${Math.round(blob.size / 1024 / 1024)}MB，超过50MB限制`);
+    }
+
+    if (LOG_VERBOSE) {
+      console.log('图片下载完成:', {
+        size: blob.size,
+        type: blob.type,
+        sizeInMB: Math.round(blob.size / 1024 / 1024 * 100) / 100
+      });
+    }
+
+    // 使用FileReader避免栈溢出
+    const base64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onload = () => {
+        try {
+          const result = reader.result;
+          resolve(result);
+        } catch (error) {
+          reject(new Error('FileReader结果处理失败: ' + error.message));
+        }
+      };
+
+      reader.onerror = () => {
+        reject(new Error('FileReader读取失败'));
+      };
+
+      reader.readAsDataURL(blob);
+    });
+
     const result = {
       url: imageUrl,
       size: blob.size,
       type: blob.type,
-      base64: base64,
-      dataUrl: `data:${blob.type};base64,${base64}`
+      dataUrl: base64
     };
-    
+
     if (LOG_VERBOSE) {
       console.log('✅ COS图片代理获取成功:', {
         url: imageUrl,
         size: blob.size,
-        type: blob.type
+        type: blob.type,
+        dataUrlLength: base64.length
       });
     }
-    
+
     return result;
-    
+
   } catch (error) {
     console.error('❌ COS图片代理获取失败:', error);
     throw error;

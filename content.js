@@ -41,7 +41,14 @@ let userUploadedImage = null;
 // let isRevisionMode = false;
 // let modeStatusIndicator = null;
 // let isDragging = false;
-// let dragOffset = { x: 0, y: 0 };
+// let dragOffset = { x: 0, y: 0 }
+// 通用：隐藏取消按钮
+function hideRhCancelBtn() {
+    try {
+        const btn = document.querySelector('#rh-cancel-btn');
+        if (btn) btn.style.display = 'none';
+    } catch (_) {}
+};
 
 // 已移除：模式状态管理函数
 // function loadModeState() { ... }
@@ -5886,37 +5893,87 @@ async function submitDimensionCheck(comment) {
     try {
         showNotification('正在上传图片到Running Hub...', 0);
         const imageFile = await convertImageToFile(originalImage);
-        const result = await uploadToRunningHub(imageFile, apiKey, comment);
-        
-        // 解析API响应
-        const response = JSON.parse(result);
-        if (response.code === 0) {
-            const fileName = response.data.fileName;
-            showNotification(`图片上传成功！正在创建工作流任务...`, 2000);
-            debugLog('Running Hub上传成功:', response);
-            
-            // 图片上传成功后，调用工作流API
-            const workflowResult = await createWorkflowTask(apiKey, comment || '1 girl in classroom');
-            
-            // 解析工作流响应
-            const workflowResponse = JSON.parse(workflowResult);
-            if (workflowResponse.code === 0) {
-                const taskId = workflowResponse.data.taskId;
-                const taskStatus = workflowResponse.data.taskStatus;
-                showNotification(`任务创建成功！\n任务ID: ${taskId}\n状态: ${taskStatus}${comment ? '\n需求: ' + comment : ''}`, 5000);
-                debugLog('工作流任务创建成功:', workflowResponse);
+        const uploadResult = await uploadToRunningHub(imageFile, apiKey, comment);
+
+        // 解析上传API响应
+        const uploadResponse = JSON.parse(uploadResult);
+        if (uploadResponse.code === 0) {
+            const imageFileName = uploadResponse.data.fileName;
+            showNotification(`图片上传成功！正在创建AI应用任务...`, 2000);
+            debugLog('Running Hub图片上传成功:', uploadResponse);
+
+            // 图片上传成功后，调用AI应用API
+            const taskResult = await createWorkflowTask(apiKey, comment || '1 girl in classroom', imageFileName);
+
+            // 解析AI应用任务响应
+            const taskResponse = JSON.parse(taskResult);
+            if (taskResponse.code === 0) {
+                const taskId = taskResponse.data.taskId;
+                const taskStatus = taskResponse.data.taskStatus;
+                showNotification(`AI应用任务创建成功！\n任务ID: ${taskId}\n状态: ${taskStatus}${comment ? '\n需求: ' + comment : ''}`, 5000);
+                debugLog('AI应用任务创建成功:', taskResponse);
+
+                // 开始轮询并展示结果
+                updateDimensionModalProgress(`任务已创建\n🆔 任务ID: ${taskId}\n📊 状态: 正在执行中...`);
+                try {
+                    const poll = await pollRunningHubTaskStatus(apiKey, taskId, (tick) => {
+                        updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n📊 状态: ${tick.status || 'RUNNING'}${tick.msg ? ' (' + tick.msg + ')' : ''}\n🔄 第${tick.pollCount || 0}次查询 - ${Math.round((tick.elapsed || 0) / 1000)}秒`);
+                    });
+
+                    debugLog('轮询完成', poll);
+
+                    if (poll.final === 'SUCCESS') {
+                        updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n✅ 任务成功，正在获取结果...`);
+                        try {
+                            const outs = await fetchRunningHubTaskOutputs(apiKey, taskId);
+                            renderRunningHubResultsInModal(outs);
+                            updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n✅ 任务已完成 - 耗时${Math.round(poll.totalTime / 1000)}秒`);
+                            hideRhCancelBtn();
+                        } catch (e) {
+                            debugLog('获取输出失败:', e);
+                            updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n⚠️ 任务完成，但获取输出失败：${e.message}`);
+                        }
+                    } else if (poll.final === 'FAILED') {
+                        debugLog('任务失败', poll.raw);
+                        updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n❌ 任务失败 - ${poll.raw?.msg || '未知原因'}`);
+                        hideRhCancelBtn();
+
+                        // 如果有失败详情，显示给用户
+                        if (poll.raw?.data?.failedReason) {
+                            const failedReason = poll.raw.data.failedReason;
+                            updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n❌ 失败原因：${failedReason.exception_message || failedReason.exception_type || '系统错误'}`);
+                        }
+                    } else if (poll.final === 'ERROR') {
+                        debugLog('任务出错', poll.raw);
+                        updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n❌ 任务出错 - ${poll.raw?.msg || '系统错误'}`);
+                        hideRhCancelBtn();
+                    } else if (poll.final === 'CANCELED') {
+                        debugLog('任务已取消', poll.raw);
+                        updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n🚫 任务已取消`);
+                        hideRhCancelBtn();
+                    } else {
+                        debugLog('未知的最终状态', poll);
+                        updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n❓ 任务结束：${poll.final}`);
+                        hideRhCancelBtn();
+                    }
+                } catch (e) {
+                    debugLog('轮询过程失败:', e);
+                    updateDimensionModalProgress('轮询失败：' + e.message);
+                    hideRhCancelBtn();
+                }
             } else {
-                throw new Error('工作流创建失败: ' + (workflowResponse.msg || '未知错误'));
+                throw new Error('AI应用任务创建失败: ' + (taskResponse.msg || '未知错误'));
             }
         } else {
-            throw new Error(response.msg || '上传失败');
+            throw new Error(uploadResponse.msg || '图片上传失败');
         }
     } catch (error) {
-        debugLog('上传失败:', error);
-        showNotification('上传失败: ' + error.message, 3000);
+        debugLog('运行失败:', error);
+        showNotification('运行失败: ' + error.message, 3000);
     }
     
-    closeDimensionCheckModal();
+    // 保留模态框查看结果
+    // closeDimensionCheckModal();
 }
 
 // R键功能：手动触发图片尺寸检查
@@ -6114,31 +6171,192 @@ async function validateAndShowDimensionCheckModal(imageInfo, isDimensionValid) {
     }
 }
 
-// 将图片元素转换为文件对象
-async function convertImageToFile(imgElement) {
+// 将图片转换为文件对象 - 解决CORS问题版本
+async function convertImageToFile(imageInfo) {
+    debugLog('开始转换图片为文件', {
+        type: typeof imageInfo,
+        hasElement: !!(imageInfo && imageInfo.element),
+        hasSrc: !!(imageInfo && imageInfo.src),
+        isHTMLElement: imageInfo instanceof HTMLImageElement
+    });
+
+    try {
+        const imageUrl = imageInfo.src || (imageInfo.element && imageInfo.element.src);
+        if (!imageUrl) {
+            throw new Error('无法获取图片URL');
+        }
+
+        debugLog('获取图片URL', imageUrl.substring(0, 100) + '...');
+
+        // 检查是否是跨域图片
+        const isCrossOrigin = !imageUrl.startsWith(window.location.origin) &&
+                             !imageUrl.startsWith('data:') &&
+                             !imageUrl.startsWith('blob:');
+
+        if (isCrossOrigin) {
+            debugLog('检测到跨域图片，使用background script代理获取');
+            return await fetchImageViaBackgroundScript(imageUrl);
+        } else {
+            debugLog('同域图片，使用标准Canvas方法');
+            return await convertViaCanvas(imageInfo);
+        }
+
+    } catch (error) {
+        debugLog('convertImageToFile失败:', error);
+        throw error;
+    }
+}
+
+// 通过background script获取图片并转换为文件
+async function fetchImageViaBackgroundScript(imageUrl) {
     return new Promise((resolve, reject) => {
+        if (typeof chrome === 'undefined' || !chrome.runtime) {
+            reject(new Error('Chrome runtime不可用'));
+            return;
+        }
+
+        debugLog('向background script请求图片数据');
+
+        chrome.runtime.sendMessage({
+            action: 'fetchCOSImage',
+            url: imageUrl
+        }, (response) => {
+            if (chrome.runtime.lastError) {
+                debugLog('background script通信失败:', chrome.runtime.lastError);
+                reject(new Error(chrome.runtime.lastError.message));
+                return;
+            }
+
+            if (response && response.success) {
+                debugLog('background script返回成功', {
+                    hasDataUrl: !!response.data.dataUrl,
+                    type: response.data.type,
+                    size: response.data.size
+                });
+
+                // 从background script返回的dataUrl直接创建文件
+                try {
+                    const dataUrl = response.data.dataUrl;
+                    if (!dataUrl || !dataUrl.startsWith('data:')) {
+                        throw new Error('无效的dataUrl格式');
+                    }
+
+                    // 解析dataUrl
+                    const [header, base64Data] = dataUrl.split(',');
+                    const mimeType = header.split(':')[1].split(';')[0];
+
+                    // 转换base64为二进制数据
+                    const byteCharacters = atob(base64Data);
+                    const byteNumbers = new Array(byteCharacters.length);
+                    for (let i = 0; i < byteCharacters.length; i++) {
+                        byteNumbers[i] = byteCharacters.charCodeAt(i);
+                    }
+                    const byteArray = new Uint8Array(byteNumbers);
+
+                    // 创建blob和文件
+                    const fileBlob = new Blob([byteArray], { type: mimeType });
+                    const extension = mimeType.split('/')[1] || 'jpg';
+                    const fileName = `image_${Date.now()}.${extension}`;
+                    const file = new File([fileBlob], fileName, { type: mimeType });
+
+                    debugLog('从dataUrl创建文件成功', {
+                        fileName: file.name,
+                        fileSize: file.size,
+                        fileType: file.type,
+                        originalSize: response.data.size
+                    });
+
+                    resolve(file);
+                } catch (parseError) {
+                    debugLog('dataUrl解析失败:', parseError);
+                    reject(new Error('dataUrl解析失败: ' + parseError.message));
+                }
+            } else {
+                debugLog('background script返回失败:', response);
+                reject(new Error(response?.error || 'background script获取图片失败'));
+            }
+        });
+    });
+}
+
+// 标准Canvas转换方法（用于同域图片）
+async function convertViaCanvas(imageInfo) {
+    return new Promise(async (resolve, reject) => {
         try {
+            let imgElement;
+
+            // 获取图片元素
+            if (imageInfo instanceof HTMLImageElement) {
+                imgElement = imageInfo;
+            } else if (imageInfo && imageInfo.element instanceof HTMLImageElement) {
+                imgElement = imageInfo.element;
+            } else if (imageInfo && imageInfo.src) {
+                // 在页面中查找匹配的图片元素
+                const allImages = document.querySelectorAll('img[src]');
+                imgElement = Array.from(allImages).find(img => img.src === imageInfo.src);
+
+                if (!imgElement) {
+                    // 创建新的图片元素
+                    imgElement = new Image();
+
+                    await new Promise((loadResolve, loadReject) => {
+                        const timeout = setTimeout(() => {
+                            loadReject(new Error('图片加载超时'));
+                        }, 8000);
+
+                        imgElement.onload = () => {
+                            clearTimeout(timeout);
+                            loadResolve();
+                        };
+
+                        imgElement.onerror = () => {
+                            clearTimeout(timeout);
+                            loadReject(new Error('图片加载失败'));
+                        };
+
+                        imgElement.src = imageInfo.src;
+                    });
+                }
+            } else {
+                throw new Error('无效的图片参数');
+            }
+
+            // 验证图片元素
+            if (!imgElement || !(imgElement instanceof HTMLImageElement)) {
+                throw new Error('无效的图片元素');
+            }
+
+            const width = imgElement.naturalWidth || imgElement.width;
+            const height = imgElement.naturalHeight || imgElement.height;
+
+            if (!width || !height) {
+                throw new Error('图片尺寸无效');
+            }
+
+            debugLog('开始Canvas转换（同域）', { width, height });
+
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
-            
-            // 设置canvas尺寸
-            canvas.width = imgElement.naturalWidth || imgElement.width;
-            canvas.height = imgElement.naturalHeight || imgElement.height;
-            
-            // 绘制图片到canvas
+
+            canvas.width = width;
+            canvas.height = height;
+
+            // 绘制图片
             ctx.drawImage(imgElement, 0, 0);
-            
+
             // 转换为blob
             canvas.toBlob((blob) => {
                 if (blob) {
-                    const file = new File([blob], 'original_image.png', { type: 'image/png' });
+                    const file = new File([blob], 'image.png', { type: 'image/png' });
+                    debugLog('Canvas转换成功');
                     resolve(file);
                 } else {
-                    reject(new Error('无法转换图片为文件'));
+                    reject(new Error('Canvas转换为blob失败'));
                 }
             }, 'image/png');
-            
+
         } catch (error) {
+            debugLog('Canvas转换失败:', error);
             reject(error);
         }
     });
@@ -6176,7 +6394,928 @@ async function uploadToRunningHub(imageFile, apiKey, comment) {
     return result;
 }
 
-// Running Hub工作流配置缓存
+// ========== RunningHub 轮询与结果展示（最小增量） ==========
+
+function updateDimensionModalProgress(text) {
+    try {
+        if (!isDimensionCheckModalOpen || !dimensionCheckModal) return;
+        let bar = dimensionCheckModal.querySelector('#rh-status-bar');
+        if (!bar) {
+            bar = document.createElement('div');
+            bar.id = 'rh-status-bar';
+            bar.style.cssText = `
+                margin-top: 12px;
+                padding: 12px 15px;
+                border-radius: 10px;
+                background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+                border: 1px solid #e2e8f0;
+                color: #334155;
+                font-size: 13px;
+                line-height: 1.5;
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-start;
+                gap: 12px;
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            `;
+            const content = dimensionCheckModal.querySelector('div[style*="max-width: 580px"]');
+            if (content) content.appendChild(bar);
+            else dimensionCheckModal.appendChild(bar);
+        }
+
+        // 左侧状态文字区域
+        let textEl = bar.querySelector('#rh-status-text');
+        if (!textEl) {
+            textEl = document.createElement('div');
+            textEl.id = 'rh-status-text';
+            textEl.style.cssText = `
+                flex: 1;
+                white-space: pre-line;
+                font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+                background: rgba(255, 255, 255, 0.7);
+                padding: 8px 10px;
+                border-radius: 6px;
+                border: 1px solid rgba(0, 0, 0, 0.1);
+                font-size: 12px;
+                line-height: 1.4;
+            `;
+            bar.appendChild(textEl);
+        }
+
+        // 格式化显示文本
+        const formattedText = typeof text === 'string' ? text : JSON.stringify(text);
+        textEl.textContent = formattedText;
+
+        // 根据内容设置样式
+        if (formattedText.includes('✅') || formattedText.includes('成功')) {
+            textEl.style.background = 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)';
+            textEl.style.borderColor = '#16a34a';
+            textEl.style.color = '#166534';
+        } else if (formattedText.includes('❌') || formattedText.includes('失败') || formattedText.includes('错误')) {
+            textEl.style.background = 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)';
+            textEl.style.borderColor = '#dc2626';
+            textEl.style.color = '#991b1b';
+        } else if (formattedText.includes('🚫') || formattedText.includes('取消')) {
+            textEl.style.background = 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)';
+            textEl.style.borderColor = '#d97706';
+            textEl.style.color = '#92400e';
+        } else {
+            textEl.style.background = 'rgba(255, 255, 255, 0.7)';
+            textEl.style.borderColor = 'rgba(0, 0, 0, 0.1)';
+            textEl.style.color = '#334155';
+        }
+
+        // 右侧"取消任务"按钮
+        let cancelBtn = bar.querySelector('#rh-cancel-btn');
+        if (!cancelBtn) {
+            cancelBtn = document.createElement('button');
+            cancelBtn.id = 'rh-cancel-btn';
+            cancelBtn.textContent = '取消任务';
+            cancelBtn.style.cssText = `
+                padding: 8px 12px;
+                background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+                color: #b91c1c;
+                border: 1px solid #fecaca;
+                border-radius: 8px;
+                font-size: 12px;
+                font-weight: 500;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                white-space: nowrap;
+                box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+            `;
+            cancelBtn.addEventListener('mouseenter', () => {
+                cancelBtn.style.background = 'linear-gradient(135deg, #fecaca 0%, #fca5a5 100%)';
+                cancelBtn.style.transform = 'translateY(-1px)';
+                cancelBtn.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.1)';
+            });
+            cancelBtn.addEventListener('mouseleave', () => {
+                cancelBtn.style.background = 'linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)';
+                cancelBtn.style.transform = 'translateY(0)';
+                cancelBtn.style.boxShadow = '0 1px 2px rgba(0, 0, 0, 0.05)';
+            });
+            cancelBtn.addEventListener('click', async () => {
+                try {
+                    if (!window._rhTaskIdForCancel || !window._rhApiKeyForCancel) {
+                        updateDimensionModalProgress('未找到可取消的任务');
+                        return;
+                    }
+                    if (window._rhCancelRequested) return;
+                    window._rhCancelRequested = true;
+                    cancelBtn.disabled = true;
+                    cancelBtn.textContent = '取消中...';
+                    cancelBtn.style.opacity = '0.6';
+                    await cancelRunningHubTask(window._rhApiKeyForCancel, window._rhTaskIdForCancel);
+                    updateDimensionModalProgress(`🆔 任务ID: ${window._rhTaskIdForCancel}\n🚫 任务已申请取消，请稍候更新状态...`);
+                } catch (e) {
+                    updateDimensionModalProgress(`🆔 任务ID: ${window._rhTaskIdForCancel || 'unknown'}\n❌ 取消失败：${e.message}`);
+                    cancelBtn.disabled = false;
+                    cancelBtn.textContent = '取消任务';
+                    cancelBtn.style.opacity = '1';
+                    window._rhCancelRequested = false;
+                }
+            });
+            bar.appendChild(cancelBtn);
+        }
+    } catch (_) {}
+}
+
+async function pollRunningHubTaskStatus(apiKey, taskId, onTick) {
+    const statusUrl = 'https://www.runninghub.cn/task/openapi/status';
+    // 保存到全局，供取消按钮使用
+    window._rhTaskIdForCancel = taskId;
+    window._rhApiKeyForCancel = apiKey;
+    window._rhCancelRequested = window._rhCancelRequested || false;
+    const headers = { 'Host': 'www.runninghub.cn', 'Content-Type': 'application/json' };
+    const body = JSON.stringify({ apiKey, taskId });
+    const intervalMs = 1500;
+    const maxWaitMs = 120000;
+    const start = Date.now();
+
+    debugLog('开始轮询任务状态', { taskId, intervalMs, maxWaitMs });
+
+    // 打印轮询开始信息
+    console.log(`\n🚀 ======== RunningHub 轮询开始 ========`);
+    console.log(`🕐 开始时间: ${new Date().toLocaleTimeString()}`);
+    console.log(`🆔 任务ID: ${taskId}`);
+    console.log(`⏱️ 轮询间隔: ${intervalMs}ms`);
+    console.log(`⏰ 超时时间: ${Math.round(maxWaitMs / 1000)}秒`);
+    console.log(`🔄 预计最大轮询次数: ${Math.round(maxWaitMs / intervalMs)}`);
+    console.log(`==========================================\n`);
+
+    let pollCount = 0;
+
+    while (true) {
+        pollCount++;
+        debugLog(`轮询第${pollCount}次`, { elapsed: Date.now() - start });
+
+        if (window._rhCancelRequested) {
+            debugLog('检测到取消请求，停止轮询');
+            throw new Error('任务已取消');
+        }
+
+        const resp = await fetch(statusUrl, { method: 'POST', headers, body });
+        if (!resp.ok) {
+            debugLog('状态查询HTTP错误', { status: resp.status });
+            throw new Error('查询状态失败: HTTP ' + resp.status);
+        }
+
+        const data = await resp.json().catch(() => ({}));
+        const code = data?.code;
+        const status = data?.data?.taskStatus || data?.taskStatus || data?.data;
+        const msg = data?.msg || data?.message;
+
+        debugLog(`第${pollCount}次轮询结果`, { code, status, msg, rawData: data });
+
+        // 详细打印轮询状态到控制台
+        console.log(`\n======== RunningHub 任务状态轮询 #${pollCount} ========`);
+        console.log(`🕐 时间: ${new Date().toLocaleTimeString()}`);
+        console.log(`⏱️ 已耗时: ${Math.round((Date.now() - start) / 1000)}秒`);
+        console.log(`🆔 任务ID: ${taskId}`);
+        console.log(`📊 响应码: ${code}`);
+        console.log(`📋 任务状态: ${status}`);
+        console.log(`💬 消息: ${msg || '无'}`);
+        console.log(`🔍 原始响应:`, data);
+
+        // 状态分析
+        const statusAnalysis = {
+            'QUEUED': '🟡 任务排队中',
+            'RUNNING': '🔵 任务执行中',
+            'SUCCESS': '🟢 任务成功完成',
+            'FAILED': '🔴 任务执行失败',
+            'ERROR': '🔴 系统错误',
+            'CANCELED': '🟠 任务已取消'
+        };
+
+        console.log(`📈 状态说明: ${statusAnalysis[status] || '❓ 未知状态'}`);
+
+        if (status === 'FAILED' && data?.data?.failedReason) {
+            console.log(`🚨 失败详情:`, data.data.failedReason);
+        }
+
+        console.log(`================================================\n`);
+
+        if (typeof onTick === 'function') {
+            onTick({ status, msg, pollCount, elapsed: Date.now() - start });
+        }
+
+        // 检查终止条件 - 任务完成、失败或出错
+        if (code === 0 && ['SUCCESS', 'FAILED', 'ERROR', 'CANCELED'].includes(status)) {
+            debugLog('任务终止条件满足，停止轮询', {
+                finalStatus: status,
+                pollCount,
+                totalTime: Date.now() - start
+            });
+
+            // 打印轮询停止信息
+            console.log(`\n🛑 ======== RunningHub 轮询已停止 ========`);
+            console.log(`✅ 终止原因: 任务状态变为 ${status}`);
+            console.log(`📊 总轮询次数: ${pollCount}`);
+            console.log(`⏱️ 总耗时: ${Math.round((Date.now() - start) / 1000)}秒`);
+            console.log(`🆔 任务ID: ${taskId}`);
+            console.log(`📋 最终状态: ${statusAnalysis[status] || status}`);
+            console.log(`==========================================\n`);
+
+            try {
+                const btn = document.querySelector('#rh-cancel-btn');
+                if (btn) btn.style.display = 'none';
+            } catch (_) {}
+
+            return { final: status, raw: data, pollCount, totalTime: Date.now() - start };
+        }
+
+        // 检查超时
+        if (Date.now() - start > maxWaitMs) {
+            debugLog('轮询超时，强制停止', {
+                pollCount,
+                totalTime: Date.now() - start,
+                lastStatus: status
+            });
+
+            // 打印超时停止信息
+            console.log(`\n⏰ ======== RunningHub 轮询超时停止 ========`);
+            console.log(`❌ 终止原因: 超时 (${Math.round(maxWaitMs / 1000)}秒)`);
+            console.log(`📊 总轮询次数: ${pollCount}`);
+            console.log(`📋 最后状态: ${status}`);
+            console.log(`🆔 任务ID: ${taskId}`);
+            console.log(`💡 建议: 任务可能仍在执行，请稍后手动查询`);
+            console.log(`==========================================\n`);
+
+            try {
+                const btn = document.querySelector('#rh-cancel-btn');
+                if (btn) btn.style.display = 'none';
+            } catch (_) {}
+
+            throw new Error(`轮询超时，任务仍未完成。最后状态: ${status}, 轮询${pollCount}次`);
+        }
+
+        // 等待下次轮询
+        await new Promise(r => setTimeout(r, intervalMs));
+    }
+}
+
+async function fetchRunningHubTaskOutputs(apiKey, taskId) {
+    debugLog('开始获取任务输出', { apiKey: apiKey.substring(0, 10) + '...', taskId });
+
+    const url = 'https://www.runninghub.cn/task/openapi/outputs';
+    const headers = { 'Host': 'www.runninghub.cn', 'Content-Type': 'application/json' };
+    const body = JSON.stringify({ apiKey, taskId });
+
+    debugLog('发送输出查询请求', { url, body });
+
+    const resp = await fetch(url, { method: 'POST', headers, body });
+
+    if (!resp.ok) {
+        const errorText = await resp.text();
+        debugLog('输出查询HTTP错误', { status: resp.status, statusText: resp.statusText, errorText });
+        throw new Error(`获取输出失败: HTTP ${resp.status} - ${errorText}`);
+    }
+
+    const result = await resp.json();
+    debugLog('输出查询响应', result);
+
+    // 详细打印输出查询结果
+    console.log(`\n📥 ======== RunningHub 输出查询结果 ========`);
+    console.log(`🕐 查询时间: ${new Date().toLocaleTimeString()}`);
+    console.log(`🆔 任务ID: ${taskId}`);
+    console.log(`📊 响应码: ${result.code}`);
+    console.log(`💬 消息: ${result.msg || '无'}`);
+    console.log(`📋 数据类型: ${typeof result.data}`);
+    console.log(`📊 数据长度: ${Array.isArray(result.data) ? result.data.length : 'N/A'}`);
+    console.log(`🔍 完整响应:`, result);
+
+    if (Array.isArray(result.data) && result.data.length > 0) {
+        console.log(`\n📸 ======== 输出项目详情 ========`);
+        result.data.forEach((item, index) => {
+            console.log(`📷 项目 #${index + 1}:`);
+            console.log(`  🔗 fileUrl: ${item.fileUrl || '无'}`);
+            console.log(`  📝 fileType: ${item.fileType || '无'}`);
+            console.log(`  🔢 nodeId: ${item.nodeId || '无'}`);
+            console.log(`  ⏱️ taskCostTime: ${item.taskCostTime || '无'}秒`);
+            console.log(`  🔍 完整数据:`, item);
+        });
+        console.log(`=====================================`);
+    } else {
+        console.log(`⚠️ 无输出数据或数据为空`);
+    }
+    console.log(`==========================================\n`);
+
+    // 详细记录API返回的结构
+    debugLog('API输出结构分析', {
+        code: result.code,
+        msg: result.msg,
+        hasData: !!result.data,
+        dataType: typeof result.data,
+        dataIsArray: Array.isArray(result.data),
+        dataLength: Array.isArray(result.data) ? result.data.length : 'N/A',
+        firstItem: Array.isArray(result.data) && result.data.length > 0 ? result.data[0] : null
+    });
+
+    return result;
+}
+
+function renderRunningHubResultsInModal(outputsJson) {
+    try {
+        debugLog('开始渲染RunningHub结果', outputsJson);
+
+        if (!isDimensionCheckModalOpen || !dimensionCheckModal) return;
+        let wrap = dimensionCheckModal.querySelector('#rh-result-wrap');
+        if (!wrap) {
+            wrap = document.createElement('div');
+            wrap.id = 'rh-result-wrap';
+            wrap.style.cssText = `
+                margin-top: 12px;
+                padding: 12px;
+                border-radius: 10px;
+                background: #ffffff;
+                border: 1px solid #e2e8f0;
+            `;
+            const content = dimensionCheckModal.querySelector('div[style*="max-width: 580px"]');
+            if (content) content.appendChild(wrap);
+            else dimensionCheckModal.appendChild(wrap);
+        }
+
+        // 根据API文档，正确解析返回结果
+        const outputs = outputsJson?.data || outputsJson?.outputs || outputsJson;
+        const items = Array.isArray(outputs) ? outputs : (outputs?.outputs || []);
+
+        debugLog('解析输出数据', {
+            outputsJson,
+            outputs,
+            items: items ? items.length : 'null',
+            itemsType: typeof items
+        });
+
+        wrap.innerHTML = '';
+
+        if (!items || items.length === 0) {
+            debugLog('无输出项目');
+            wrap.innerHTML = `
+                <div style="text-align: center; padding: 20px; color: #666;">
+                    <div style="font-size: 18px; margin-bottom: 10px;">📭</div>
+                    <div>任务完成，但未返回可展示的输出。</div>
+                    <div style="font-size: 12px; margin-top: 8px; color: #999;">
+                        API返回: ${JSON.stringify(outputsJson).substring(0, 100)}...
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        let hasRenderedContent = false;
+
+        items.forEach((item, index) => {
+            debugLog(`处理输出项目 #${index}`, item);
+
+            // 根据API文档，正确的字段名是 fileUrl
+            const fileUrl = item.fileUrl || item.url || item.imageUrl || item.value;
+            const fileType = item.fileType || 'unknown';
+            const nodeId = item.nodeId || 'unknown';
+            const taskCostTime = item.taskCostTime || 0;
+            const text = item.text || (typeof item.value === 'string' ? item.value : '');
+
+            debugLog(`项目 #${index} 解析结果`, {
+                fileUrl: fileUrl ? fileUrl.substring(0, 100) + '...' : 'no fileUrl',
+                fileType,
+                nodeId,
+                taskCostTime,
+                hasText: !!text
+            });
+
+            // 处理图片结果
+            if (fileUrl && typeof fileUrl === 'string' && /(https?:\/\/|data:image)/i.test(fileUrl)) {
+                debugLog(`渲染图片结果 #${index}`, fileUrl.substring(0, 50) + '...');
+
+                const container = document.createElement('div');
+                container.style.cssText = `
+                    display: flex;
+                    flex-direction: column;
+                    gap: 12px;
+                    margin-bottom: 16px;
+                    padding: 16px;
+                    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+                    border: 1px solid #e2e8f0;
+                    border-radius: 12px;
+                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+                `;
+
+                // 图片信息标题
+                const infoHeader = document.createElement('div');
+                infoHeader.style.cssText = `
+                    font-size: 14px;
+                    font-weight: 600;
+                    color: #374151;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                `;
+                infoHeader.innerHTML = `
+                    <span>🎨 生成结果 #${index + 1}</span>
+                    <span style="font-size: 11px; color: #6b7280; font-weight: 400;">
+                        ${fileType.toUpperCase()} • 节点${nodeId} • ${taskCostTime}s
+                    </span>
+                `;
+
+                // 图片容器 - 添加点击查看大图功能
+                const imgContainer = document.createElement('div');
+                imgContainer.style.cssText = `
+                    text-align: center;
+                    cursor: pointer;
+                    position: relative;
+                    border-radius: 8px;
+                    overflow: hidden;
+                    transition: all 0.2s ease;
+                `;
+
+                const img = document.createElement('img');
+                img.src = fileUrl;
+                img.alt = 'RunningHub生成结果';
+                img.style.cssText = `
+                    max-width: 100%;
+                    max-height: 300px;
+                    border-radius: 8px;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+                    border: 2px solid #e2e8f0;
+                    transition: all 0.2s ease;
+                    object-fit: contain;
+                `;
+
+                // 添加悬停提示
+                const hoverOverlay = document.createElement('div');
+                hoverOverlay.style.cssText = `
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: rgba(0, 0, 0, 0.7);
+                    color: white;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    opacity: 0;
+                    transition: opacity 0.2s ease;
+                    border-radius: 8px;
+                    font-size: 16px;
+                    font-weight: 500;
+                `;
+                hoverOverlay.innerHTML = '🔍 点击查看大图';
+
+                // 悬停效果
+                imgContainer.addEventListener('mouseenter', () => {
+                    hoverOverlay.style.opacity = '1';
+                    img.style.transform = 'scale(1.02)';
+                });
+
+                imgContainer.addEventListener('mouseleave', () => {
+                    hoverOverlay.style.opacity = '0';
+                    img.style.transform = 'scale(1)';
+                });
+
+                // 点击查看大图
+                imgContainer.addEventListener('click', () => {
+                    showImageLightbox(fileUrl, `生成结果 #${index + 1}`, {
+                        fileType,
+                        nodeId,
+                        taskCostTime,
+                        fileName: (() => {
+                            try {
+                                const u = new URL(fileUrl);
+                                return u.pathname.split('/').pop() || `result-${Date.now()}`;
+                            } catch {
+                                return `result-${Date.now()}`;
+                            }
+                        })()
+                    });
+                });
+
+                imgContainer.appendChild(img);
+                imgContainer.appendChild(hoverOverlay);
+
+                // 操作按钮区域
+                const buttonContainer = document.createElement('div');
+                buttonContainer.style.cssText = `
+                    display: flex;
+                    gap: 8px;
+                    justify-content: center;
+                `;
+
+                // 查看大图按钮
+                const viewBtn = document.createElement('button');
+                viewBtn.innerHTML = `
+                    <span style="display: flex; align-items: center; gap: 6px;">
+                        <span>🔍</span>
+                        查看大图
+                    </span>
+                `;
+                viewBtn.style.cssText = `
+                    padding: 8px 16px;
+                    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+                    color: white;
+                    border: none;
+                    border-radius: 6px;
+                    font-size: 13px;
+                    font-weight: 500;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                    box-shadow: 0 2px 4px rgba(99, 102, 241, 0.2);
+                `;
+
+                viewBtn.addEventListener('click', () => {
+                    showImageLightbox(fileUrl, `生成结果 #${index + 1}`, {
+                        fileType, nodeId, taskCostTime
+                    });
+                });
+
+                // 下载按钮 - 使用Chrome扩展下载
+                const downloadBtn = document.createElement('button');
+                downloadBtn.innerHTML = `
+                    <span style="display: flex; align-items: center; gap: 6px;">
+                        <span>📥</span>
+                        下载到本地
+                    </span>
+                `;
+                downloadBtn.style.cssText = `
+                    padding: 8px 16px;
+                    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+                    color: white;
+                    border: none;
+                    border-radius: 6px;
+                    font-size: 13px;
+                    font-weight: 500;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                    box-shadow: 0 2px 4px rgba(5, 150, 105, 0.2);
+                `;
+
+                downloadBtn.addEventListener('click', () => {
+                    downloadImageToLocal(fileUrl, fileType, index);
+                });
+
+                // 按钮悬停效果
+                [viewBtn, downloadBtn].forEach(btn => {
+                    btn.addEventListener('mouseenter', () => {
+                        btn.style.transform = 'translateY(-1px)';
+                        btn.style.boxShadow = btn === viewBtn ?
+                            '0 4px 8px rgba(99, 102, 241, 0.3)' :
+                            '0 4px 8px rgba(5, 150, 105, 0.3)';
+                    });
+
+                    btn.addEventListener('mouseleave', () => {
+                        btn.style.transform = 'translateY(0)';
+                        btn.style.boxShadow = btn === viewBtn ?
+                            '0 2px 4px rgba(99, 102, 241, 0.2)' :
+                            '0 2px 4px rgba(5, 150, 105, 0.2)';
+                    });
+                });
+
+                buttonContainer.appendChild(viewBtn);
+                buttonContainer.appendChild(downloadBtn);
+
+                container.appendChild(infoHeader);
+                container.appendChild(imgContainer);
+                container.appendChild(buttonContainer);
+                wrap.appendChild(container);
+
+                hasRenderedContent = true;
+            }
+
+            // 处理文本结果
+            if (text && (!fileUrl || text !== fileUrl)) {
+                debugLog(`渲染文本结果 #${index}`, text.substring(0, 50) + '...');
+
+                const textContainer = document.createElement('div');
+                textContainer.style.cssText = `
+                    font-size: 13px;
+                    color: #334155;
+                    background: #f8fafc;
+                    padding: 12px;
+                    border-radius: 6px;
+                    border: 1px solid #e2e8f0;
+                    margin-bottom: 8px;
+                    line-height: 1.4;
+                `;
+                textContainer.textContent = text;
+                wrap.appendChild(textContainer);
+
+                hasRenderedContent = true;
+            }
+        });
+
+        if (!hasRenderedContent) {
+            debugLog('未渲染任何内容');
+            wrap.innerHTML = `
+                <div style="text-align: center; padding: 20px; color: #666;">
+                    <div style="font-size: 18px; margin-bottom: 10px;">🤔</div>
+                    <div>任务完成，但未找到可显示的结果。</div>
+                    <div style="font-size: 12px; margin-top: 8px; color: #999;">
+                        调试信息: ${JSON.stringify(outputsJson).substring(0, 200)}...
+                    </div>
+                </div>
+            `;
+        } else {
+            debugLog('结果渲染完成', { itemCount: items.length });
+        }
+
+    } catch (e) {
+        console.error('渲染结果失败:', e);
+        debugLog('renderRunningHubResultsInModal失败:', e);
+        updateDimensionModalProgress('渲染结果失败: ' + e.message);
+    }
+}
+
+// 显示图片大图查看器
+function showImageLightbox(imageUrl, title, metadata) {
+    debugLog('显示图片大图查看器', { imageUrl: imageUrl.substring(0, 50) + '...', title });
+
+    // 创建lightbox容器
+    const lightbox = document.createElement('div');
+    lightbox.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.95);
+        z-index: 9999999;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        backdrop-filter: blur(10px);
+        animation: fadeIn 0.3s ease;
+    `;
+
+    // 顶部信息栏
+    const infoBar = document.createElement('div');
+    infoBar.style.cssText = `
+        position: absolute;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 12px 20px;
+        border-radius: 25px;
+        font-size: 14px;
+        font-weight: 500;
+        text-align: center;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        max-width: 80%;
+        z-index: 10;
+    `;
+
+    infoBar.innerHTML = `
+        <div style="margin-bottom: 4px;">${title}</div>
+        <div style="font-size: 12px; opacity: 0.8;">
+            ${metadata.fileType?.toUpperCase() || 'IMAGE'} • 节点${metadata.nodeId} • 耗时${metadata.taskCostTime}s
+        </div>
+    `;
+
+    // 图片容器
+    const imgContainer = document.createElement('div');
+    imgContainer.style.cssText = `
+        max-width: 95%;
+        max-height: 85%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        position: relative;
+    `;
+
+    const img = document.createElement('img');
+    img.src = imageUrl;
+    img.alt = title;
+    img.style.cssText = `
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+        border-radius: 8px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        border: 2px solid rgba(255, 255, 255, 0.1);
+    `;
+
+    // 底部操作栏
+    const actionBar = document.createElement('div');
+    actionBar.style.cssText = `
+        position: absolute;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 12px;
+        z-index: 10;
+    `;
+
+    // 下载按钮
+    const downloadBtn = document.createElement('button');
+    downloadBtn.innerHTML = `
+        <span style="display: flex; align-items: center; gap: 8px;">
+            <span>📥</span>
+            下载到本地
+        </span>
+    `;
+    downloadBtn.style.cssText = `
+        padding: 12px 20px;
+        background: linear-gradient(135deg, #059669 0%, #047857 100%);
+        color: white;
+        border: none;
+        border-radius: 25px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
+        backdrop-filter: blur(10px);
+    `;
+
+    downloadBtn.addEventListener('click', () => {
+        downloadImageToLocal(imageUrl, metadata.fileType, 0, metadata.fileName);
+        showNotification('开始下载图片...', 2000);
+    });
+
+    // 关闭按钮
+    const closeBtn = document.createElement('button');
+    closeBtn.innerHTML = `
+        <span style="display: flex; align-items: center; gap: 8px;">
+            <span>✖️</span>
+            关闭
+        </span>
+    `;
+    closeBtn.style.cssText = `
+        padding: 12px 20px;
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 25px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        backdrop-filter: blur(10px);
+    `;
+
+    closeBtn.addEventListener('click', () => {
+        lightbox.remove();
+    });
+
+    // 按钮悬停效果
+    downloadBtn.addEventListener('mouseenter', () => {
+        downloadBtn.style.transform = 'translateY(-2px)';
+        downloadBtn.style.boxShadow = '0 6px 16px rgba(5, 150, 105, 0.4)';
+    });
+
+    downloadBtn.addEventListener('mouseleave', () => {
+        downloadBtn.style.transform = 'translateY(0)';
+        downloadBtn.style.boxShadow = '0 4px 12px rgba(5, 150, 105, 0.3)';
+    });
+
+    closeBtn.addEventListener('mouseenter', () => {
+        closeBtn.style.background = 'rgba(255, 255, 255, 0.3)';
+        closeBtn.style.transform = 'translateY(-2px)';
+    });
+
+    closeBtn.addEventListener('mouseleave', () => {
+        closeBtn.style.background = 'rgba(255, 255, 255, 0.2)';
+        closeBtn.style.transform = 'translateY(0)';
+    });
+
+    actionBar.appendChild(downloadBtn);
+    actionBar.appendChild(closeBtn);
+
+    imgContainer.appendChild(img);
+    lightbox.appendChild(infoBar);
+    lightbox.appendChild(imgContainer);
+    lightbox.appendChild(actionBar);
+
+    // 点击背景关闭
+    lightbox.addEventListener('click', (e) => {
+        if (e.target === lightbox) {
+            lightbox.remove();
+        }
+    });
+
+    // ESC键关闭
+    const handleEsc = (e) => {
+        if (e.key === 'Escape') {
+            lightbox.remove();
+            document.removeEventListener('keydown', handleEsc);
+        }
+    };
+    document.addEventListener('keydown', handleEsc);
+
+    // 添加CSS动画
+    if (!document.querySelector('#lightbox-styles')) {
+        const styles = document.createElement('style');
+        styles.id = 'lightbox-styles';
+        styles.textContent = `
+            @keyframes fadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+            }
+        `;
+        document.head.appendChild(styles);
+    }
+
+    document.body.appendChild(lightbox);
+}
+
+// 下载图片到本地 - 直接下载版本
+function downloadImageToLocal(imageUrl, fileType, index, customFileName = null) {
+    try {
+        debugLog('开始直接下载图片到本地', {
+            imageUrl: imageUrl.substring(0, 50) + '...',
+            fileType,
+            index
+        });
+
+        // 生成文件名
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
+        const timeString = new Date().toTimeString().split(' ')[0].replace(/:/g, '-');
+        const fileName = customFileName || `runninghub-result-${timestamp}-${timeString}-${index + 1}.${fileType || 'png'}`;
+
+        debugLog('生成的文件名', fileName);
+
+        // 检查Chrome扩展API
+        if (typeof chrome === 'undefined' || !chrome.runtime) {
+            debugLog('Chrome扩展API不可用，使用fetch下载方案');
+            downloadViaFetch(imageUrl, fileName);
+            return;
+        }
+
+        // 使用Chrome扩展的下载API - 设置为不自动打开
+        debugLog('使用Chrome扩展下载API（直接下载模式）');
+
+        chrome.runtime.sendMessage({
+            action: 'downloadImage',
+            imageUrl: imageUrl,
+            filename: fileName,
+            pageUrl: window.location.href,
+            autoOpen: false // 明确设置不自动打开
+        }, (response) => {
+            if (chrome.runtime.lastError) {
+                debugLog('Chrome下载失败，尝试备用方案:', chrome.runtime.lastError);
+                // 如果Chrome下载失败，尝试fetch下载
+                downloadViaFetch(imageUrl, fileName);
+            } else if (response && response.success) {
+                debugLog('Chrome下载请求发送成功:', response);
+                showNotification(`✅ 开始下载: ${fileName}`, 3000);
+            } else {
+                debugLog('Chrome下载被拒绝，尝试备用方案:', response);
+                downloadViaFetch(imageUrl, fileName);
+            }
+        });
+
+    } catch (error) {
+        debugLog('下载图片失败:', error);
+        showNotification('下载失败：' + error.message, 3000);
+    }
+}
+
+// 通过fetch下载图片 - 备用方案
+async function downloadViaFetch(imageUrl, fileName) {
+    try {
+        debugLog('使用fetch下载方案', { imageUrl: imageUrl.substring(0, 50) + '...', fileName });
+
+        showNotification('正在获取图片数据...', 2000);
+
+        // 获取图片数据
+        const response = await fetch(imageUrl);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const blob = await response.blob();
+        debugLog('图片数据获取成功', { size: blob.size, type: blob.type });
+
+        // 创建下载链接
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        link.style.display = 'none';
+
+        // 添加到DOM并触发下载
+        document.body.appendChild(link);
+        link.click();
+
+        // 清理
+        setTimeout(() => {
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(url);
+            debugLog('下载链接已清理');
+        }, 100);
+
+        showNotification(`✅ 下载完成: ${fileName}`, 3000);
+
+    } catch (error) {
+        debugLog('fetch下载失败:', error);
+        showNotification('下载失败：' + error.message, 3000);
+    }
+}
+
+// Running Hub AI应用配置缓存
 let RUNNINGHUB_CONFIG = null;
 
 // 加载Running Hub配置文件
@@ -6203,12 +7342,19 @@ async function loadRunningHubConfig() {
         // 如果配置文件加载失败，使用默认配置
         RUNNINGHUB_CONFIG = {
             defaultWorkflow: {
-                workflowId: "1904136902449209346",
+                webappId: "1967790629851922434",
                 nodeInfoList: [
                     {
-                        nodeId: "6",
-                        fieldName: "text",
-                        fieldValue: "{PROMPT}"
+                        nodeId: "189",
+                        fieldName: "image",
+                        fieldValue: "{IMAGE_FILE}",
+                        description: "image"
+                    },
+                    {
+                        nodeId: "191",
+                        fieldName: "prompt",
+                        fieldValue: "{PROMPT}",
+                        description: "prompt"
                     }
                 ]
             }
@@ -6218,54 +7364,57 @@ async function loadRunningHubConfig() {
     }
 }
 
-// 创建Running Hub工作流任务
-async function createWorkflowTask(apiKey, prompt, workflowName = 'defaultWorkflow') {
+// 创建Running Hub AI应用任务
+async function createWorkflowTask(apiKey, prompt, imageFileName = null, workflowName = 'defaultWorkflow') {
     const myHeaders = new Headers();
     myHeaders.append("Host", "www.runninghub.cn");
     myHeaders.append("Content-Type", "application/json");
-    
+
     // 加载配置文件
     const config = await loadRunningHubConfig();
-    
-    // 获取工作流配置
-    let workflowConfig;
+
+    // 获取AI应用配置
+    let appConfig;
     if (workflowName === 'defaultWorkflow') {
-        workflowConfig = config.defaultWorkflow;
+        appConfig = config.defaultWorkflow;
     } else {
-        workflowConfig = config.workflows[workflowName] || config.defaultWorkflow;
+        appConfig = config.workflows[workflowName] || config.defaultWorkflow;
     }
-    
-    if (!workflowConfig) {
-        throw new Error(`未找到工作流配置: ${workflowName}`);
+
+    if (!appConfig) {
+        throw new Error(`未找到AI应用配置: ${workflowName}`);
     }
-    
-    // 深拷贝配置并替换prompt占位符
-    const nodeInfoList = JSON.parse(JSON.stringify(workflowConfig.nodeInfoList));
+
+    // 深拷贝配置并替换占位符
+    const nodeInfoList = JSON.parse(JSON.stringify(appConfig.nodeInfoList));
     nodeInfoList.forEach(node => {
         if (node.fieldValue === "{PROMPT}") {
             node.fieldValue = prompt;
+        } else if (node.fieldValue === "{IMAGE_FILE}" && imageFileName) {
+            node.fieldValue = imageFileName;
         }
     });
-    
+
     const raw = JSON.stringify({
+        "webappId": appConfig.webappId,
         "apiKey": apiKey,
-        "workflowId": workflowConfig.workflowId,
         "nodeInfoList": nodeInfoList
     });
-    
+
     const requestOptions = {
         method: 'POST',
         headers: myHeaders,
         body: raw,
         redirect: 'follow'
     };
-    
-    const response = await fetch("https://www.runninghub.cn/task/openapi/create", requestOptions);
-    
+
+    // 使用AI应用API端点
+    const response = await fetch("https://www.runninghub.cn/task/openapi/ai-app/run", requestOptions);
+
     if (!response.ok) {
         throw new Error(`HTTP错误: ${response.status}`);
     }
-    
+
     const result = await response.text();
     return result;
 }
