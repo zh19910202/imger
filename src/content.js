@@ -73,7 +73,29 @@ class AnnotateFlowAssistant {
         }
 
         try {
-            console.log(`=== AnnotateFlow Assistant v${this.version} 已加载 ===`);
+            // 明确的版本标识
+            console.log(`🚀 AnnotateFlow Assistant v${this.version} (重构版本) 已加载 ===`);
+            console.log('版本信息:', {
+                version: this.version,
+                architecture: 'modular',
+                buildDate: '2025-09-18',
+                totalModules: 12,
+                loadTime: new Date().toISOString()
+            });
+            
+            // 在window对象上设置版本标识
+            window.ANNOTATEFLOW_VERSION = {
+                version: this.version,
+                type: 'refactored',
+                architecture: 'modular',
+                loadTime: new Date().toISOString(),
+                modules: [
+                    'StateManager', 'EventManager', 'ConfigManager',
+                    'ImageDownloader', 'ImageDetector', 'NetworkMonitor',
+                    'NotificationManager', 'ModalManager',
+                    'Logger', 'DOMUtils', 'FileUtils'
+                ]
+            };
             
             // 加载所有配置 - 原逻辑保持不变
             await this.configManager.loadAllSettings();

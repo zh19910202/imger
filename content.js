@@ -1,8 +1,19 @@
+// 📜 AnnotateFlow Assistant v1.0 (原始版本)
 // 图片快捷下载器 + 按钮快捷键 - Content Script
 // 实现功能:
 // 1. D键 - 快捷下载图片
 // 2. 空格键 - 点击"跳过"按钮
 // 3. S键 - 点击"提交并继续标注"按钮
+
+// 版本标识
+console.log('📜 AnnotateFlow Assistant v1.0 (原始版本) 已加载');
+window.ANNOTATEFLOW_VERSION = {
+    version: '1.0.0',
+    type: 'original',
+    architecture: 'monolithic',
+    loadTime: new Date().toISOString(),
+    fileSize: '8373 lines, 300KB+'
+};
 
 // 全局变量
 let lastHoveredImage = null;
