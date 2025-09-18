@@ -7290,14 +7290,7 @@ function renderRunningHubResultsInModal(outputsJson) {
                         fileType,
                         nodeId,
                         taskCostTime,
-                        fileName: (() => {
-                            try {
-                                const u = new URL(fileUrl);
-                                return u.pathname.split('/').pop() || `result-${Date.now()}`;
-                            } catch {
-                                return `result-${Date.now()}`;
-                            }
-                        })()
+                        fileName: generateResultImageFileName(originalImage, fileType, index, '副本')
                     });
                 });
 
@@ -7336,7 +7329,10 @@ function renderRunningHubResultsInModal(outputsJson) {
 
                 viewBtn.addEventListener('click', () => {
                     showImageLightbox(fileUrl, `生成结果 #${index + 1}`, {
-                        fileType, nodeId, taskCostTime
+                        fileType,
+                        nodeId,
+                        taskCostTime,
+                        fileName: generateResultImageFileName(originalImage, fileType, index, '副本')
                     });
                 });
 
@@ -7663,7 +7659,7 @@ function showImageLightbox(resultImageUrl, title, metadata) {
         `;
 
         downloadOriginalBtn.addEventListener('click', () => {
-            const originalFileName = `original-${Date.now()}.${originalImage.src.split('.').pop() || 'jpg'}`;
+            const originalFileName = generateResultImageFileName(originalImage, 'jpg', 0, '原图');
             downloadImageToLocal(originalImage.src, 'jpg', 0, originalFileName, false); // 原图不自动打开
             showNotification('开始下载原图...', 2000);
         });
@@ -7894,8 +7890,8 @@ async function uploadImageToAnnotationPlatform(imageUrl, fileType, index) {
         const blob = await response.blob();
         debugLog('图片数据获取成功', { size: blob.size, type: blob.type });
 
-        // 创建File对象
-        const fileName = `runninghub-result-${Date.now()}.${fileType || 'png'}`;
+        // 创建File对象 - 使用智能文件名
+        const fileName = generateResultImageFileName(originalImage, fileType, index, '副本');
         const file = new File([blob], fileName, { type: blob.type });
 
         showNotification('正在查找上传位置...', 1000);
@@ -7975,6 +7971,68 @@ async function uploadImageToAnnotationPlatform(imageUrl, fileType, index) {
     }
 }
 
+// 生成RunningHub结果图的智能文件名
+function generateResultImageFileName(originalImageInfo, fileType, index = 0, suffix = '副本') {
+    try {
+        let baseName = 'runninghub-result';
+
+        // 尝试从原图获取文件名
+        if (originalImageInfo && originalImageInfo.src) {
+            const originalFileName = extractFileNameFromUrl(originalImageInfo.src);
+            if (originalFileName && originalFileName !== '未知' && originalFileName !== '原图') {
+                // 移除原始扩展名
+                baseName = originalFileName.replace(/\.[^/.]+$/, '');
+                debugLog('从原图提取文件名', { originalFileName, baseName });
+            }
+        }
+
+        // 如果baseName仍是默认值，尝试其他方式
+        if (baseName === 'runninghub-result') {
+            if (originalImageInfo && originalImageInfo.name) {
+                baseName = originalImageInfo.name.replace(/\.[^/.]+$/, '');
+            } else if (originalImageInfo && originalImageInfo.element && originalImageInfo.element.alt) {
+                baseName = originalImageInfo.element.alt.replace(/\.[^/.]+$/, '') || 'image';
+            }
+        }
+
+        // 清理文件名，移除特殊字符
+        baseName = baseName.replace(/[<>:"/\\|?*\x00-\x1f]/g, '').trim();
+
+        // 确保文件名不为空
+        if (!baseName || baseName.length < 1) {
+            baseName = 'image';
+        }
+
+        // 生成最终文件名
+        const timestamp = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+        const extension = fileType || 'png';
+
+        let finalName;
+        if (index > 0) {
+            finalName = `${baseName}_${suffix}_${index + 1}_${timestamp}.${extension}`;
+        } else {
+            finalName = `${baseName}_${suffix}_${timestamp}.${extension}`;
+        }
+
+        debugLog('生成结果图文件名', {
+            originalSrc: originalImageInfo?.src?.substring(0, 50) + '...',
+            baseName,
+            suffix,
+            index,
+            timestamp,
+            extension,
+            finalName
+        });
+
+        return finalName;
+
+    } catch (error) {
+        debugLog('生成文件名失败，使用默认名称:', error);
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
+        return `runninghub-result-${timestamp}-${index + 1}.${fileType || 'png'}`;
+    }
+}
+
 // 下载图片到本地 - 支持自动打开选项
 function downloadImageToLocal(imageUrl, fileType, index, customFileName = null, autoOpen = true) {
     try {
@@ -7985,10 +8043,8 @@ function downloadImageToLocal(imageUrl, fileType, index, customFileName = null, 
             autoOpen
         });
 
-        // 生成文件名
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
-        const timeString = new Date().toTimeString().split(' ')[0].replace(/:/g, '-');
-        const fileName = customFileName || `runninghub-result-${timestamp}-${timeString}-${index + 1}.${fileType || 'png'}`;
+        // 生成智能文件名
+        const fileName = customFileName || generateResultImageFileName(originalImage, fileType, index, '副本');
 
         debugLog('生成的文件名', fileName);
 
