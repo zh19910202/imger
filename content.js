@@ -5832,15 +5832,15 @@ function showDimensionCheckModal(imageInfo, isDimensionValid) {
 
         showNotification('已恢复上次的生成结果', 2000);
     }
-    
-    // 添加事件监听器
+
+    // 添加事件监听器（无论是否有缓存都需要重新绑定）
     const closeBtn = modalContent.querySelector('#dimensionCheckCloseBtn');
     const submitBtn = modalContent.querySelector('#dimensionCheckSubmitBtn');
     const textarea = modalContent.querySelector('#dimensionCheckTextarea');
-    
+
     // 关闭按钮事件
     closeBtn.addEventListener('click', closeDimensionCheckModal);
-    
+
     // 提交按钮事件
     if (submitBtn) {
         submitBtn.addEventListener('click', () => {
@@ -5858,22 +5858,22 @@ function showDimensionCheckModal(imageInfo, isDimensionValid) {
             submitDimensionCheck(comment);
         });
     }
-    
-    // ESC键关闭
+
+    // ESC键关闭（重新绑定）
     const handleEscKey = (e) => {
         if (e.key === 'Escape') {
             closeDimensionCheckModal();
         }
     };
     document.addEventListener('keydown', handleEscKey);
-    
-    // 点击背景关闭
+
+    // 点击背景关闭（重新绑定）
     dimensionCheckModal.addEventListener('click', (e) => {
         if (e.target === dimensionCheckModal) {
             closeDimensionCheckModal();
         }
     });
-    
+
     // 保存ESC处理函数以便后续移除
     dimensionCheckModal._handleEscKey = handleEscKey;
     
@@ -7831,18 +7831,18 @@ function createImageComparisonContainer(imageUrl, label, info, accentColor) {
     return container;
 }
 
-// 上传生成结果图片到标注平台 - 复用A键逻辑
+// 上传生成结果图片到标注平台 - 直接上传结果图
 async function uploadImageToAnnotationPlatform(imageUrl, fileType, index) {
     try {
-        debugLog('开始上传生成结果到标注平台（复用A键逻辑）', {
+        debugLog('开始直接上传生成结果到标注平台', {
             imageUrl: imageUrl.substring(0, 50) + '...',
             fileType,
             index
         });
 
-        showNotification('正在准备上传图片...', 2000);
+        showNotification('正在获取生成结果图片...', 1000);
 
-        // 首先获取图片数据
+        // 获取图片数据
         const response = await fetch(imageUrl);
         if (!response.ok) {
             throw new Error(`获取图片失败: HTTP ${response.status}`);
@@ -7855,59 +7855,83 @@ async function uploadImageToAnnotationPlatform(imageUrl, fileType, index) {
         const fileName = `runninghub-result-${Date.now()}.${fileType || 'png'}`;
         const file = new File([blob], fileName, { type: blob.type });
 
-        // 复用A键的逻辑：点击"上传图片"按钮
-        const uploadButton = findButtonByText(['上传图片', '上传', 'Upload', '选择图片', '选择文件']);
-        if (!uploadButton) {
-            showNotification('❌ 未找到上传图片按钮', 3000);
-            return;
+        showNotification('正在查找上传位置...', 1000);
+
+        // 直接查找现有的文件输入框
+        let fileInput = document.querySelector('input[type="file"]:not([style*="display: none"])');
+
+        if (!fileInput) {
+            // 查找所有文件输入框（包括隐藏的）
+            const allFileInputs = document.querySelectorAll('input[type="file"]');
+            if (allFileInputs.length > 0) {
+                fileInput = allFileInputs[allFileInputs.length - 1]; // 使用最新的
+                debugLog('使用隐藏的文件输入框');
+            }
         }
 
-        debugLog('找到上传按钮，模拟A键功能');
-        showNotification('正在触发上传功能...', 1500);
+        if (!fileInput) {
+            // 如果还是没有，尝试触发A键功能
+            debugLog('未找到文件输入框，尝试触发A键功能');
+            showNotification('正在触发上传功能...', 1000);
 
-        // 点击上传按钮
-        uploadButton.click();
+            // 模拟A键按下
+            const uploadButton = findButtonByText(['上传图片', '上传', 'Upload', '选择图片', '选择文件']);
+            if (uploadButton) {
+                uploadButton.click();
 
-        // 等待文件选择框出现，然后自动填入文件
-        setTimeout(async () => {
-            const fileInputs = document.querySelectorAll('input[type="file"]');
-            debugLog('上传按钮点击后查找文件输入框', { found: fileInputs.length });
+                // 等待文件输入框出现
+                await new Promise(resolve => setTimeout(resolve, 1500));
 
-            if (fileInputs.length > 0) {
-                const fileInput = fileInputs[fileInputs.length - 1]; // 使用最新的文件输入框
-
-                // 创建DataTransfer对象来模拟文件选择
-                const dataTransfer = new DataTransfer();
-                dataTransfer.items.add(file);
-
-                // 设置文件到输入框
-                fileInput.files = dataTransfer.files;
-
-                // 触发change事件
-                const changeEvent = new Event('change', { bubbles: true });
-                fileInput.dispatchEvent(changeEvent);
-
-                debugLog('文件已自动填入文件输入框');
-                showNotification(`✅ 图片已自动上传: ${file.name}`, 3000);
-
-                // 如果有自动提交按钮，询问用户是否提交
-                setTimeout(() => {
-                    const submitButton = findButtonByText(['提交', '确认', '确定', 'Submit', 'Confirm', '保存']);
-                    if (submitButton) {
-                        debugLog('发现提交按钮，询问用户');
-                        if (confirm('图片已上传完成，是否自动提交？')) {
-                            submitButton.click();
-                            showNotification('已自动提交图片', 2000);
-                        }
-                    }
-                }, 800);
+                const newFileInputs = document.querySelectorAll('input[type="file"]');
+                if (newFileInputs.length > 0) {
+                    fileInput = newFileInputs[newFileInputs.length - 1];
+                } else {
+                    throw new Error('触发上传后仍未找到文件输入框');
+                }
             } else {
-                showNotification('❌ 上传按钮点击后未找到文件输入框', 3000);
+                throw new Error('未找到上传按钮');
             }
-        }, 1000);
+        }
+
+        debugLog('找到文件输入框，开始上传', {
+            inputId: fileInput.id || '无ID',
+            inputName: fileInput.name || '无name'
+        });
+
+        // 直接设置文件到输入框
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(file);
+        fileInput.files = dataTransfer.files;
+
+        // 触发所有相关事件
+        const events = ['change', 'input', 'blur'];
+        events.forEach(eventType => {
+            const event = new Event(eventType, { bubbles: true });
+            fileInput.dispatchEvent(event);
+        });
+
+        debugLog('生成结果已直接上传到标注平台');
+        showNotification(`✅ 生成结果已上传: ${file.name}`, 3000);
+
+        // 等待一下，然后检查是否需要额外操作
+        setTimeout(() => {
+            // 检查是否有预览显示
+            const previewImages = document.querySelectorAll('img[src*="blob:"], img[src*="data:"]');
+            if (previewImages.length > 0) {
+                debugLog('检测到图片预览，上传可能成功');
+                showNotification('📸 图片已显示在页面中，上传成功！', 2000);
+            }
+
+            // 检查是否有提交按钮（可选的自动提交）
+            const submitButton = findButtonByText(['提交', '确认', '确定', 'Submit', 'Confirm', '保存', '继续']);
+            if (submitButton && confirm('图片已上传完成，是否自动提交？')) {
+                submitButton.click();
+                showNotification('已自动提交', 2000);
+            }
+        }, 2000);
 
     } catch (error) {
-        debugLog('上传到标注平台失败:', error);
+        debugLog('直接上传生成结果失败:', error);
         showNotification('上传失败：' + error.message, 3000);
     }
 }
