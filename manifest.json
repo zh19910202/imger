@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Auxis",
-  "version": "2.3.0",
-  "description": "Annotation platform assistant: Fast image download with D key, skip with Space, submit with S key, upload with A key, history with F key, mark invalid with X key (auto-confirm), batch invalid with F1",
+  "version": "2.4.0",
+  "description": "Annotation platform assistant: Fast image download with D key, skip with Space, submit with S key, upload with A key, history with F key, mark invalid with X key (auto-confirm), batch invalid with F1, AI image processing with R key (RunningHub integration)",
   "permissions": [
     "downloads",
     "contextMenus",
