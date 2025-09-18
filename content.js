@@ -5833,17 +5833,23 @@ function showDimensionCheckModal(imageInfo, isDimensionValid) {
         showNotification('已恢复上次的生成结果', 2000);
     }
 
-    // 添加事件监听器（无论是否有缓存都需要重新绑定）
+    // 添加事件监听器（使用一次性事件处理器避免重复绑定）
     const closeBtn = modalContent.querySelector('#dimensionCheckCloseBtn');
     const submitBtn = modalContent.querySelector('#dimensionCheckSubmitBtn');
     const textarea = modalContent.querySelector('#dimensionCheckTextarea');
 
+    // 创建唯一的事件处理器ID
+    const modalId = Date.now();
+    debugLog('创建模态框事件处理器', { modalId });
+
     // 关闭按钮事件
-    closeBtn.addEventListener('click', closeDimensionCheckModal);
+    if (closeBtn) {
+        closeBtn.addEventListener('click', closeDimensionCheckModal);
+    }
 
     // 提交按钮事件
     if (submitBtn) {
-        submitBtn.addEventListener('click', () => {
+        const handleSubmit = () => {
             // 检查按钮是否已被禁用
             if (submitBtn.disabled) {
                 debugLog('提交按钮已禁用，忽略点击');
@@ -5856,26 +5862,35 @@ function showDimensionCheckModal(imageInfo, isDimensionValid) {
             disableSubmitButton(submitBtn);
 
             submitDimensionCheck(comment);
-        });
+        };
+
+        submitBtn.addEventListener('click', handleSubmit);
     }
 
-    // ESC键关闭（重新绑定）
+    // ESC键关闭（使用命名函数避免重复绑定）
     const handleEscKey = (e) => {
-        if (e.key === 'Escape') {
+        if (e.key === 'Escape' && isDimensionCheckModalOpen) {
+            debugLog('ESC键触发关闭模态框', { modalId });
             closeDimensionCheckModal();
         }
     };
-    document.addEventListener('keydown', handleEscKey);
 
-    // 点击背景关闭（重新绑定）
-    dimensionCheckModal.addEventListener('click', (e) => {
-        if (e.target === dimensionCheckModal) {
+    // 点击背景关闭（使用命名函数）
+    const handleBackgroundClick = (e) => {
+        if (e.target === dimensionCheckModal && isDimensionCheckModalOpen) {
+            debugLog('背景点击触发关闭模态框', { modalId });
             closeDimensionCheckModal();
         }
-    });
+    };
 
-    // 保存ESC处理函数以便后续移除
+    // 绑定事件
+    document.addEventListener('keydown', handleEscKey);
+    dimensionCheckModal.addEventListener('click', handleBackgroundClick);
+
+    // 保存事件处理函数以便清理
     dimensionCheckModal._handleEscKey = handleEscKey;
+    dimensionCheckModal._handleBackgroundClick = handleBackgroundClick;
+    dimensionCheckModal._modalId = modalId;
     
     // 按钮悬停效果
     closeBtn.addEventListener('mouseenter', () => {
@@ -6148,23 +6163,36 @@ function closeDimensionCheckModal() {
     if (!isDimensionCheckModalOpen || !dimensionCheckModal) {
         return;
     }
-    
-    debugLog('关闭尺寸检查模态框');
-    
+
+    debugLog('关闭尺寸检查模态框', {
+        modalId: dimensionCheckModal._modalId,
+        hasEscHandler: !!dimensionCheckModal._handleEscKey,
+        hasBackgroundHandler: !!dimensionCheckModal._handleBackgroundClick
+    });
+
     // 移除ESC键监听器
     if (dimensionCheckModal._handleEscKey) {
         document.removeEventListener('keydown', dimensionCheckModal._handleEscKey);
+        debugLog('ESC键监听器已移除');
     }
-    
+
+    // 移除背景点击监听器
+    if (dimensionCheckModal._handleBackgroundClick) {
+        dimensionCheckModal.removeEventListener('click', dimensionCheckModal._handleBackgroundClick);
+        debugLog('背景点击监听器已移除');
+    }
+
     // 移除模态框
     if (dimensionCheckModal.parentNode) {
         dimensionCheckModal.parentNode.removeChild(dimensionCheckModal);
+        debugLog('模态框DOM元素已移除');
     }
-    
+
+    // 重置状态
     dimensionCheckModal = null;
     isDimensionCheckModalOpen = false;
-    
-    debugLog('尺寸检查模态框已关闭');
+
+    debugLog('尺寸检查模态框已完全关闭并清理');
 }
 
 // 提交尺寸检查结果
