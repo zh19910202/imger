@@ -6,7 +6,7 @@ import { KEYBOARD_SHORTCUTS } from '../../config/constants.js';
 import { DOMUtils } from '../utils/DOMUtils.js';
 import { Logger } from '../utils/Logger.js';
 
-export class EventManager {
+window.EventManager = class EventManager {
     constructor(stateManager, imageDownloader, notificationManager, modalManager) {
         this.stateManager = stateManager;
         this.imageDownloader = imageDownloader;

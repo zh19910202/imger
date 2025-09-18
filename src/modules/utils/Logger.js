@@ -2,7 +2,7 @@
  * 调试日志工具类
  * 保持原有的调试功能完全不变
  */
-export class Logger {
+window.Logger = class Logger {
     static debugMode = false;
     static debugLogs = [];
     static debugPanel = null;

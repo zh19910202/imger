@@ -4,7 +4,7 @@
  */
 import { Logger } from '../utils/Logger.js';
 
-export class NetworkMonitor {
+window.NetworkMonitor = class NetworkMonitor {
     constructor(stateManager, notificationManager) {
         this.stateManager = stateManager;
         this.notificationManager = notificationManager;

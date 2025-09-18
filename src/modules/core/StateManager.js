@@ -2,7 +2,7 @@
  * 全局状态管理器
  * 统一管理所有原全局变量，提供状态变化监听
  */
-export class StateManager {
+window.StateManager = class StateManager {
     constructor() {
         // 将所有原全局变量迁移到state对象中
         this.state = {

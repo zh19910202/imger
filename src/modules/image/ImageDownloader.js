@@ -4,7 +4,7 @@
  */
 import { FileUtils } from '../utils/FileUtils.js';
 
-export class ImageDownloader {
+window.ImageDownloader = class ImageDownloader {
     constructor(stateManager, notificationManager) {
         this.stateManager = stateManager;
         this.notificationManager = notificationManager;

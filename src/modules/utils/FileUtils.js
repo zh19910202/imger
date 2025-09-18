@@ -2,7 +2,7 @@
  * 文件处理工具类
  * 保持原有的文件处理逻辑完全不变
  */
-export class FileUtils {
+window.FileUtils = class FileUtils {
     /**
      * 生成文件名 - 原逻辑保持不变
      */

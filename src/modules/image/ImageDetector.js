@@ -4,7 +4,7 @@
  */
 import { Logger } from '../utils/Logger.js';
 
-export class ImageDetector {
+window.ImageDetector = class ImageDetector {
     constructor(stateManager) {
         this.stateManager = stateManager;
         this.originalImages = new Map();

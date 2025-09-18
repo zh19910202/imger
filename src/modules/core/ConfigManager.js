@@ -2,7 +2,7 @@
  * 配置管理器
  * 保持原有的配置加载逻辑完全不变
  */
-export class ConfigManager {
+window.ConfigManager = class ConfigManager {
     constructor(stateManager) {
         this.stateManager = stateManager;
     }

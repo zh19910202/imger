@@ -5,7 +5,7 @@
 import { DOMUtils } from '../utils/DOMUtils.js';
 import { Logger } from '../utils/Logger.js';
 
-export class ModalManager {
+window.ModalManager = class ModalManager {
     constructor(stateManager) {
         this.stateManager = stateManager;
         this.activeModals = new Set();

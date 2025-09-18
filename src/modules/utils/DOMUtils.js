@@ -2,7 +2,7 @@
  * DOM操作工具类
  * 封装常用的DOM操作，提高代码复用性
  */
-export class DOMUtils {
+window.DOMUtils = class DOMUtils {
     /**
      * 安全的querySelector，带错误处理
      */

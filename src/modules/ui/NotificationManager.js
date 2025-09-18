@@ -4,7 +4,7 @@
  */
 import { SETTINGS } from '../../config/constants.js';
 
-export class NotificationManager {
+window.NotificationManager = class NotificationManager {
     constructor(stateManager) {
         this.stateManager = stateManager;
         this.activeNotifications = new Set();

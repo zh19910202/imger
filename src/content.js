@@ -4,16 +4,17 @@
  * 保持原有功能完全不变，仅改变代码组织方式
  */
 
-// 导入所有模块
-import { StateManager } from './modules/core/StateManager.js';
-import { ConfigManager } from './modules/core/ConfigManager.js';
-import { EventManager } from './modules/core/EventManager.js';
-import { NotificationManager } from './modules/ui/NotificationManager.js';
-import { ModalManager } from './modules/ui/ModalManager.js';
-import { ImageDownloader } from './modules/image/ImageDownloader.js';
-import { ImageDetector } from './modules/image/ImageDetector.js';
-import { NetworkMonitor } from './modules/network/NetworkMonitor.js';
-import { Logger } from './modules/utils/Logger.js';
+// 版本标识
+console.log('🚀 AnnotateFlow Assistant v2.0.0 (重构版本) 已加载');
+console.log('📦 模块架构: StateManager, EventManager, ConfigManager, NotificationManager, ModalManager, ImageDownloader, ImageDetector, NetworkMonitor');
+
+// 设置全局版本信息
+window.ANNOTATEFLOW_VERSION = {
+    version: "2.0.0",
+    type: "refactored", 
+    architecture: "modular",
+    modules: ["StateManager", "EventManager", "ConfigManager", "NotificationManager", "ModalManager", "ImageDownloader", "ImageDetector", "NetworkMonitor"]
+};
 
 /**
  * AnnotateFlow Assistant 主应用类
@@ -33,22 +34,22 @@ class AnnotateFlowAssistant {
     initializeModules() {
         try {
             // 核心模块
-            this.stateManager = new StateManager();
-            this.configManager = new ConfigManager(this.stateManager);
+            this.stateManager = new window.StateManager();
+            this.configManager = new window.ConfigManager(this.stateManager);
             
             // UI模块
-            this.notificationManager = new NotificationManager(this.stateManager);
-            this.modalManager = new ModalManager(this.stateManager);
+            this.notificationManager = new window.NotificationManager(this.stateManager);
+            this.modalManager = new window.ModalManager(this.stateManager);
             
             // 图片模块
-            this.imageDownloader = new ImageDownloader(this.stateManager, this.notificationManager);
-            this.imageDetector = new ImageDetector(this.stateManager);
+            this.imageDownloader = new window.ImageDownloader(this.stateManager, this.notificationManager);
+            this.imageDetector = new window.ImageDetector(this.stateManager);
             
             // 网络模块
-            this.networkMonitor = new NetworkMonitor(this.stateManager, this.notificationManager);
+            this.networkMonitor = new window.NetworkMonitor(this.stateManager, this.notificationManager);
             
             // 事件管理器 - 最后初始化，因为它依赖其他模块
-            this.eventManager = new EventManager(
+            this.eventManager = new window.EventManager(
                 this.stateManager,
                 this.imageDownloader,
                 this.notificationManager,
@@ -294,6 +295,6 @@ if (typeof window !== 'undefined') {
     };
 }
 
-// 导出主应用类（用于模块化环境）
-export { AnnotateFlowAssistant };
+// 将主应用类添加到全局作用域
+window.AnnotateFlowAssistant = AnnotateFlowAssistant;
 export default AnnotateFlowAssistant;

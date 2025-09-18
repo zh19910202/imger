@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Auxis",
+  "name": "Auxis (Refactored)",
   "version": "2.5.0",
-  "description": "Annotation platform assistant: Fast image download with D key, skip with Space, submit with S key, upload with A key, history with F key, mark invalid with X key (auto-confirm), batch invalid with F1, AI image processing with R key (RunningHub integration)",
+  "description": "Annotation platform assistant (Refactored v2.0): Fast image download with D key, skip with Space, submit with S key, upload with A key, history with F key, mark invalid with X key (auto-confirm), batch invalid with F1, AI image processing with R key (RunningHub integration) - Modular Architecture",
   "permissions": [
     "downloads",
     "contextMenus",
@@ -22,7 +22,7 @@
   },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Auxis",
+    "default_title": "Auxis (Refactored)",
     "default_icon": {
       "16": "icon.png",
       "32": "icon.png",
@@ -39,12 +39,36 @@
   "content_scripts": [
     {
       "matches": ["https://qlabel.tencent.com/*", "http://localhost:*/*", "file://*/*"],
-      "js": ["resource-extractor.js", "content.js"]
+      "js": [
+        "resource-extractor.js",
+        "src/config/constants.js",
+        "src/modules/utils/Logger.js",
+        "src/modules/utils/DOMUtils.js", 
+        "src/modules/utils/FileUtils.js",
+        "src/modules/core/StateManager.js",
+        "src/modules/core/ConfigManager.js",
+        "src/modules/ui/NotificationManager.js",
+        "src/modules/ui/ModalManager.js",
+        "src/modules/image/ImageDownloader.js",
+        "src/modules/image/ImageDetector.js",
+        "src/modules/network/NetworkMonitor.js",
+        "src/modules/core/EventManager.js",
+        "src/content.js"
+      ]
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["notification.mp3", "runninghub-config.json"],
+      "resources": [
+        "notification.mp3", 
+        "runninghub-config.json",
+        "src/modules/core/*.js",
+        "src/modules/image/*.js",
+        "src/modules/ui/*.js",
+        "src/modules/network/*.js",
+        "src/modules/utils/*.js",
+        "src/config/*.js"
+      ],
       "matches": ["https://qlabel.tencent.com/*", "http://localhost:*/*", "file://*/*"]
     }
   ]
