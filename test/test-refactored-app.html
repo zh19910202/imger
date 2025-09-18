@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AnnotateFlow Assistant - 重构版本测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            color: #333;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .test-section {
+            margin-bottom: 30px;
+        }
+        
+        .test-section h3 {
+            color: #4CAF50;
+            border-left: 4px solid #4CAF50;
+            padding-left: 10px;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin: 10px 0;
+        }
+        
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary {
+            background-color: #4CAF50;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: #45a049;
+        }
+        
+        .btn-secondary {
+            background-color: #2196F3;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #1976D2;
+        }
+        
+        .btn-warning {
+            background-color: #ff9800;
+            color: white;
+        }
+        
+        .btn-warning:hover {
+            background-color: #f57c00;
+        }
+        
+        .status-display {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .test-images {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin: 10px 0;
+        }
+        
+        .test-images img {
+            width: 150px;
+            height: 100px;
+            object-fit: cover;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: border-color 0.3s;
+        }
+        
+        .test-images img:hover {
+            border-color: #4CAF50;
+        }
+        
+        .keyboard-shortcuts {
+            background-color: #e3f2fd;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        
+        .shortcut-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+        }
+        
+        .shortcut-key {
+            background-color: #333;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 AnnotateFlow Assistant v2.0</h1>
+            <p>重构版本功能测试页面</p>
+        </div>
+
+        <!-- 应用状态 -->
+        <div class="test-section">
+            <h3>📊 应用状态</h3>
+            <div class="button-group">
+                <button class="btn-primary" onclick="checkAppStatus()">检查应用状态</button>
+                <button class="btn-secondary" onclick="getDebugInfo()">获取调试信息</button>
+                <button class="btn-warning" onclick="restartApp()">重启应用</button>
+            </div>
+            <div id="app-status" class="status-display">点击"检查应用状态"查看应用信息...</div>
+        </div>
+
+        <!-- 键盘快捷键测试 -->
+        <div class="test-section">
+            <h3>⌨️ 键盘快捷键</h3>
+            <div class="keyboard-shortcuts">
+                <div class="shortcut-item">
+                    <span>下载图片</span>
+                    <span class="shortcut-key">D</span>
+                </div>
+                <div class="shortcut-item">
+                    <span>跳过按钮</span>
+                    <span class="shortcut-key">Space</span>
+                </div>
+                <div class="shortcut-item">
+                    <span>提交继续</span>
+                    <span class="shortcut-key">S</span>
+                </div>
+                <div class="shortcut-item">
+                    <span>上传图片</span>
+                    <span class="shortcut-key">A</span>
+                </div>
+                <div class="shortcut-item">
+                    <span>调试模式</span>
+                    <span class="shortcut-key">Z</span>
+                </div>
+            </div>
+            <p><strong>说明:</strong> 将焦点放在页面上，然后按相应的键测试功能</p>
+        </div>
+
+        <!-- 图片测试 -->
+        <div class="test-section">
+            <h3>🖼️ 图片功能测试</h3>
+            <div class="button-group">
+                <button class="btn-primary" onclick="testImageDetection()">测试图片检测</button>
+                <button class="btn-secondary" onclick="downloadTestImage()">下载测试图片</button>
+                <button class="btn-warning" onclick="getImageStats()">获取图片统计</button>
+            </div>
+            <div class="test-images">
+                <img src="https://picsum.photos/300/200?random=1" alt="测试图片1" onclick="selectImage(this)">
+                <img src="https://picsum.photos/300/200?random=2" alt="测试图片2" onclick="selectImage(this)">
+                <img src="https://picsum.photos/300/200?random=3" alt="测试图片3" onclick="selectImage(this)">
+            </div>
+            <div id="image-status" class="status-display">点击图片或测试按钮查看结果...</div>
+        </div>
+
+        <!-- 通知系统测试 -->
+        <div class="test-section">
+            <h3>🔔 通知系统测试</h3>
+            <div class="button-group">
+                <button class="btn-primary" onclick="testNotifications('success')">成功通知</button>
+                <button class="btn-secondary" onclick="testNotifications('info')">信息通知</button>
+                <button class="btn-warning" onclick="testNotifications('warning')">警告通知</button>
+                <button class="btn-warning" onclick="testNotifications('error')">错误通知</button>
+            </div>
+        </div>
+
+        <!-- 网络监听测试 -->
+        <div class="test-section">
+            <h3>🌐 网络监听测试</h3>
+            <div class="button-group">
+                <button class="btn-primary" onclick="testNetworkRequest()">发起测试请求</button>
+                <button class="btn-secondary" onclick="getNetworkStats()">获取网络统计</button>
+                <button class="btn-warning" onclick="clearNetworkHistory()">清理请求历史</button>
+            </div>
+            <div id="network-status" class="status-display">点击按钮测试网络监听功能...</div>
+        </div>
+
+        <!-- 模态框测试 -->
+        <div class="test-section">
+            <h3>📱 模态框测试</h3>
+            <div class="button-group">
+                <button class="btn-primary" onclick="createTestModal()">创建测试模态框</button>
+                <button class="btn-secondary" onclick="closeAllModals()">关闭所有模态框</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 加载重构后的应用 -->
+    <script type="module">
+        // 由于浏览器的模块加载限制，这里使用简化的测试方式
+        // 实际使用时需要在支持ES6模块的环境中运行
+        
+        // 模拟应用状态
+        window.testAppState = {
+            initialized: false,
+            version: '2.0.0',
+            modules: {},
+            selectedImage: null
+        };
+
+        // 测试函数
+        window.checkAppStatus = function() {
+            const status = document.getElementById('app-status');
+            const appInfo = window.AnnotateFlowApp ? window.getAppInfo() : null;
+            
+            if (appInfo) {
+                status.textContent = JSON.stringify(appInfo, null, 2);
+                window.testAppState.initialized = true;
+            } else {
+                status.textContent = `应用状态: 未初始化
+版本: ${window.testAppState.version}
+模块状态: 等待加载...
+
+注意: 这是测试页面，实际应用需要在目标网站上运行`;
+            }
+        };
+
+        window.getDebugInfo = function() {
+            const status = document.getElementById('app-status');
+            if (window.AnnotateFlowApp) {
+                const debugInfo = window.getAppInfo();
+                status.textContent = JSON.stringify(debugInfo, null, 2);
+            } else {
+                status.textContent = '调试信息: 应用未初始化\n请在目标网站上加载重构后的content.js文件';
+            }
+        };
+
+        window.restartApp = function() {
+            if (window.AnnotateFlowApp && window.AnnotateFlowApp.restart) {
+                window.AnnotateFlowApp.restart();
+            } else {
+                alert('重启功能需要在实际应用环境中使用');
+            }
+        };
+
+        window.testImageDetection = function() {
+            const status = document.getElementById('image-status');
+            const images = document.querySelectorAll('.test-images img');
+            
+            status.textContent = `检测到 ${images.length} 张测试图片:
+${Array.from(images).map((img, i) => `${i+1}. ${img.src}`).join('\n')}
+
+在实际应用中，ImageDetector会自动检测页面中的所有图片`;
+        };
+
+        window.selectImage = function(img) {
+            // 移除其他图片的选中状态
+            document.querySelectorAll('.test-images img').forEach(i => {
+                i.style.borderColor = '#ddd';
+            });
+            
+            // 选中当前图片
+            img.style.borderColor = '#4CAF50';
+            window.testAppState.selectedImage = img;
+            
+            const status = document.getElementById('image-status');
+            status.textContent = `已选中图片: ${img.src}
+尺寸: ${img.naturalWidth || img.width} x ${img.naturalHeight || img.height}
+
+在实际应用中，按D键可以下载选中的图片`;
+        };
+
+        window.downloadTestImage = function() {
+            if (window.testAppState.selectedImage) {
+                // 模拟下载
+                const img = window.testAppState.selectedImage;
+                const link = document.createElement('a');
+                link.href = img.src;
+                link.download = `test-image-${Date.now()}.jpg`;
+                link.click();
+                
+                alert('测试图片下载已触发');
+            } else {
+                alert('请先选择一张图片');
+            }
+        };
+
+        window.getImageStats = function() {
+            const status = document.getElementById('image-status');
+            const images = document.querySelectorAll('img');
+            
+            status.textContent = `图片统计信息:
+总图片数: ${images.length}
+选中图片: ${window.testAppState.selectedImage ? '是' : '否'}
+最大图片: ${Math.max(...Array.from(images).map(img => (img.naturalWidth || img.width) * (img.naturalHeight || img.height)))} 像素
+
+在实际应用中，ImageDetector会提供更详细的统计信息`;
+        };
+
+        window.testNotifications = function(type) {
+            const messages = {
+                success: '这是一个成功通知！',
+                info: '这是一个信息通知！',
+                warning: '这是一个警告通知！',
+                error: '这是一个错误通知！'
+            };
+            
+            if (window.showNotification) {
+                window.showNotification(messages[type]);
+            } else {
+                // 模拟通知
+                const notification = document.createElement('div');
+                notification.textContent = messages[type];
+                notification.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    padding: 12px 20px;
+                    border-radius: 4px;
+                    color: white;
+                    z-index: 10000;
+                    background-color: ${type === 'success' ? '#4CAF50' : type === 'info' ? '#2196F3' : type === 'warning' ? '#ff9800' : '#f44336'};
+                `;
+                
+                document.body.appendChild(notification);
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.parentNode.removeChild(notification);
+                    }
+                }, 3000);
+            }
+        };
+
+        window.testNetworkRequest = function() {
+            const status = document.getElementById('network-status');
+            
+            // 发起测试请求
+            fetch('https://jsonplaceholder.typicode.com/posts/1')
+                .then(response => response.json())
+                .then(data => {
+                    status.textContent = `测试请求成功:
+URL: https://jsonplaceholder.typicode.com/posts/1
+状态: 200 OK
+响应: ${JSON.stringify(data, null, 2)}
+
+在实际应用中，NetworkMonitor会自动监听所有网络请求`;
+                })
+                .catch(error => {
+                    status.textContent = `测试请求失败: ${error.message}`;
+                });
+        };
+
+        window.getNetworkStats = function() {
+            const status = document.getElementById('network-status');
+            status.textContent = `网络统计信息 (模拟):
+总请求数: 5
+成功请求: 4
+失败请求: 1
+平均响应时间: 245ms
+成功率: 80%
+
+在实际应用中，NetworkMonitor会提供真实的网络统计数据`;
+        };
+
+        window.clearNetworkHistory = function() {
+            const status = document.getElementById('network-status');
+            status.textContent = '网络请求历史已清理';
+        };
+
+        window.createTestModal = function() {
+            const modal = document.createElement('div');
+            modal.innerHTML = `
+                <h3>测试模态框</h3>
+                <p>这是一个测试模态框，用于验证ModalManager功能。</p>
+                <p>在实际应用中，按ESC键或点击关闭按钮可以关闭模态框。</p>
+                <button onclick="closeTestModal(this)">关闭</button>
+            `;
+            
+            modal.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: white;
+                padding: 20px;
+                border-radius: 8px;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+                z-index: 10000;
+                max-width: 400px;
+            `;
+            
+            const backdrop = document.createElement('div');
+            backdrop.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.5);
+                z-index: 9999;
+            `;
+            
+            backdrop.onclick = () => {
+                document.body.removeChild(backdrop);
+                document.body.removeChild(modal);
+            };
+            
+            document.body.appendChild(backdrop);
+            document.body.appendChild(modal);
+            
+            window.closeTestModal = function(btn) {
+                const modal = btn.closest('div');
+                const backdrop = document.querySelector('div[style*="rgba(0,0,0,0.5)"]');
+                if (backdrop) document.body.removeChild(backdrop);
+                if (modal) document.body.removeChild(modal);
+            };
+        };
+
+        window.closeAllModals = function() {
+            const modals = document.querySelectorAll('div[style*="z-index: 10000"]');
+            const backdrops = document.querySelectorAll('div[style*="rgba(0,0,0,0.5)"]');
+            
+            modals.forEach(modal => {
+                if (modal.parentNode) modal.parentNode.removeChild(modal);
+            });
+            
+            backdrops.forEach(backdrop => {
+                if (backdrop.parentNode) backdrop.parentNode.removeChild(backdrop);
+            });
+            
+            alert('所有模态框已关闭');
+        };
+
+        // 键盘事件监听
+        document.addEventListener('keydown', function(event) {
+            if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
+                return;
+            }
+            
+            const key = event.key.toLowerCase();
+            
+            switch(key) {
+                case 'd':
+                    event.preventDefault();
+                    if (window.testAppState.selectedImage) {
+                        window.downloadTestImage();
+                    } else {
+                        alert('请先选择一张图片，然后按D键下载');
+                    }
+                    break;
+                case ' ':
+                    event.preventDefault();
+                    alert('空格键被按下 - 在实际应用中会点击跳过按钮');
+                    break;
+                case 's':
+                    event.preventDefault();
+                    alert('S键被按下 - 在实际应用中会点击提交按钮');
+                    break;
+                case 'a':
+                    event.preventDefault();
+                    alert('A键被按下 - 在实际应用中会打开文件选择器');
+                    break;
+                case 'z':
+                    event.preventDefault();
+                    alert('Z键被按下 - 调试模式切换');
+                    break;
+            }
+        });
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('AnnotateFlow Assistant 测试页面已加载');
+            window.checkAppStatus();
+        });
+    </script>
+</body>
+</html>
