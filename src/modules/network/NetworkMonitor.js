@@ -2,7 +2,6 @@
  * 网络监听器
  * 保持原有的网络请求监听逻辑完全不变
  */
-import { Logger } from '../utils/Logger.js';
 
 window.NetworkMonitor = class NetworkMonitor {
     constructor(stateManager, notificationManager) {
@@ -26,10 +25,10 @@ window.NetworkMonitor = class NetworkMonitor {
             this.interceptXHR();
             
             this.isMonitoring = true;
-            Logger.debugLog('网络监听已启动');
+            window.Logger.debugLog('网络监听已启动');
             
         } catch (error) {
-            Logger.debugLog('网络监听初始化失败:', error);
+            window.Logger.debugLog('网络监听初始化失败:', error);
         }
     }
 
@@ -123,7 +122,7 @@ window.NetworkMonitor = class NetworkMonitor {
         };
         
         this.requestHistory.push(requestData);
-        Logger.debugLog('网络请求:', requestData);
+        window.Logger.debugLog('网络请求:', requestData);
         
         // 检查是否是图片请求
         if (this.isImageRequest(url)) {
@@ -152,7 +151,7 @@ window.NetworkMonitor = class NetworkMonitor {
                 headers: this.extractHeaders(response)
             };
             
-            Logger.debugLog('网络响应:', requestData);
+            window.Logger.debugLog('网络响应:', requestData);
             
             // 处理图片响应
             if (this.isImageRequest(url)) {
@@ -176,7 +175,7 @@ window.NetworkMonitor = class NetworkMonitor {
                 stack: error.stack
             };
             
-            Logger.debugLog('网络错误:', requestData);
+            window.Logger.debugLog('网络错误:', requestData);
         }
     }
 
@@ -254,7 +253,7 @@ window.NetworkMonitor = class NetworkMonitor {
      * 处理图片请求
      */
     handleImageRequest(requestData) {
-        Logger.debugLog('检测到图片请求:', requestData.url);
+        window.Logger.debugLog('检测到图片请求:', requestData.url);
         
         // 更新状态
         const imageRequests = this.stateManager.get('imageRequests') || [];
@@ -267,7 +266,7 @@ window.NetworkMonitor = class NetworkMonitor {
      */
     handleImageResponse(requestData, response) {
         if (requestData.response.status >= 200 && requestData.response.status < 300) {
-            Logger.debugLog('图片加载成功:', requestData.url);
+            window.Logger.debugLog('图片加载成功:', requestData.url);
             
             // 通知图片加载完成
             const loadedImages = this.stateManager.get('loadedImages') || [];
@@ -284,7 +283,7 @@ window.NetworkMonitor = class NetworkMonitor {
      * 处理API请求
      */
     handleAPIRequest(requestData) {
-        Logger.debugLog('检测到API请求:', requestData.url);
+        window.Logger.debugLog('检测到API请求:', requestData.url);
         
         // 更新状态
         const apiRequests = this.stateManager.get('apiRequests') || [];
@@ -351,7 +350,7 @@ window.NetworkMonitor = class NetworkMonitor {
      */
     clearHistory() {
         this.requestHistory = [];
-        Logger.debugLog('网络请求历史已清理');
+        window.Logger.debugLog('网络请求历史已清理');
     }
 
     /**
@@ -359,7 +358,7 @@ window.NetworkMonitor = class NetworkMonitor {
      */
     stopMonitoring() {
         this.isMonitoring = false;
-        Logger.debugLog('网络监听已停止');
+        window.Logger.debugLog('网络监听已停止');
     }
 
     /**

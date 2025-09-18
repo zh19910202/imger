@@ -2,7 +2,6 @@
  * 图片检测器
  * 保持原有的图片检测和识别逻辑完全不变
  */
-import { Logger } from '../utils/Logger.js';
 
 window.ImageDetector = class ImageDetector {
     constructor(stateManager) {
@@ -35,11 +34,11 @@ window.ImageDetector = class ImageDetector {
                 }
             });
 
-            Logger.debugLog('已记录原图数量:', this.originalImages.size);
+            window.Logger.debugLog('已记录原图数量:', this.originalImages.size);
             this.stateManager.set('originalImagesCount', this.originalImages.size);
             
         } catch (error) {
-            Logger.debugLog('记录原图失败:', error);
+            window.Logger.debugLog('记录原图失败:', error);
         }
     }
 
@@ -95,15 +94,15 @@ window.ImageDetector = class ImageDetector {
 
             if (detectedImage) {
                 this.stateManager.set('originalImage', detectedImage);
-                Logger.debugLog('检测到原图:', detectedImage.src);
+                window.Logger.debugLog('检测到原图:', detectedImage.src);
                 return detectedImage;
             } else {
-                Logger.debugLog('未检测到原图');
+                window.Logger.debugLog('未检测到原图');
                 return null;
             }
 
         } catch (error) {
-            Logger.debugLog('检测原图失败:', error);
+            window.Logger.debugLog('检测原图失败:', error);
             return null;
         }
     }
@@ -144,7 +143,7 @@ window.ImageDetector = class ImageDetector {
                 }
             });
             
-            Logger.debugLog('新图片可见:', img.src);
+            window.Logger.debugLog('新图片可见:', img.src);
         }
     }
 
@@ -178,7 +177,7 @@ window.ImageDetector = class ImageDetector {
         });
 
         this.mutationObserver = observer;
-        Logger.debugLog('图片监听器已启动');
+        window.Logger.debugLog('图片监听器已启动');
     }
 
     /**
@@ -190,7 +189,7 @@ window.ImageDetector = class ImageDetector {
             this.processNewImage(img);
         } else {
             img.onload = () => this.processNewImage(img);
-            img.onerror = () => Logger.debugLog('图片加载失败:', img.src);
+            img.onerror = () => window.Logger.debugLog('图片加载失败:', img.src);
         }
 
         // 添加到观察器
@@ -214,7 +213,7 @@ window.ImageDetector = class ImageDetector {
                 isNew: true
             });
 
-            Logger.debugLog('处理新图片:', img.src);
+            window.Logger.debugLog('处理新图片:', img.src);
             
             // 触发新图片事件
             this.stateManager.set('lastNewImage', img);
@@ -289,7 +288,7 @@ window.ImageDetector = class ImageDetector {
         }
         
         this.originalImages.clear();
-        Logger.debugLog('图片检测器已清理');
+        window.Logger.debugLog('图片检测器已清理');
     }
 
     /**

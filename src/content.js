@@ -36,14 +36,18 @@ class AnnotateFlowAssistant {
             // 核心模块
             this.stateManager = new window.StateManager();
             this.configManager = new window.ConfigManager(this.stateManager);
-            
+
             // UI模块
             this.notificationManager = new window.NotificationManager(this.stateManager);
             this.modalManager = new window.ModalManager(this.stateManager);
+
+            // 工具模块
+            this.fileInputChecker = new window.FileInputChecker(this.stateManager, this.notificationManager);
             
             // 图片模块
             this.imageDownloader = new window.ImageDownloader(this.stateManager, this.notificationManager);
             this.imageDetector = new window.ImageDetector(this.stateManager);
+            this.dimensionChecker = new window.DimensionChecker(this.stateManager, this.notificationManager, this.modalManager);
             
             // 网络模块
             this.networkMonitor = new window.NetworkMonitor(this.stateManager, this.notificationManager);
@@ -53,10 +57,13 @@ class AnnotateFlowAssistant {
                 this.stateManager,
                 this.imageDownloader,
                 this.notificationManager,
-                this.modalManager
+                this.modalManager,
+                this.imageDetector,
+                this.dimensionChecker,
+                this.fileInputChecker
             );
             
-            Logger.debugLog('所有模块初始化完成');
+            window.Logger.debugLog('所有模块初始化完成');
             
         } catch (error) {
             console.error('模块初始化失败:', error);
@@ -69,7 +76,7 @@ class AnnotateFlowAssistant {
      */
     async initialize() {
         if (this.initialized) {
-            Logger.debugLog('应用已经初始化');
+            window.Logger.debugLog('应用已经初始化');
             return;
         }
 
@@ -94,7 +101,7 @@ class AnnotateFlowAssistant {
                     'StateManager', 'EventManager', 'ConfigManager',
                     'ImageDownloader', 'ImageDetector', 'NetworkMonitor',
                     'NotificationManager', 'ModalManager',
-                    'Logger', 'DOMUtils', 'FileUtils'
+                    'window.Logger', 'DOMUtils', 'FileUtils'
                 ]
             };
             
@@ -117,7 +124,7 @@ class AnnotateFlowAssistant {
             this.notificationManager.showSuccess('AnnotateFlow Assistant 已启动');
             
             this.initialized = true;
-            Logger.debugLog('应用初始化完成');
+            window.Logger.debugLog('应用初始化完成');
             
         } catch (error) {
             console.error('应用初始化失败:', error);
@@ -175,7 +182,7 @@ class AnnotateFlowAssistant {
                 this.modalManager.closeAllModals();
             }
             
-            Logger.debugLog('应用资源已清理');
+            window.Logger.debugLog('应用资源已清理');
             
         } catch (error) {
             console.error('清理资源失败:', error);
@@ -186,7 +193,7 @@ class AnnotateFlowAssistant {
      * 重启应用
      */
     async restart() {
-        Logger.debugLog('重启应用...');
+        window.Logger.debugLog('重启应用...');
         
         this.cleanup();
         this.initialized = false;
@@ -206,7 +213,7 @@ class AnnotateFlowAssistant {
     getDebugInfo() {
         return {
             appState: this.getAppState(),
-            logs: Logger.debugLogs,
+            logs: window.Logger.debugLogs,
             eventState: this.eventManager?.getEventState(),
             monitoringStatus: this.networkMonitor?.getMonitoringStatus()
         };
@@ -222,7 +229,7 @@ let app = null;
 function initializeScript() {
     try {
         if (app) {
-            Logger.debugLog('应用已存在，跳过初始化');
+            window.Logger.debugLog('应用已存在，跳过初始化');
             return;
         }
 
@@ -268,9 +275,9 @@ if (typeof window !== 'undefined') {
     // 全局调试函数
     window.toggleDebugMode = () => {
         if (app) {
-            Logger.toggleDebugMode();
+            window.Logger.toggleDebugMode();
             app.notificationManager.showInfo(
-                Logger.debugMode ? '调试模式已开启' : '调试模式已关闭'
+                window.Logger.debugMode ? '调试模式已开启' : '调试模式已关闭'
             );
         }
     };
@@ -297,4 +304,3 @@ if (typeof window !== 'undefined') {
 
 // 将主应用类添加到全局作用域
 window.AnnotateFlowAssistant = AnnotateFlowAssistant;
-export default AnnotateFlowAssistant;

@@ -2,7 +2,6 @@
  * 图片下载器
  * 保持原有的图片下载逻辑完全不变
  */
-import { FileUtils } from '../utils/FileUtils.js';
 
 window.ImageDownloader = class ImageDownloader {
     constructor(stateManager, notificationManager) {
@@ -21,7 +20,7 @@ window.ImageDownloader = class ImageDownloader {
 
         try {
             // 生成文件名 - 使用原有逻辑
-            const fileName = FileUtils.generateFileName(imageUrl);
+            const fileName = window.FileUtils.generateFileName(imageUrl);
             
             // 尝试使用fetch下载
             const success = await this.downloadViaFetch(imageUrl, fileName);

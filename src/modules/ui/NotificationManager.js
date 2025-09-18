@@ -2,7 +2,6 @@
  * 通知管理器
  * 保持原有的通知功能，移除音效功能
  */
-import { SETTINGS } from '../../config/constants.js';
 
 window.NotificationManager = class NotificationManager {
     constructor(stateManager) {
@@ -13,7 +12,7 @@ window.NotificationManager = class NotificationManager {
     /**
      * 显示通知 - 原逻辑保持不变（移除音效）
      */
-    showNotification(message, duration = SETTINGS.NOTIFICATION_DURATION) {
+    showNotification(message, duration = window.DEFAULT_SETTINGS.NOTIFICATION_DURATION) {
         // 创建通知元素
         const notification = document.createElement('div');
         notification.className = 'custom-notification';

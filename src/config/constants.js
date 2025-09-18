@@ -4,7 +4,7 @@
  */
 
 // 键盘快捷键定义
-export const KEYBOARD_SHORTCUTS = {
+window.KEYBOARD_SHORTCUTS = {
     DOWNLOAD_IMAGE: 'd',
     SKIP_BUTTON: ' ',
     SUBMIT_CONTINUE: 's',
@@ -18,12 +18,14 @@ export const KEYBOARD_SHORTCUTS = {
     SMART_DIMENSION_CHECK: 'p',
     SMART_DIMENSION_CHECK_F2: 'F2',
     MANUAL_DIMENSION_CHECK: 'r',
+    MARK_INVALID: 'x',
+    PRINT_IMAGE_STATUS: 'm',
     F1_AUTO_INVALID: 'F1',
     ESCAPE: 'Escape'
 };
 
 // DOM选择器定义
-export const SELECTORS = {
+window.SELECTORS = {
     // 按钮选择器
     SKIP_BUTTON: 'button:contains("跳过"), button[title*="跳过"], .skip-btn',
     SUBMIT_BUTTON: 'button:contains("提交并继续标注"), button:contains("提交"), .submit-btn',
@@ -53,7 +55,7 @@ export const SELECTORS = {
 };
 
 // 应用设置默认值
-export const DEFAULT_SETTINGS = {
+window.DEFAULT_SETTINGS = {
     // 音效设置
     SOUND_ENABLED: true,
     
@@ -79,7 +81,7 @@ export const DEFAULT_SETTINGS = {
 };
 
 // 样式常量
-export const STYLES = {
+window.STYLES = {
     // 通知样式
     NOTIFICATION: {
         position: 'fixed',
@@ -128,7 +130,7 @@ export const STYLES = {
 };
 
 // 错误消息常量
-export const ERROR_MESSAGES = {
+window.ERROR_MESSAGES = {
     CHROME_API_UNAVAILABLE: 'Chrome扩展API不可用，插件可能未正确加载',
     IMAGE_DOWNLOAD_FAILED: '图片下载失败',
     IMAGE_UPLOAD_FAILED: '图片上传失败',
@@ -139,7 +141,7 @@ export const ERROR_MESSAGES = {
 };
 
 // 成功消息常量
-export const SUCCESS_MESSAGES = {
+window.SUCCESS_MESSAGES = {
     IMAGE_DOWNLOADED: '图片下载成功',
     IMAGE_UPLOADED: '图片上传成功',
     SETTINGS_SAVED: '设置保存成功',
@@ -148,14 +150,14 @@ export const SUCCESS_MESSAGES = {
 };
 
 // API端点常量
-export const API_ENDPOINTS = {
+window.API_ENDPOINTS = {
     RUNNINGHUB_BASE: 'https://api.runninghub.cn',
     RUNNINGHUB_WORKFLOW: '/api/v1/workflow',
     RUNNINGHUB_UPLOAD: '/api/v1/upload'
 };
 
 // 文件类型常量
-export const FILE_TYPES = {
+window.FILE_TYPES = {
     IMAGES: 'image/*',
     JPEG: 'image/jpeg',
     PNG: 'image/png',
@@ -164,14 +166,14 @@ export const FILE_TYPES = {
 };
 
 // 正则表达式常量
-export const REGEX_PATTERNS = {
+window.REGEX_PATTERNS = {
     COS_URL: /cos\.ap-[^.]+\.myqcloud\.com|tencentcos\.cn/,
     IMAGE_URL: /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i,
     DIMENSION_8_MULTIPLE: /^(\d+)x(\d+)$/
 };
 
 // 事件名称常量
-export const EVENTS = {
+window.EVENTS = {
     STATE_CHANGED: 'state:changed',
     IMAGE_DETECTED: 'image:detected',
     IMAGE_UPLOADED: 'image:uploaded',
@@ -183,7 +185,7 @@ export const EVENTS = {
 };
 
 // 存储键名常量
-export const STORAGE_KEYS = {
+window.STORAGE_KEYS = {
     SOUND_ENABLED: 'soundEnabled',
     F1_INTERVAL: 'f1Interval',
     F1_MAX_RUNS: 'f1MaxRuns',

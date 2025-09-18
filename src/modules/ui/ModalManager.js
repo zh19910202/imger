@@ -2,8 +2,6 @@
  * 模态框管理器
  * 统一管理所有模态框操作，保持原有逻辑完全不变
  */
-import { DOMUtils } from '../utils/DOMUtils.js';
-import { Logger } from '../utils/Logger.js';
 
 window.ModalManager = class ModalManager {
     constructor(stateManager) {
@@ -47,7 +45,7 @@ window.ModalManager = class ModalManager {
             }
         });
 
-        Logger.debugLog('模态框检查结果:', { keyName, modalFound });
+        window.Logger.debugLog('模态框检查结果:', { keyName, modalFound });
         return modalFound;
     }
 
@@ -78,7 +76,7 @@ window.ModalManager = class ModalManager {
             const closeButton = this.findCloseButton(modal);
             if (closeButton) {
                 closeButton.click();
-                Logger.debugLog('通过关闭按钮关闭模态框:', keyName);
+                window.Logger.debugLog('通过关闭按钮关闭模态框:', keyName);
                 return true;
             }
 
@@ -101,11 +99,11 @@ window.ModalManager = class ModalManager {
             modal.classList.remove('show', 'active', 'open', 'visible');
 
             this.activeModals.delete(modal);
-            Logger.debugLog('模态框已关闭:', keyName);
+            window.Logger.debugLog('模态框已关闭:', keyName);
             return true;
 
         } catch (error) {
-            Logger.debugLog('关闭模态框失败:', error);
+            window.Logger.debugLog('关闭模态框失败:', error);
             return false;
         }
     }
@@ -181,7 +179,7 @@ window.ModalManager = class ModalManager {
             });
         });
 
-        Logger.debugLog('强制关闭模态框数量:', closedCount);
+        window.Logger.debugLog('强制关闭模态框数量:', closedCount);
         return closedCount;
     }
 
