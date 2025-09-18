@@ -5800,7 +5800,17 @@ function showDimensionCheckModal(imageInfo, isDimensionValid) {
     // 提交按钮事件
     if (submitBtn) {
         submitBtn.addEventListener('click', () => {
+            // 检查按钮是否已被禁用
+            if (submitBtn.disabled) {
+                debugLog('提交按钮已禁用，忽略点击');
+                return;
+            }
+
             const comment = textarea ? textarea.value.trim() : '';
+
+            // 立即禁用按钮，防止重复点击
+            disableSubmitButton(submitBtn);
+
             submitDimensionCheck(comment);
         });
     }
@@ -5845,6 +5855,87 @@ function showDimensionCheckModal(imageInfo, isDimensionValid) {
     debugLog('尺寸检查模态框已显示');
 }
 
+// 禁用提交按钮
+function disableSubmitButton(submitBtn) {
+    if (!submitBtn) return;
+
+    submitBtn.disabled = true;
+    submitBtn.style.opacity = '0.6';
+    submitBtn.style.cursor = 'not-allowed';
+    submitBtn.style.pointerEvents = 'none';
+
+    // 更新按钮文本和图标
+    submitBtn.innerHTML = `
+        <span style="display: flex; align-items: center; gap: 8px;">
+            <span style="animation: spin 1s linear infinite;">⏳</span>
+            处理中...
+        </span>
+    `;
+
+    // 添加旋转动画
+    if (!document.querySelector('#submit-button-styles')) {
+        const styles = document.createElement('style');
+        styles.id = 'submit-button-styles';
+        styles.textContent = `
+            @keyframes spin {
+                from { transform: rotate(0deg); }
+                to { transform: rotate(360deg); }
+            }
+        `;
+        document.head.appendChild(styles);
+    }
+
+    debugLog('提交按钮已禁用');
+}
+
+// 启用提交按钮
+function enableSubmitButton(submitBtn, status = 'ready') {
+    if (!submitBtn) return;
+
+    submitBtn.disabled = false;
+    submitBtn.style.opacity = '1';
+    submitBtn.style.cursor = 'pointer';
+    submitBtn.style.pointerEvents = 'auto';
+
+    // 根据状态设置不同的按钮文本和样式
+    if (status === 'success') {
+        submitBtn.innerHTML = `
+            <span style="display: flex; align-items: center; gap: 8px;">
+                <span>✅</span>
+                任务已完成
+            </span>
+        `;
+        submitBtn.style.background = 'linear-gradient(135deg, #059669 0%, #047857 100%)';
+    } else if (status === 'failed') {
+        submitBtn.innerHTML = `
+            <span style="display: flex; align-items: center; gap: 8px;">
+                <span>🔄</span>
+                重新提交
+            </span>
+        `;
+        submitBtn.style.background = 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)';
+    } else if (status === 'canceled') {
+        submitBtn.innerHTML = `
+            <span style="display: flex; align-items: center; gap: 8px;">
+                <span>🔄</span>
+                重新提交
+            </span>
+        `;
+        submitBtn.style.background = 'linear-gradient(135deg, #d97706 0%, #b45309 100%)';
+    } else {
+        // ready状态 - 恢复原始样式
+        submitBtn.innerHTML = `
+            <span style="display: flex; align-items: center; gap: 8px;">
+                <span>🚀</span>
+                提交需求
+            </span>
+        `;
+        submitBtn.style.background = 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)';
+    }
+
+    debugLog('提交按钮已启用', { status });
+}
+
 // 关闭尺寸检查模态框
 function closeDimensionCheckModal() {
     if (!isDimensionCheckModalOpen || !dimensionCheckModal) {
@@ -5872,24 +5963,32 @@ function closeDimensionCheckModal() {
 // 提交尺寸检查结果
 async function submitDimensionCheck(comment) {
     debugLog('提交尺寸检查结果', { comment });
-    
+
     // 检查是否有原图
     if (!originalImage) {
         showNotification('未找到原图，无法上传', 3000);
+        // 重新启用按钮
+        const submitBtn = document.querySelector('#dimensionCheckSubmitBtn');
+        enableSubmitButton(submitBtn, 'failed');
         return;
     }
-    
+
     // 获取API Key
     let apiKey = localStorage.getItem('runninghub_api_key');
     if (!apiKey) {
         apiKey = prompt('请输入您的Running Hub API Key:');
         if (!apiKey) {
             showNotification('未提供API Key，取消上传', 2000);
+            // 重新启用按钮
+            const submitBtn = document.querySelector('#dimensionCheckSubmitBtn');
+            enableSubmitButton(submitBtn, 'ready');
             return;
         }
         localStorage.setItem('runninghub_api_key', apiKey);
     }
-    
+
+    const submitBtn = document.querySelector('#dimensionCheckSubmitBtn');
+
     try {
         showNotification('正在上传图片到Running Hub...', 0);
         const imageFile = await convertImageToFile(originalImage);
@@ -5929,9 +6028,13 @@ async function submitDimensionCheck(comment) {
                             renderRunningHubResultsInModal(outs);
                             updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n✅ 任务已完成 - 耗时${Math.round(poll.totalTime / 1000)}秒`);
                             hideRhCancelBtn();
+                            // 任务成功完成，启用按钮为完成状态
+                            enableSubmitButton(submitBtn, 'success');
                         } catch (e) {
                             debugLog('获取输出失败:', e);
                             updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n⚠️ 任务完成，但获取输出失败：${e.message}`);
+                            // 获取输出失败，允许重新提交
+                            enableSubmitButton(submitBtn, 'failed');
                         }
                     } else if (poll.final === 'FAILED') {
                         debugLog('任务失败', poll.raw);
@@ -5943,23 +6046,33 @@ async function submitDimensionCheck(comment) {
                             const failedReason = poll.raw.data.failedReason;
                             updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n❌ 失败原因：${failedReason.exception_message || failedReason.exception_type || '系统错误'}`);
                         }
+                        // 任务失败，允许重新提交
+                        enableSubmitButton(submitBtn, 'failed');
                     } else if (poll.final === 'ERROR') {
                         debugLog('任务出错', poll.raw);
                         updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n❌ 任务出错 - ${poll.raw?.msg || '系统错误'}`);
                         hideRhCancelBtn();
+                        // 任务出错，允许重新提交
+                        enableSubmitButton(submitBtn, 'failed');
                     } else if (poll.final === 'CANCELED') {
                         debugLog('任务已取消', poll.raw);
                         updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n🚫 任务已取消`);
                         hideRhCancelBtn();
+                        // 任务被取消，允许重新提交
+                        enableSubmitButton(submitBtn, 'canceled');
                     } else {
                         debugLog('未知的最终状态', poll);
                         updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n❓ 任务结束：${poll.final}`);
                         hideRhCancelBtn();
+                        // 未知状态，允许重新提交
+                        enableSubmitButton(submitBtn, 'failed');
                     }
                 } catch (e) {
                     debugLog('轮询过程失败:', e);
                     updateDimensionModalProgress('轮询失败：' + e.message);
                     hideRhCancelBtn();
+                    // 轮询失败，允许重新提交
+                    enableSubmitButton(submitBtn, 'failed');
                 }
             } else {
                 throw new Error('AI应用任务创建失败: ' + (taskResponse.msg || '未知错误'));
@@ -5970,8 +6083,10 @@ async function submitDimensionCheck(comment) {
     } catch (error) {
         debugLog('运行失败:', error);
         showNotification('运行失败: ' + error.message, 3000);
+        // 运行失败，重新启用按钮
+        enableSubmitButton(submitBtn, 'failed');
     }
-    
+
     // 保留模态框查看结果
     // closeDimensionCheckModal();
 }
@@ -6507,6 +6622,10 @@ function updateDimensionModalProgress(text) {
                     cancelBtn.style.opacity = '0.6';
                     await cancelRunningHubTask(window._rhApiKeyForCancel, window._rhTaskIdForCancel);
                     updateDimensionModalProgress(`🆔 任务ID: ${window._rhTaskIdForCancel}\n🚫 任务已申请取消，请稍候更新状态...`);
+
+                    // 取消任务后，重新启用提交按钮
+                    const submitBtn = document.querySelector('#dimensionCheckSubmitBtn');
+                    enableSubmitButton(submitBtn, 'canceled');
                 } catch (e) {
                     updateDimensionModalProgress(`🆔 任务ID: ${window._rhTaskIdForCancel || 'unknown'}\n❌ 取消失败：${e.message}`);
                     cancelBtn.disabled = false;
@@ -7024,9 +7143,13 @@ function renderRunningHubResultsInModal(outputsJson) {
     }
 }
 
-// 显示图片大图查看器
-function showImageLightbox(imageUrl, title, metadata) {
-    debugLog('显示图片大图查看器', { imageUrl: imageUrl.substring(0, 50) + '...', title });
+// 显示图片对比查看器（原图 vs 生成结果）
+function showImageLightbox(resultImageUrl, title, metadata) {
+    debugLog('显示图片对比查看器', {
+        resultImageUrl: resultImageUrl.substring(0, 50) + '...',
+        title,
+        hasOriginalImage: !!originalImage
+    });
 
     // 创建lightbox容器
     const lightbox = document.createElement('div');
@@ -7040,8 +7163,6 @@ function showImageLightbox(imageUrl, title, metadata) {
         z-index: 9999999;
         display: flex;
         flex-direction: column;
-        justify-content: center;
-        align-items: center;
         backdrop-filter: blur(10px);
         animation: fadeIn 0.3s ease;
     `;
@@ -7055,46 +7176,101 @@ function showImageLightbox(imageUrl, title, metadata) {
         transform: translateX(-50%);
         background: rgba(0, 0, 0, 0.8);
         color: white;
-        padding: 12px 20px;
+        padding: 16px 24px;
         border-radius: 25px;
         font-size: 14px;
         font-weight: 500;
         text-align: center;
         backdrop-filter: blur(10px);
         border: 1px solid rgba(255, 255, 255, 0.1);
-        max-width: 80%;
+        max-width: 90%;
         z-index: 10;
     `;
 
+    // 检查是否有原图可对比
+    const hasOriginalImage = originalImage && originalImage.src;
+
     infoBar.innerHTML = `
-        <div style="margin-bottom: 4px;">${title}</div>
+        <div style="margin-bottom: 4px;">${title} ${hasOriginalImage ? '- 对比查看' : ''}</div>
         <div style="font-size: 12px; opacity: 0.8;">
             ${metadata.fileType?.toUpperCase() || 'IMAGE'} • 节点${metadata.nodeId} • 耗时${metadata.taskCostTime}s
         </div>
+        ${hasOriginalImage ? '<div style="font-size: 11px; opacity: 0.6; margin-top: 4px;">左：原图 | 右：生成结果</div>' : ''}
     `;
 
-    // 图片容器
-    const imgContainer = document.createElement('div');
-    imgContainer.style.cssText = `
-        max-width: 95%;
-        max-height: 85%;
+    // 主要内容区域
+    const mainContent = document.createElement('div');
+    mainContent.style.cssText = `
+        flex: 1;
         display: flex;
         justify-content: center;
         align-items: center;
-        position: relative;
+        padding: 80px 20px 100px 20px;
+        gap: 20px;
     `;
 
-    const img = document.createElement('img');
-    img.src = imageUrl;
-    img.alt = title;
-    img.style.cssText = `
-        max-width: 100%;
-        max-height: 100%;
-        object-fit: contain;
-        border-radius: 8px;
-        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-        border: 2px solid rgba(255, 255, 255, 0.1);
-    `;
+    if (hasOriginalImage) {
+        // 对比模式：显示原图和生成结果
+        debugLog('创建对比查看模式');
+
+        // 左侧：原图
+        const originalContainer = createImageComparisonContainer(
+            originalImage.src,
+            '📸 原图',
+            `${originalImage.width || '未知'} × ${originalImage.height || '未知'}px`,
+            '#e3f2fd'
+        );
+
+        // 右侧：生成结果
+        const resultContainer = createImageComparisonContainer(
+            resultImageUrl,
+            '🎨 生成结果',
+            `${metadata.fileType?.toUpperCase() || 'IMAGE'} • 节点${metadata.nodeId}`,
+            '#f3e5f5'
+        );
+
+        mainContent.appendChild(originalContainer);
+
+        // 添加分隔线
+        const separator = document.createElement('div');
+        separator.style.cssText = `
+            width: 2px;
+            height: 80%;
+            background: linear-gradient(to bottom, transparent, rgba(255,255,255,0.3), transparent);
+            border-radius: 1px;
+        `;
+        mainContent.appendChild(separator);
+
+        mainContent.appendChild(resultContainer);
+
+    } else {
+        // 单图模式：只显示生成结果
+        debugLog('创建单图查看模式');
+
+        const singleContainer = document.createElement('div');
+        singleContainer.style.cssText = `
+            max-width: 95%;
+            max-height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        `;
+
+        const img = document.createElement('img');
+        img.src = resultImageUrl;
+        img.alt = title;
+        img.style.cssText = `
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+        `;
+
+        singleContainer.appendChild(img);
+        mainContent.appendChild(singleContainer);
+    }
 
     // 底部操作栏
     const actionBar = document.createElement('div');
@@ -7113,7 +7289,7 @@ function showImageLightbox(imageUrl, title, metadata) {
     downloadBtn.innerHTML = `
         <span style="display: flex; align-items: center; gap: 8px;">
             <span>📥</span>
-            下载到本地
+            下载生成结果
         </span>
     `;
     downloadBtn.style.cssText = `
@@ -7131,9 +7307,52 @@ function showImageLightbox(imageUrl, title, metadata) {
     `;
 
     downloadBtn.addEventListener('click', () => {
-        downloadImageToLocal(imageUrl, metadata.fileType, 0, metadata.fileName);
-        showNotification('开始下载图片...', 2000);
+        downloadImageToLocal(resultImageUrl, metadata.fileType, 0, metadata.fileName);
+        showNotification('开始下载生成结果...', 2000);
     });
+
+    // 如果有原图，添加下载原图按钮
+    if (hasOriginalImage) {
+        const downloadOriginalBtn = document.createElement('button');
+        downloadOriginalBtn.innerHTML = `
+            <span style="display: flex; align-items: center; gap: 8px;">
+                <span>📸</span>
+                下载原图
+            </span>
+        `;
+        downloadOriginalBtn.style.cssText = `
+            padding: 12px 20px;
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+            backdrop-filter: blur(10px);
+        `;
+
+        downloadOriginalBtn.addEventListener('click', () => {
+            const originalFileName = `original-${Date.now()}.${originalImage.src.split('.').pop() || 'jpg'}`;
+            downloadImageToLocal(originalImage.src, 'jpg', 0, originalFileName);
+            showNotification('开始下载原图...', 2000);
+        });
+
+        // 按钮悬停效果
+        downloadOriginalBtn.addEventListener('mouseenter', () => {
+            downloadOriginalBtn.style.transform = 'translateY(-2px)';
+            downloadOriginalBtn.style.boxShadow = '0 6px 16px rgba(99, 102, 241, 0.4)';
+        });
+
+        downloadOriginalBtn.addEventListener('mouseleave', () => {
+            downloadOriginalBtn.style.transform = 'translateY(0)';
+            downloadOriginalBtn.style.boxShadow = '0 4px 12px rgba(99, 102, 241, 0.3)';
+        });
+
+        actionBar.appendChild(downloadOriginalBtn);
+    }
 
     // 关闭按钮
     const closeBtn = document.createElement('button');
@@ -7184,9 +7403,8 @@ function showImageLightbox(imageUrl, title, metadata) {
     actionBar.appendChild(downloadBtn);
     actionBar.appendChild(closeBtn);
 
-    imgContainer.appendChild(img);
     lightbox.appendChild(infoBar);
-    lightbox.appendChild(imgContainer);
+    lightbox.appendChild(mainContent);
     lightbox.appendChild(actionBar);
 
     // 点击背景关闭
@@ -7219,6 +7437,113 @@ function showImageLightbox(imageUrl, title, metadata) {
     }
 
     document.body.appendChild(lightbox);
+}
+
+// 创建图片对比容器
+function createImageComparisonContainer(imageUrl, label, info, accentColor) {
+    const container = document.createElement('div');
+    container.style.cssText = `
+        flex: 1;
+        max-width: 45%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+    `;
+
+    // 标签
+    const labelElement = document.createElement('div');
+    labelElement.style.cssText = `
+        background: rgba(0, 0, 0, 0.7);
+        color: white;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 13px;
+        font-weight: 500;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        text-align: center;
+    `;
+    labelElement.textContent = label;
+
+    // 图片容器
+    const imgWrapper = document.createElement('div');
+    imgWrapper.style.cssText = `
+        position: relative;
+        max-width: 100%;
+        max-height: 70vh;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 15px 50px rgba(0, 0, 0, 0.3);
+        border: 3px solid rgba(255, 255, 255, 0.1);
+        background: ${accentColor || '#f8fafc'};
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    `;
+
+    const img = document.createElement('img');
+    img.src = imageUrl;
+    img.alt = label;
+    img.style.cssText = `
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+        border-radius: 8px;
+    `;
+
+    // 加载状态处理
+    img.onload = () => {
+        debugLog(`${label} 加载完成`, {
+            naturalWidth: img.naturalWidth,
+            naturalHeight: img.naturalHeight
+        });
+
+        // 更新信息显示实际尺寸
+        if (img.naturalWidth && img.naturalHeight) {
+            infoElement.innerHTML = `
+                <div>${info}</div>
+                <div style="font-size: 11px; opacity: 0.7; margin-top: 2px;">
+                    ${img.naturalWidth} × ${img.naturalHeight}px
+                </div>
+            `;
+        }
+    };
+
+    img.onerror = () => {
+        debugLog(`${label} 加载失败`);
+        imgWrapper.innerHTML = `
+            <div style="color: #dc2626; text-align: center; padding: 20px;">
+                <div style="font-size: 24px; margin-bottom: 8px;">❌</div>
+                <div>图片加载失败</div>
+            </div>
+        `;
+    };
+
+    // 信息显示
+    const infoElement = document.createElement('div');
+    infoElement.style.cssText = `
+        background: rgba(0, 0, 0, 0.6);
+        color: white;
+        padding: 8px 12px;
+        border-radius: 15px;
+        font-size: 11px;
+        text-align: center;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        line-height: 1.3;
+    `;
+    infoElement.innerHTML = `
+        <div>${info}</div>
+        <div style="font-size: 10px; opacity: 0.7; margin-top: 2px;">加载中...</div>
+    `;
+
+    imgWrapper.appendChild(img);
+    container.appendChild(labelElement);
+    container.appendChild(imgWrapper);
+    container.appendChild(infoElement);
+
+    return container;
 }
 
 // 下载图片到本地 - 直接下载版本
