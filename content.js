@@ -7709,28 +7709,34 @@ function showImageLightbox(resultImageUrl, title, metadata) {
         mainContent.appendChild(resultContainer);
 
     } else {
-        // 单图模式：只显示生成结果
+        // 单图模式：只显示生成结果 - 添加滚动支持
         debugLog('创建单图查看模式');
 
         const singleContainer = document.createElement('div');
         singleContainer.style.cssText = `
             max-width: 95%;
-            max-height: 100%;
+            max-height: 85vh;
             display: flex;
             justify-content: center;
-            align-items: center;
+            align-items: flex-start;
+            overflow: auto;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
         `;
 
         const img = document.createElement('img');
         img.src = resultImageUrl;
         img.alt = title;
         img.style.cssText = `
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: contain;
-            border-radius: 12px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
-            border: 2px solid rgba(255, 255, 255, 0.1);
+            width: auto;
+            height: auto;
+            max-width: none;
+            max-height: none;
+            border-radius: 8px;
+            min-width: 400px;
+            min-height: 300px;
         `;
 
         singleContainer.appendChild(img);
@@ -7931,30 +7937,33 @@ function createImageComparisonContainer(imageUrl, label, info, accentColor) {
     `;
     labelElement.textContent = label;
 
-    // 图片容器
+    // 图片容器 - 添加滚动支持
     const imgWrapper = document.createElement('div');
     imgWrapper.style.cssText = `
         position: relative;
         max-width: 100%;
         max-height: 70vh;
         border-radius: 12px;
-        overflow: hidden;
+        overflow: auto;
         box-shadow: 0 15px 50px rgba(0, 0, 0, 0.3);
         border: 3px solid rgba(255, 255, 255, 0.1);
         background: ${accentColor || '#f8fafc'};
         display: flex;
         justify-content: center;
-        align-items: center;
+        align-items: flex-start;
     `;
 
     const img = document.createElement('img');
     img.src = imageUrl;
     img.alt = label;
     img.style.cssText = `
-        max-width: 100%;
-        max-height: 100%;
-        object-fit: contain;
+        width: auto;
+        height: auto;
+        max-width: none;
+        max-height: none;
         border-radius: 8px;
+        min-width: 300px;
+        min-height: 200px;
     `;
 
     // 加载状态处理
@@ -7973,6 +7982,46 @@ function createImageComparisonContainer(imageUrl, label, info, accentColor) {
                 </div>
             `;
         }
+
+        // 检查是否需要滚动并添加提示
+        setTimeout(() => {
+            const needsVerticalScroll = img.scrollHeight > imgWrapper.clientHeight;
+            const needsHorizontalScroll = img.scrollWidth > imgWrapper.clientWidth;
+
+            if (needsVerticalScroll || needsHorizontalScroll) {
+                const scrollHint = document.createElement('div');
+                scrollHint.style.cssText = `
+                    position: absolute;
+                    top: 8px;
+                    right: 8px;
+                    background: rgba(0, 0, 0, 0.8);
+                    color: white;
+                    padding: 4px 8px;
+                    border-radius: 12px;
+                    font-size: 10px;
+                    font-weight: 500;
+                    opacity: 1;
+                    transition: opacity 0.3s ease;
+                    pointer-events: none;
+                    z-index: 10;
+                `;
+
+                if (needsVerticalScroll && needsHorizontalScroll) {
+                    scrollHint.innerHTML = '↕️↔️ 滚动查看';
+                } else if (needsVerticalScroll) {
+                    scrollHint.innerHTML = '↕️ 滚动查看';
+                } else {
+                    scrollHint.innerHTML = '↔️ 滚动查看';
+                }
+
+                imgWrapper.appendChild(scrollHint);
+
+                // 3秒后自动隐藏
+                setTimeout(() => {
+                    scrollHint.style.opacity = '0';
+                }, 3000);
+            }
+        }, 100);
     };
 
     img.onerror = () => {
