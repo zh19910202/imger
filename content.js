@@ -7081,8 +7081,8 @@ async function pollRunningHubTaskStatus(apiKey, taskId, onTick) {
     window._rhCancelRequested = window._rhCancelRequested || false;
     const headers = { 'Host': 'www.runninghub.cn', 'Content-Type': 'application/json' };
     const body = JSON.stringify({ apiKey, taskId });
-    const intervalMs = 1500;
-    const maxWaitMs = 120000;
+    const intervalMs = 3000;
+    const maxWaitMs = 210000;
     const start = Date.now();
 
     debugLog('开始轮询任务状态', { taskId, intervalMs, maxWaitMs });
