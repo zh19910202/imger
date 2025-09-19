@@ -7,6 +7,19 @@
 // === 模块兼容层 ===
 // 访问常量的便捷方式，向后兼容
 const CONSTANTS = window.AuxisConstants || {};
+
+// 初始化 RunningHub Manager
+let runningHubManager = null;
+if (window.RunningHubManager) {
+    runningHubManager = new window.RunningHubManager();
+
+    // 添加初始化完成回调
+    if (runningHubManager.stateManager) {
+        runningHubManager.stateManager.addListener('initialized', () => {
+            debugLog('RunningHub Manager 初始化完成，设置完成');
+        });
+    }
+}
 // === 模块兼容层结束 ===
 
 // 全局变量
@@ -6009,14 +6022,27 @@ function showDimensionCheckModal(imageInfo, isDimensionValid) {
         });
 
         // 恢复任务状态显示
+        debugLog('🔄 [MODAL] 开始恢复任务状态显示', {
+            taskId: currentPageTaskInfo.taskId,
+            statusMessage: currentPageTaskInfo.statusMessage,
+            status: currentPageTaskInfo.status
+        });
         updateDimensionModalProgress(
             `🆔 任务ID: ${currentPageTaskInfo.taskId}\n${currentPageTaskInfo.statusMessage || '✅ 任务已完成'}`
         );
 
         // 恢复结果显示
+        debugLog('🎨 [MODAL] 开始恢复结果显示', {
+            hasResults: !!cachedRunningHubResults,
+            resultType: typeof cachedRunningHubResults
+        });
         renderRunningHubResultsInModal(cachedRunningHubResults);
 
         // 恢复按钮状态
+        debugLog('🔧 [MODAL] 开始恢复按钮状态', {
+            hasButton: !!submitBtn,
+            targetStatus: currentPageTaskInfo.status || 'success'
+        });
         if (submitBtn) {
             enableSubmitButton(submitBtn, currentPageTaskInfo.status || 'success');
         }
@@ -6028,10 +6054,38 @@ function showDimensionCheckModal(imageInfo, isDimensionValid) {
         addCacheIndicator();
         addClearCacheButton();
 
+        debugLog('✅ [MODAL] 状态恢复完成', {
+            taskId: currentPageTaskInfo.taskId,
+            finalStatus: currentPageTaskInfo.status,
+            notificationShown: true,
+            timestamp: new Date().toISOString()
+        });
         showNotification('已恢复上次的生成结果', 2000);
     }
 
-    if (!cachedRunningHubResults && window._rhPollingActive && window._rhTaskIdForCancel && !window._rhCancelRequested) {
+    // 检查是否需要显示进行中状态（更精确的逻辑）
+    const hasValidCache = cachedRunningHubResults && currentPageTaskInfo;
+    const isActuallyPolling = window._rhPollingActive && window._rhTaskIdForCancel && !window._rhCancelRequested;
+
+    // 调试：详细检查轮询状态
+    debugLog('模态框状态检查', {
+        hasValidCache,
+        'window._rhPollingActive': window._rhPollingActive,
+        'window._rhTaskIdForCancel': window._rhTaskIdForCancel,
+        'window._rhCancelRequested': window._rhCancelRequested,
+        isActuallyPolling,
+        'stateManager.isPollingActive': runningHubManager?.getStateManager()?.get('isPollingActive'),
+        'cachedResults exists': !!cachedRunningHubResults,
+        'currentTaskInfo exists': !!currentPageTaskInfo
+    });
+
+    if (!hasValidCache && isActuallyPolling) {
+        debugLog('检测到正在进行的任务，显示进行中状态', {
+            taskId: window._rhTaskIdForCancel,
+            pollingActive: window._rhPollingActive,
+            cancelRequested: window._rhCancelRequested
+        });
+
         updateDimensionModalProgress(`🆔 任务ID: ${window._rhTaskIdForCancel}\n📊 状态: 正在执行中...`);
         showRhCancelBtn();
 
@@ -6039,6 +6093,16 @@ function showDimensionCheckModal(imageInfo, isDimensionValid) {
         if (submitBtn) {
             disableSubmitButton(submitBtn);
         }
+    } else if (hasValidCache) {
+        debugLog('有缓存结果，确保轮询状态已重置', {
+            taskId: currentPageTaskInfo.taskId,
+            cacheStatus: currentPageTaskInfo.status
+        });
+
+        // 有缓存就确保轮询状态被重置
+        resetRunningHubPollingState();
+    } else {
+        debugLog('无缓存且非轮询状态，应显示初始状态');
     }
 
     // 按钮悬停效果
@@ -6136,7 +6200,17 @@ function disableSubmitButton(submitBtn) {
 
 // 启用提交按钮
 function enableSubmitButton(submitBtn, status = 'ready') {
-    if (!submitBtn) return;
+    debugLog('🔧 [BUTTON] 启用提交按钮', {
+        buttonExists: !!submitBtn,
+        status,
+        currentDisabled: submitBtn ? submitBtn.disabled : 'no button',
+        timestamp: new Date().toISOString()
+    });
+
+    if (!submitBtn) {
+        debugLog('❌ [BUTTON] 无法启用按钮：按钮不存在');
+        return;
+    }
 
     submitBtn.disabled = false;
     submitBtn.style.opacity = '1';
@@ -6202,7 +6276,14 @@ function enableSubmitButton(submitBtn, status = 'ready') {
         submitBtn.style.background = 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)';
     }
 
-    debugLog('提交按钮已启用', { status });
+    debugLog('✅ [BUTTON] 提交按钮已启用完成', {
+        status,
+        finalDisabled: submitBtn.disabled,
+        finalOpacity: submitBtn.style.opacity,
+        finalCursor: submitBtn.style.cursor,
+        buttonText: submitBtn.textContent.trim(),
+        timestamp: new Date().toISOString()
+    });
 }
 
 // 缓存RunningHub结果
@@ -6489,73 +6570,122 @@ async function submitDimensionCheck(comment) {
                 showRhCancelBtn();
 
                 try {
-                    const poll = await pollRunningHubTaskStatus(apiKey, taskId, (tick) => {
+                    // 开始轮询
+                    const pollResult = await pollRunningHubTaskStatus(apiKey, taskId, (tick) => {
                         updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n📊 状态: ${tick.status || 'RUNNING'}${tick.msg ? ' (' + tick.msg + ')' : ''}\n🔄 第${tick.pollCount || 0}次查询 - ${Math.round((tick.elapsed || 0) / 1000)}秒`);
                     });
 
-                    debugLog('轮询完成', poll);
+                    debugLog('轮询完成', pollResult);
 
-                    if (poll.final === 'SUCCESS') {
+                    // 处理轮询成功的结果
+                    if (pollResult.final === 'SUCCESS') {
                         updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n✅ 任务成功，正在获取结果...`);
                         try {
                             const outs = await fetchRunningHubTaskOutputs(apiKey, taskId);
+                            debugLog('🔄 [POLL] 获取到任务输出，开始渲染', {
+                                taskId,
+                                outputs: outs,
+                                outputsType: typeof outs,
+                                outputsKeys: outs ? Object.keys(outs) : 'null'
+                            });
                             renderRunningHubResultsInModal(outs);
-                            updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n✅ 任务已完成 - 耗时${Math.round(poll.totalTime / 1000)}秒`);
+                            debugLog('✅ [POLL] 结果渲染调用完成，更新进度显示', {
+                                taskId,
+                                totalTime: Math.round(pollResult.totalTime / 1000)
+                            });
+                            debugLog('📊 [POLL] 开始更新进度显示为任务完成', {
+                                taskId,
+                                totalTime: Math.round(pollResult.totalTime / 1000)
+                            });
+                            updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n✅ 任务已完成 - 耗时${Math.round(pollResult.totalTime / 1000)}秒`);
+                            debugLog('✅ [POLL] 进度显示更新完成', {
+                                taskId,
+                                message: `任务已完成 - 耗时${Math.round(pollResult.totalTime / 1000)}秒`
+                            });
 
                             // 缓存成功的结果
-                            cacheRunningHubResults(taskId, outs, {
+                            const cacheSuccess = cacheRunningHubResults(taskId, outs, {
                                 status: 'success',
-                                statusMessage: `✅ 任务已完成 - 耗时${Math.round(poll.totalTime / 1000)}秒`,
+                                statusMessage: `✅ 任务已完成 - 耗时${Math.round(pollResult.totalTime / 1000)}秒`,
                                 comment: comment,
                                 completedAt: new Date().toISOString()
                             });
 
-                            hideRhCancelBtn();
+                            // 调试：检查缓存是否成功
+                            if (window.AuxisLogger) {
+                                window.AuxisLogger.debug('任务完成，缓存结果', {
+                                    cacheSuccess,
+                                    hasCache: !!window.cachedRunningHubResults,
+                                    hasTaskInfo: !!window.currentPageTaskInfo
+                                });
+                            }
+
                             // 任务成功完成，启用按钮为完成状态
+                            debugLog('🎯 [POLL] 任务成功完成，启用按钮为完成状态', {
+                                taskId,
+                                buttonExists: !!submitBtn,
+                                currentButtonState: submitBtn ? submitBtn.disabled : 'no button'
+                            });
                             enableSubmitButton(submitBtn, 'success');
+
+                            // 立即重置轮询状态，避免模态框状态检查误判
+                            debugLog('🔄 [POLL] 任务成功完成，立即重置轮询状态');
+                            resetRunningHubPollingState();
                         } catch (e) {
                             debugLog('获取输出失败:', e);
                             updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n⚠️ 任务完成，但获取输出失败：${e.message}`);
                             // 获取输出失败，允许重新提交
                             enableSubmitButton(submitBtn, 'failed');
                         }
-                    } else if (poll.final === 'FAILED') {
-                        debugLog('任务失败', poll.raw);
-                        updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n❌ 任务失败 - ${poll.raw?.msg || '未知原因'}`);
-                        hideRhCancelBtn();
+                    } else if (pollResult.final === 'FAILED') {
+                        debugLog('任务失败', pollResult.raw);
+                        updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n❌ 任务失败 - ${pollResult.raw?.msg || '未知原因'}`);
 
                         // 如果有失败详情，显示给用户
-                        if (poll.raw?.data?.failedReason) {
-                            const failedReason = poll.raw.data.failedReason;
+                        if (pollResult.raw?.data?.failedReason) {
+                            const failedReason = pollResult.raw.data.failedReason;
                             updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n❌ 失败原因：${failedReason.exception_message || failedReason.exception_type || '系统错误'}`);
                         }
                         // 任务失败，允许重新提交
                         enableSubmitButton(submitBtn, 'failed');
-                    } else if (poll.final === 'ERROR') {
-                        debugLog('任务出错', poll.raw);
-                        updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n❌ 任务出错 - ${poll.raw?.msg || '系统错误'}`);
-                        hideRhCancelBtn();
+                    } else if (pollResult.final === 'ERROR') {
+                        debugLog('任务出错', pollResult.raw);
+                        updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n❌ 任务出错 - ${pollResult.raw?.msg || '系统错误'}`);
                         // 任务出错，允许重新提交
                         enableSubmitButton(submitBtn, 'failed');
-                    } else if (poll.final === 'CANCELED') {
-                        debugLog('任务已取消', poll.raw);
+                    } else if (pollResult.final === 'CANCELED') {
+                        debugLog('任务已取消', pollResult.raw);
                         updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n🚫 任务已取消`);
-                        hideRhCancelBtn();
                         // 任务被取消，允许重新提交
                         enableSubmitButton(submitBtn, 'canceled');
                     } else {
-                        debugLog('未知的最终状态', poll);
-                        updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n❓ 任务结束：${poll.final}`);
-                        hideRhCancelBtn();
+                        debugLog('未知的最终状态', pollResult);
+                        updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n❓ 任务结束：${pollResult.final}`);
                         // 未知状态，允许重新提交
                         enableSubmitButton(submitBtn, 'failed');
                     }
-                } catch (e) {
-                    debugLog('轮询过程失败:', e);
-                    updateDimensionModalProgress('轮询失败：' + e.message);
-                    hideRhCancelBtn();
+                } catch (error) {
+                    // 处理轮询过程中的错误
+                    debugLog('轮询过程失败:', error);
+                    updateDimensionModalProgress('轮询失败：' + error.message);
                     // 轮询失败，允许重新提交
                     enableSubmitButton(submitBtn, 'failed');
+                } finally {
+                    // 确保无论成功还是失败，都重置轮询状态
+                    debugLog('轮询结束，执行最终状态重置');
+                    hideRhCancelBtn();
+
+                    if (window.runningHubManager && window.runningHubManager.isInitialized()) {
+                        window.runningHubManager.getStateManager().resetPollingState();
+                        debugLog('RunningHub polling state has been reset.');
+                    } else {
+                        // 兼容模式：手动重置所有状态
+                        window._rhPollingActive = false;
+                        window._rhCancelRequested = false;
+                        window._rhTaskIdForCancel = null;
+                        window._rhApiKeyForCancel = null;
+                        debugLog('Polling state reset via compatibility mode.');
+                    }
                 }
             } else {
                 throw new Error('AI应用任务创建失败: ' + (taskResponse.msg || '未知错误'));
@@ -6574,28 +6704,75 @@ async function submitDimensionCheck(comment) {
     // closeDimensionCheckModal();
 }
 
+// 辅助函数：重置RunningHub轮询状态
+function resetRunningHubPollingState() {
+    if (runningHubManager && runningHubManager.isInitialized()) {
+        runningHubManager.getStateManager().resetPollingState();
+        debugLog('通过新模块重置轮询状态');
+    } else {
+        // 兼容模式：手动重置
+        window._rhPollingActive = false;
+        window._rhCancelRequested = false;
+        window._rhTaskIdForCancel = null;
+        window._rhApiKeyForCancel = null;
+        debugLog('通过兼容模式重置轮询状态');
+    }
+}
+
 // R键功能：手动触发图片尺寸检查
 async function manualDimensionCheck() {
     debugLog('手动触发图片尺寸检查');
 
-    // 首先检查是否有缓存的结果可以快速显示
-    if (cachedRunningHubResults && currentPageTaskInfo) {
+    // 确保 RunningHub Manager 已初始化
+    if (runningHubManager && !runningHubManager.isInitialized()) {
+        debugLog('等待 RunningHub Manager 初始化完成...');
+        // 简单等待一下
+        await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    // 检查缓存的两种方式：新模块和兼容模式
+    let cachedResults = null;
+    let taskInfo = null;
+
+    if (runningHubManager && runningHubManager.isInitialized()) {
+        // 使用新模块
+        const cacheManager = runningHubManager.getCacheManager();
+        cachedResults = cacheManager.getCachedResults();
+        taskInfo = cacheManager.getCurrentTaskInfo();
+        debugLog('通过新模块检查缓存', { hasCache: !!cachedResults, taskInfo });
+    } else {
+        // 回退到兼容模式
+        cachedResults = window.cachedRunningHubResults;
+        taskInfo = window.currentPageTaskInfo;
+        debugLog('通过兼容模式检查缓存', { hasCache: !!cachedResults, taskInfo });
+    }
+
+    // 检查是否有缓存的结果可以快速显示
+    if (cachedResults && taskInfo) {
         debugLog('检测到缓存结果，询问用户是否查看', {
-            taskId: currentPageTaskInfo.taskId,
-            cachedAt: new Date(currentPageTaskInfo.cachedAt).toLocaleString()
+            taskId: taskInfo.taskId,
+            cachedAt: new Date(taskInfo.cachedAt).toLocaleString(),
+            status: taskInfo.status
         });
 
-        const timeAgo = Math.round((Date.now() - currentPageTaskInfo.cachedAt) / 60000);
+        // 如果缓存存在，说明任务已完成，确保轮询状态正确
+        resetRunningHubPollingState();
+
+        const timeAgo = Math.round((Date.now() - taskInfo.cachedAt) / 60000);
         const shouldViewCached = confirm(
             `检测到${timeAgo < 1 ? '刚才' : timeAgo + '分钟前'}的生成结果缓存\n` +
-            `任务ID: ${currentPageTaskInfo.taskId}\n` +
-            `需求: ${currentPageTaskInfo.comment || '无'}\n\n` +
+            `任务ID: ${taskInfo.taskId}\n` +
+            `需求: ${taskInfo.comment || '无'}\n\n` +
             `是否查看缓存的结果？\n` +
             `点击"确定"查看缓存，点击"取消"重新检查图片`
         );
 
         if (shouldViewCached) {
-            debugLog('用户选择查看缓存结果');
+            debugLog('🎯 [CACHE] 用户选择查看缓存结果，准备显示模态框', {
+                taskId: taskInfo.taskId,
+                hasOriginalImage: !!originalImage,
+                modalWillShow: true
+            });
             // 直接显示模态框，缓存会自动恢复
             const imageInfoForModal = {
                 src: originalImage?.src || 'cached_result',
@@ -6603,12 +6780,21 @@ async function manualDimensionCheck() {
                 height: originalImage?.height || 0,
                 name: originalImage?.name || '缓存结果'
             };
+            debugLog('🎯 [CACHE] 调用showDimensionCheckModal显示缓存', {
+                imageInfo: imageInfoForModal,
+                isDimensionValid: true
+            });
             showDimensionCheckModal(imageInfoForModal, true);
             showNotification('已显示缓存的生成结果', 2000);
             return true;
         } else {
             debugLog('用户选择重新检查，清除缓存');
-            clearRunningHubCache();
+            // 使用新模块或兼容方式清除缓存
+            if (runningHubManager && runningHubManager.isInitialized()) {
+                runningHubManager.getCacheManager().clear();
+            } else {
+                clearRunningHubCache();
+            }
         }
     }
 
@@ -7029,8 +7215,21 @@ async function uploadToRunningHub(imageFile, apiKey, comment) {
 // ========== RunningHub 轮询与结果展示（最小增量） ==========
 
 function updateDimensionModalProgress(text) {
+    debugLog('📊 [PROGRESS] 更新进度显示', {
+        text: text.substring(0, 100) + (text.length > 100 ? '...' : ''),
+        modalOpen: isDimensionCheckModalOpen,
+        modalExists: !!dimensionCheckModal,
+        timestamp: new Date().toISOString()
+    });
+
     try {
-        if (!isDimensionCheckModalOpen || !dimensionCheckModal) return;
+        if (!isDimensionCheckModalOpen || !dimensionCheckModal) {
+            debugLog('❌ [PROGRESS] 模态框未打开或不存在，跳过更新', {
+                modalOpen: isDimensionCheckModalOpen,
+                modalExists: !!dimensionCheckModal
+            });
+            return;
+        }
         let bar = dimensionCheckModal.querySelector('#rh-status-bar');
         if (!bar) {
             bar = document.createElement('div');
@@ -7077,6 +7276,13 @@ function updateDimensionModalProgress(text) {
         // 格式化显示文本
         const formattedText = typeof text === 'string' ? text : JSON.stringify(text);
         textEl.textContent = formattedText;
+
+        debugLog('✅ [PROGRESS] 进度文本已更新到DOM', {
+            formattedText,
+            elementExists: !!textEl,
+            elementId: textEl.id,
+            finalContent: textEl.textContent
+        });
 
         // 根据内容设置样式
         if (formattedText.includes('✅') || formattedText.includes('成功')) {
@@ -7189,7 +7395,12 @@ async function pollRunningHubTaskStatus(apiKey, taskId, onTick) {
 
         if (window._rhCancelRequested) {
             debugLog('检测到取消请求，停止轮询');
+            // 重要：通过新模块和兼容模式双重重置轮询状态（取消情况）
             window._rhPollingActive = false;
+            if (window.runningHubManager && window.runningHubManager.isInitialized()) {
+                window.runningHubManager.getStateManager().set('isPollingActive', false);
+                debugLog('取消时通过新模块重置轮询状态为false');
+            }
             throw new Error('任务已取消');
         }
 
@@ -7264,7 +7475,13 @@ async function pollRunningHubTaskStatus(apiKey, taskId, onTick) {
                 if (btn) btn.style.display = 'none';
             } catch (_) {}
 
+            // 重要：通过新模块和兼容模式双重重置轮询状态
             window._rhPollingActive = false;
+            if (window.runningHubManager && window.runningHubManager.isInitialized()) {
+                window.runningHubManager.getStateManager().set('isPollingActive', false);
+                debugLog('通过新模块重置轮询状态为false');
+            }
+
             return { final: status, raw: data, pollCount, totalTime: Date.now() - start };
         }
 
@@ -7290,7 +7507,13 @@ async function pollRunningHubTaskStatus(apiKey, taskId, onTick) {
                 if (btn) btn.style.display = 'none';
             } catch (_) {}
 
+            // 重要：通过新模块和兼容模式双重重置轮询状态（超时情况）
             window._rhPollingActive = false;
+            if (window.runningHubManager && window.runningHubManager.isInitialized()) {
+                window.runningHubManager.getStateManager().set('isPollingActive', false);
+                debugLog('超时时通过新模块重置轮询状态为false');
+            }
+
             throw new Error(`轮询超时，任务仍未完成。最后状态: ${status}, 轮询${pollCount}次`);
         }
 
@@ -7381,9 +7604,20 @@ async function cancelRunningHubTask(apiKey, taskId) {
 
 function renderRunningHubResultsInModal(outputsJson) {
     try {
-        debugLog('开始渲染RunningHub结果', outputsJson);
+        debugLog('🎨 [RENDER] 开始渲染RunningHub结果', {
+            outputsJson,
+            modalOpen: isDimensionCheckModalOpen,
+            modalExists: !!dimensionCheckModal,
+            timestamp: new Date().toISOString()
+        });
 
-        if (!isDimensionCheckModalOpen || !dimensionCheckModal) return;
+        if (!isDimensionCheckModalOpen || !dimensionCheckModal) {
+            debugLog('❌ [RENDER] 模态框未打开或不存在，跳过渲染', {
+                modalOpen: isDimensionCheckModalOpen,
+                modalExists: !!dimensionCheckModal
+            });
+            return;
+        }
         let wrap = dimensionCheckModal.querySelector('#rh-result-wrap');
         if (!wrap) {
             wrap = document.createElement('div');
@@ -7404,17 +7638,24 @@ function renderRunningHubResultsInModal(outputsJson) {
         const outputs = outputsJson?.data || outputsJson?.outputs || outputsJson;
         const items = Array.isArray(outputs) ? outputs : (outputs?.outputs || []);
 
-        debugLog('解析输出数据', {
+        debugLog('🔍 [RENDER] 解析输出数据', {
             outputsJson,
             outputs,
             items: items ? items.length : 'null',
-            itemsType: typeof items
+            itemsType: typeof items,
+            itemsIsArray: Array.isArray(items),
+            hasImageItems: items ? items.filter(item => item?.type === 'image' || (item?.value && typeof item.value === 'string' && item.value.startsWith('http'))).length : 0
         });
 
         wrap.innerHTML = '';
 
         if (!items || items.length === 0) {
-            debugLog('无输出项目');
+            debugLog('⚠️ [RENDER] 无输出项目或输出为空', {
+                hasItems: !!items,
+                itemsLength: items ? items.length : 'null',
+                itemsContent: items,
+                rawOutputsJson: outputsJson
+            });
             wrap.innerHTML = `
                 <div style="text-align: center; padding: 20px; color: #666;">
                     <div style="font-size: 18px; margin-bottom: 10px;">📭</div>
@@ -7763,7 +8004,12 @@ function renderRunningHubResultsInModal(outputsJson) {
                 </div>
             `;
         } else {
-            debugLog('结果渲染完成', { itemCount: items.length });
+            debugLog('✅ [RENDER] 结果渲染完成', {
+                itemCount: items.length,
+                hasRenderedContent,
+                renderTimestamp: new Date().toISOString(),
+                modalStillOpen: isDimensionCheckModalOpen
+            });
         }
 
     } catch (e) {
