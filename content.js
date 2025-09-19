@@ -7376,8 +7376,11 @@ function renderRunningHubResultsInModal(outputsJson) {
                     cursor: pointer;
                     position: relative;
                     border-radius: 8px;
-                    overflow: auto;
+                    overflow: hidden;
                     transition: all 0.2s ease;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
                     max-height: 400px;
                     max-width: 100%;
                     border: 1px solid #e2e8f0;
@@ -7388,17 +7391,16 @@ function renderRunningHubResultsInModal(outputsJson) {
                 img.src = fileUrl;
                 img.alt = 'RunningHub生成结果';
                 img.style.cssText = `
-                    max-width: none;
-                    max-height: none;
+                    max-width: 100%;
+                    max-height: 100%;
                     width: auto;
                     height: auto;
+                    object-fit: contain;
                     border-radius: 8px;
                     box-shadow: 0 4px 12px rgba(0,0,0,0.1);
                     border: none;
                     transition: all 0.2s ease;
                     display: block;
-                    min-width: 200px;
-                    min-height: 100px;
                 `;
 
                 // 添加悬停提示
@@ -7420,7 +7422,7 @@ function renderRunningHubResultsInModal(outputsJson) {
                     font-size: 16px;
                     font-weight: 500;
                 `;
-                hoverOverlay.innerHTML = '🔍 点击查看大图 • 滚轮查看更多';
+                hoverOverlay.innerHTML = '🔍 点击查看大图';
 
                 // 悬停效果和滚动提示
                 imgContainer.addEventListener('mouseenter', () => {
@@ -7446,10 +7448,9 @@ function renderRunningHubResultsInModal(outputsJson) {
                     scrollIndicator.style.opacity = '0';
                 });
 
-                // 滚轮事件优化 - 阻止冒泡避免页面滚动
+                // 移除滚轮提示与滚动处理，固定窗口内完整展示
                 imgContainer.addEventListener('wheel', (e) => {
                     e.stopPropagation();
-                    // 让容器内部正常滚动
                 });
 
                 // 点击查看大图
@@ -7482,27 +7483,12 @@ function renderRunningHubResultsInModal(outputsJson) {
                     pointer-events: none;
                     z-index: 10;
                 `;
-                scrollIndicator.innerHTML = '🔄 滚动查看';
+                scrollIndicator.innerHTML = '';
                 imgContainer.appendChild(scrollIndicator);
 
-                // 图片加载完成后检查是否需要滚动
+                // 图片加载完成后，确保在固定窗口内完整展示
                 img.addEventListener('load', () => {
-                    const needsVerticalScroll = img.scrollHeight > imgContainer.clientHeight;
-                    const needsHorizontalScroll = img.scrollWidth > imgContainer.clientWidth;
-
-                    if (needsVerticalScroll || needsHorizontalScroll) {
-                        if (needsVerticalScroll && needsHorizontalScroll) {
-                            scrollIndicator.innerHTML = '↕️↔️ 双向滚动';
-                        } else if (needsVerticalScroll) {
-                            scrollIndicator.innerHTML = '↕️ 垂直滚动';
-                        } else {
-                            scrollIndicator.innerHTML = '↔️ 水平滚动';
-                        }
-                        scrollIndicator.style.opacity = '1';
-                        setTimeout(() => {
-                            scrollIndicator.style.opacity = '0';
-                        }, 3000); // 3秒后自动隐藏
-                    }
+                    scrollIndicator.style.display = 'none';
                 });
 
                 // 操作按钮区域
