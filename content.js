@@ -52,7 +52,19 @@ function hideRhCancelBtn() {
         const btn = document.querySelector('#rh-cancel-btn');
         if (btn) btn.style.display = 'none';
     } catch (_) {}
-};
+}
+
+function showRhCancelBtn() {
+    try {
+        const btn = document.querySelector('#rh-cancel-btn');
+        if (btn) {
+            btn.style.display = '';
+            btn.disabled = false;
+            btn.textContent = '取消任务';
+            btn.style.opacity = '1';
+        }
+    } catch (_) {}
+}
 
 // 已移除：模式状态管理函数
 // function loadModeState() { ... }
@@ -6005,7 +6017,12 @@ function showDimensionCheckModal(imageInfo, isDimensionValid) {
 
         showNotification('已恢复上次的生成结果', 2000);
     }
-    
+
+    if (!cachedRunningHubResults && window._rhPollingActive && window._rhTaskIdForCancel && !window._rhCancelRequested) {
+        updateDimensionModalProgress(`🆔 任务ID: ${window._rhTaskIdForCancel}\n📊 状态: 正在执行中...`);
+        showRhCancelBtn();
+    }
+
     // 按钮悬停效果
     closeBtn.addEventListener('mouseenter', () => {
         closeBtn.style.background = '#f3f4f6';
@@ -7086,6 +7103,8 @@ async function pollRunningHubTaskStatus(apiKey, taskId, onTick) {
     const start = Date.now();
 
     debugLog('开始轮询任务状态', { taskId, intervalMs, maxWaitMs });
+    window._rhPollingActive = true;
+    window._rhLastStatus = 'QUEUED';
 
     // 打印轮询开始信息
     console.log(`\n🚀 ======== RunningHub 轮询开始 ========`);
@@ -7104,6 +7123,7 @@ async function pollRunningHubTaskStatus(apiKey, taskId, onTick) {
 
         if (window._rhCancelRequested) {
             debugLog('检测到取消请求，停止轮询');
+            window._rhPollingActive = false;
             throw new Error('任务已取消');
         }
 
@@ -7117,6 +7137,10 @@ async function pollRunningHubTaskStatus(apiKey, taskId, onTick) {
         const code = data?.code;
         const status = data?.data?.taskStatus || data?.taskStatus || data?.data;
         const msg = data?.msg || data?.message;
+
+        window._rhLastStatus = status;
+        window._rhLastMsg = msg;
+        window._rhLastPollCount = pollCount;
 
         debugLog(`第${pollCount}次轮询结果`, { code, status, msg, rawData: data });
 
@@ -7174,6 +7198,7 @@ async function pollRunningHubTaskStatus(apiKey, taskId, onTick) {
                 if (btn) btn.style.display = 'none';
             } catch (_) {}
 
+            window._rhPollingActive = false;
             return { final: status, raw: data, pollCount, totalTime: Date.now() - start };
         }
 
@@ -7199,6 +7224,7 @@ async function pollRunningHubTaskStatus(apiKey, taskId, onTick) {
                 if (btn) btn.style.display = 'none';
             } catch (_) {}
 
+            window._rhPollingActive = false;
             throw new Error(`轮询超时，任务仍未完成。最后状态: ${status}, 轮询${pollCount}次`);
         }
 
@@ -7265,6 +7291,26 @@ async function fetchRunningHubTaskOutputs(apiKey, taskId) {
     });
 
     return result;
+}
+
+async function cancelRunningHubTask(apiKey, taskId) {
+    window._rhCancelRequested = true;
+    const url = 'https://www.runninghub.cn/task/openapi/cancel';
+    const headers = { 'Host': 'www.runninghub.cn', 'Content-Type': 'application/json' };
+    const body = JSON.stringify({ apiKey, taskId });
+    debugLog('发送取消任务请求', { taskId });
+    const resp = await fetch(url, { method: 'POST', headers, body });
+    if (!resp.ok) {
+        const t = await resp.text().catch(() => '');
+        debugLog('取消任务HTTP错误', { status: resp.status, statusText: resp.statusText, body: t });
+        throw new Error('取消失败: HTTP ' + resp.status);
+    }
+    const data = await resp.json().catch(() => ({}));
+    debugLog('取消任务响应', data);
+    if (data?.code !== 0) {
+        throw new Error(data?.msg || '取消失败');
+    }
+    return data;
 }
 
 function renderRunningHubResultsInModal(outputsJson) {
