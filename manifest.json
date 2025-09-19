@@ -42,6 +42,7 @@
       "js": [
         "src/config/constants.js",
         "src/utils/Logger.js",
+        "src/modules/RunningHubManager.js",
         "resource-extractor.js",
         "content.js"
       ]

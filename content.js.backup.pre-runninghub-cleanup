@@ -8,6 +8,18 @@
 // 访问常量的便捷方式，向后兼容
 const CONSTANTS = window.AuxisConstants || {};
 
+// 初始化 RunningHub Manager
+let runningHubManager = null;
+if (window.RunningHubManager) {
+    runningHubManager = new window.RunningHubManager();
+
+    // 添加初始化完成回调
+    if (runningHubManager.stateManager) {
+        runningHubManager.stateManager.addListener('initialized', () => {
+            debugLog('RunningHub Manager 初始化完成，设置完成');
+        });
+    }
+}
 // === 模块兼容层结束 ===
 
 // 全局变量
@@ -28,14 +40,6 @@ let isComparisonModalOpen = false; // 对比页面开启状态
 let debugMode = false; // 调试模式开关（默认关闭）
 let debugPanel = null; // 调试面板元素
 let debugLogs = []; // 调试日志数组
-
-// 初始化 RunningHub Manager（在 debugLogs 定义之后）
-let runningHubManager = null;
-if (window.RunningHubManager) {
-    runningHubManager = new window.RunningHubManager();
-    debugLog('RunningHub Manager 已设置完成');
-}
-
 // F1 连续无效化相关
 let f1AutoInvalidating = false;
 let f1IntervalMs = 800; // 可调整的执行间隔（毫秒）
@@ -5721,38 +5725,9 @@ function showDimensionCheckModal(imageInfo, isDimensionValid) {
     if (isDimensionCheckModalOpen) {
         return;
     }
-
+    
     debugLog('显示尺寸检查模态框', { isDimensionValid });
-
-    // 统一缓存检查逻辑：优先使用新模块，回退到全局变量
-    let modalCachedResults = null;
-    let modalTaskInfo = null;
-
-    debugLog('🔍 模态框缓存检查开始', {
-        hasRunningHubManager: !!runningHubManager,
-        isManagerInitialized: runningHubManager ? runningHubManager.isInitialized() : false,
-        globalCachedResults: !!cachedRunningHubResults,
-        globalTaskInfo: !!currentPageTaskInfo,
-        windowCachedResults: !!window.cachedRunningHubResults,
-        windowTaskInfo: !!window.currentPageTaskInfo
-    });
-
-    if (runningHubManager && runningHubManager.isInitialized()) {
-        const cacheManager = runningHubManager.getCacheManager();
-        modalCachedResults = cacheManager.getCachedResults();
-        modalTaskInfo = cacheManager.getCurrentTaskInfo();
-        debugLog('📦 从新模块获取缓存', { hasCache: !!modalCachedResults, hasTaskInfo: !!modalTaskInfo });
-    } else {
-        modalCachedResults = window.cachedRunningHubResults;
-        modalTaskInfo = window.currentPageTaskInfo;
-        debugLog('📦 从全局变量获取缓存', {
-            hasCache: !!modalCachedResults,
-            hasTaskInfo: !!modalTaskInfo,
-            cachedResultsType: typeof window.cachedRunningHubResults,
-            taskInfoType: typeof window.currentPageTaskInfo
-        });
-    }
-
+    
     // 创建模态框容器
     dimensionCheckModal = document.createElement('div');
     dimensionCheckModal.className = 'dimension-check-modal';
@@ -6040,42 +6015,36 @@ function showDimensionCheckModal(imageInfo, isDimensionValid) {
     }
 
     // 检查是否有缓存需要恢复（在事件绑定后）
-    if (modalCachedResults && modalTaskInfo) {
+    if (cachedRunningHubResults && currentPageTaskInfo) {
         debugLog('在事件绑定后恢复缓存结果', {
-            taskId: modalTaskInfo.taskId,
-            status: modalTaskInfo.status
+            taskId: currentPageTaskInfo.taskId,
+            status: currentPageTaskInfo.status
         });
 
         // 恢复任务状态显示
         debugLog('🔄 [MODAL] 开始恢复任务状态显示', {
-            taskId: modalTaskInfo.taskId,
-            statusMessage: modalTaskInfo.statusMessage,
-            status: modalTaskInfo.status
+            taskId: currentPageTaskInfo.taskId,
+            statusMessage: currentPageTaskInfo.statusMessage,
+            status: currentPageTaskInfo.status
         });
         updateDimensionModalProgress(
-            `🆔 任务ID: ${modalTaskInfo.taskId}\n${modalTaskInfo.statusMessage || '✅ 任务已完成'}`
+            `🆔 任务ID: ${currentPageTaskInfo.taskId}\n${currentPageTaskInfo.statusMessage || '✅ 任务已完成'}`
         );
 
         // 恢复结果显示
         debugLog('🎨 [MODAL] 开始恢复结果显示', {
-            hasResults: !!modalCachedResults,
-            resultType: typeof modalCachedResults,
-            globalResults: !!window.cachedRunningHubResults,
-            taskInfo: !!modalTaskInfo
+            hasResults: !!cachedRunningHubResults,
+            resultType: typeof cachedRunningHubResults
         });
-        if (modalCachedResults) {
-            renderRunningHubResultsInModal(modalCachedResults);
-        } else {
-            debugLog('❌ [MODAL] 没有缓存结果可以恢复');
-        }
+        renderRunningHubResultsInModal(cachedRunningHubResults);
 
         // 恢复按钮状态
         debugLog('🔧 [MODAL] 开始恢复按钮状态', {
             hasButton: !!submitBtn,
-            targetStatus: modalTaskInfo.status || 'success'
+            targetStatus: currentPageTaskInfo.status || 'success'
         });
         if (submitBtn) {
-            enableSubmitButton(submitBtn, modalTaskInfo.status || 'success');
+            enableSubmitButton(submitBtn, currentPageTaskInfo.status || 'success');
         }
 
         // 隐藏取消按钮
@@ -6095,7 +6064,7 @@ function showDimensionCheckModal(imageInfo, isDimensionValid) {
     }
 
     // 检查是否需要显示进行中状态（更精确的逻辑）
-    const hasValidCache = modalCachedResults && modalTaskInfo;
+    const hasValidCache = cachedRunningHubResults && currentPageTaskInfo;
     const isActuallyPolling = window._rhPollingActive && window._rhTaskIdForCancel && !window._rhCancelRequested;
 
     // 调试：详细检查轮询状态
@@ -6318,7 +6287,51 @@ function enableSubmitButton(submitBtn, status = 'ready') {
 }
 
 // 缓存RunningHub结果
-// RunningHub 函数已移动到 src/modules/RunningHubManager.js
+function cacheRunningHubResults(taskId, resultsData, taskInfo) {
+    try {
+        debugLog('缓存RunningHub结果', {
+            taskId,
+            hasResults: !!resultsData,
+            taskInfo
+        });
+
+        cachedRunningHubResults = {
+            ...resultsData,
+            cachedAt: Date.now(),
+            pageUrl: window.location.href
+        };
+
+        currentPageTaskInfo = {
+            taskId,
+            ...taskInfo,
+            cachedAt: Date.now(),
+            pageUrl: window.location.href
+        };
+
+        lastSuccessfulTaskId = taskId;
+
+        // 在模态框中添加缓存提示
+        if (isDimensionCheckModalOpen) {
+            addCacheIndicator();
+        }
+
+        debugLog('RunningHub结果已缓存', {
+            cachedResultsExists: !!cachedRunningHubResults,
+            taskInfo: currentPageTaskInfo
+        });
+
+    } catch (error) {
+        debugLog('缓存RunningHub结果失败:', error);
+    }
+}
+
+// 清除RunningHub结果缓存
+function clearRunningHubCache() {
+    debugLog('清除RunningHub结果缓存');
+    cachedRunningHubResults = null;
+    currentPageTaskInfo = null;
+    lastSuccessfulTaskId = null;
+}
 
 // 在模态框中添加缓存指示器
 function addCacheIndicator() {
@@ -6532,22 +6545,23 @@ async function submitDimensionCheck(comment) {
         const imageFile = await convertImageToFile(originalImage);
         const uploadResult = await uploadToRunningHub(imageFile, apiKey, comment);
 
-        // 新模块返回的是对象，不需要 JSON.parse
-        if (uploadResult.success && uploadResult.fileName) {
-            const imageFileName = uploadResult.fileName;
+        // 解析上传API响应
+        const uploadResponse = JSON.parse(uploadResult);
+        if (uploadResponse.code === 0) {
+            const imageFileName = uploadResponse.data.fileName;
             showNotification(`图片上传成功！正在创建AI应用任务...`, 2000);
-            debugLog('Running Hub图片上传成功:', uploadResult);
+            debugLog('Running Hub图片上传成功:', uploadResponse);
 
             // 图片上传成功后，调用AI应用API
             const taskResult = await createWorkflowTask(apiKey, comment || '1 girl in classroom', imageFileName);
 
-            debugLog('createWorkflowTask 返回结果:', taskResult);
-
-            // 新模块返回的是对象，不需要 JSON.parse
-            if (taskResult.success && taskResult.taskId) {
-                const taskId = taskResult.taskId;
-                showNotification(`AI应用任务创建成功！\n任务ID: ${taskId}${comment ? '\n需求: ' + comment : ''}`, 5000);
-                debugLog('AI应用任务创建成功:', taskResult);
+            // 解析AI应用任务响应
+            const taskResponse = JSON.parse(taskResult);
+            if (taskResponse.code === 0) {
+                const taskId = taskResponse.data.taskId;
+                const taskStatus = taskResponse.data.taskStatus;
+                showNotification(`AI应用任务创建成功！\n任务ID: ${taskId}\n状态: ${taskStatus}${comment ? '\n需求: ' + comment : ''}`, 5000);
+                debugLog('AI应用任务创建成功:', taskResponse);
 
                 // 开始轮询并展示结果
                 updateDimensionModalProgress(`任务已创建\n🆔 任务ID: ${taskId}\n📊 状态: 正在执行中...`);
@@ -6590,11 +6604,6 @@ async function submitDimensionCheck(comment) {
                             });
 
                             // 缓存成功的结果
-                            debugLog('📝 准备缓存 RunningHub 结果', {
-                                taskId,
-                                hasOutputs: !!outs,
-                                outputsKeys: outs ? Object.keys(outs) : 'null'
-                            });
                             const cacheSuccess = cacheRunningHubResults(taskId, outs, {
                                 status: 'success',
                                 statusMessage: `✅ 任务已完成 - 耗时${Math.round(pollResult.totalTime / 1000)}秒`,
@@ -6603,11 +6612,6 @@ async function submitDimensionCheck(comment) {
                             });
 
                             // 调试：检查缓存是否成功
-                            debugLog('📝 缓存结果检查', {
-                                cacheSuccess,
-                                globalCachedResults: !!window.cachedRunningHubResults,
-                                globalTaskInfo: !!window.currentPageTaskInfo
-                            });
                             if (window.AuxisLogger) {
                                 window.AuxisLogger.debug('任务完成，缓存结果', {
                                     cacheSuccess,
@@ -6672,7 +6676,7 @@ async function submitDimensionCheck(comment) {
                     hideRhCancelBtn();
 
                     if (window.runningHubManager && window.runningHubManager.isInitialized()) {
-                        window.runningHubManager.getTaskManager().resetPollingState();
+                        window.runningHubManager.getStateManager().resetPollingState();
                         debugLog('RunningHub polling state has been reset.');
                     } else {
                         // 兼容模式：手动重置所有状态
@@ -6684,10 +6688,10 @@ async function submitDimensionCheck(comment) {
                     }
                 }
             } else {
-                throw new Error('AI应用任务创建失败: ' + (taskResult.message || '未知错误'));
+                throw new Error('AI应用任务创建失败: ' + (taskResponse.msg || '未知错误'));
             }
         } else {
-            throw new Error(uploadResult.message || '图片上传失败');
+            throw new Error(uploadResponse.msg || '图片上传失败');
         }
     } catch (error) {
         debugLog('运行失败:', error);
@@ -6701,7 +6705,19 @@ async function submitDimensionCheck(comment) {
 }
 
 // 辅助函数：重置RunningHub轮询状态
-// resetRunningHubPollingState 函数已移动到 src/modules/RunningHubManager.js
+function resetRunningHubPollingState() {
+    if (runningHubManager && runningHubManager.isInitialized()) {
+        runningHubManager.getStateManager().resetPollingState();
+        debugLog('通过新模块重置轮询状态');
+    } else {
+        // 兼容模式：手动重置
+        window._rhPollingActive = false;
+        window._rhCancelRequested = false;
+        window._rhTaskIdForCancel = null;
+        window._rhApiKeyForCancel = null;
+        debugLog('通过兼容模式重置轮询状态');
+    }
+}
 
 // R键功能：手动触发图片尺寸检查
 async function manualDimensionCheck() {
@@ -6717,13 +6733,6 @@ async function manualDimensionCheck() {
     // 检查缓存的两种方式：新模块和兼容模式
     let cachedResults = null;
     let taskInfo = null;
-
-    debugLog('🔍 开始检查缓存状态', {
-        hasRunningHubManager: !!runningHubManager,
-        isManagerInitialized: runningHubManager ? runningHubManager.isInitialized() : false,
-        globalCachedResults: !!window.cachedRunningHubResults,
-        globalTaskInfo: !!window.currentPageTaskInfo
-    });
 
     if (runningHubManager && runningHubManager.isInitialized()) {
         // 使用新模块
@@ -7172,7 +7181,36 @@ async function convertViaCanvas(imageInfo) {
 }
 
 // 上传到Running Hub API
-// uploadToRunningHub 函数已移动到 src/modules/RunningHubManager.js
+async function uploadToRunningHub(imageFile, apiKey, comment) {
+    const myHeaders = new Headers();
+    myHeaders.append("Host", "www.runninghub.cn");
+    
+    const formdata = new FormData();
+    formdata.append("apiKey", apiKey);
+    formdata.append("file", imageFile, imageFile.name);
+    formdata.append("fileType", "image");
+    
+    // 如果有备注，也添加到请求中
+    if (comment) {
+        formdata.append("description", comment);
+    }
+    
+    const requestOptions = {
+        method: 'POST',
+        headers: myHeaders,
+        body: formdata,
+        redirect: 'follow'
+    };
+    
+    const response = await fetch("https://www.runninghub.cn/task/openapi/upload", requestOptions);
+    
+    if (!response.ok) {
+        throw new Error(`HTTP错误: ${response.status}`);
+    }
+    
+    const result = await response.text();
+    return result;
+}
 
 // ========== RunningHub 轮询与结果展示（最小增量） ==========
 
@@ -7324,7 +7362,165 @@ function updateDimensionModalProgress(text) {
     } catch (_) {}
 }
 
-// pollRunningHubTaskStatus 函数已移动到 src/modules/RunningHubManager.js
+async function pollRunningHubTaskStatus(apiKey, taskId, onTick) {
+    const statusUrl = 'https://www.runninghub.cn/task/openapi/status';
+    // 保存到全局，供取消按钮使用
+    window._rhTaskIdForCancel = taskId;
+    window._rhApiKeyForCancel = apiKey;
+    window._rhCancelRequested = window._rhCancelRequested || false;
+    const headers = { 'Host': 'www.runninghub.cn', 'Content-Type': 'application/json' };
+    const body = JSON.stringify({ apiKey, taskId });
+    const intervalMs = 3000;
+    const maxWaitMs = 210000;
+    const start = Date.now();
+
+    debugLog('开始轮询任务状态', { taskId, intervalMs, maxWaitMs });
+    window._rhPollingActive = true;
+    window._rhLastStatus = 'QUEUED';
+
+    // 打印轮询开始信息
+    console.log(`\n🚀 ======== RunningHub 轮询开始 ========`);
+    console.log(`🕐 开始时间: ${new Date().toLocaleTimeString()}`);
+    console.log(`🆔 任务ID: ${taskId}`);
+    console.log(`⏱️ 轮询间隔: ${intervalMs}ms`);
+    console.log(`⏰ 超时时间: ${Math.round(maxWaitMs / 1000)}秒`);
+    console.log(`🔄 预计最大轮询次数: ${Math.round(maxWaitMs / intervalMs)}`);
+    console.log(`==========================================\n`);
+
+    let pollCount = 0;
+
+    while (true) {
+        pollCount++;
+        debugLog(`轮询第${pollCount}次`, { elapsed: Date.now() - start });
+
+        if (window._rhCancelRequested) {
+            debugLog('检测到取消请求，停止轮询');
+            // 重要：通过新模块和兼容模式双重重置轮询状态（取消情况）
+            window._rhPollingActive = false;
+            if (window.runningHubManager && window.runningHubManager.isInitialized()) {
+                window.runningHubManager.getStateManager().set('isPollingActive', false);
+                debugLog('取消时通过新模块重置轮询状态为false');
+            }
+            throw new Error('任务已取消');
+        }
+
+        const resp = await fetch(statusUrl, { method: 'POST', headers, body });
+        if (!resp.ok) {
+            debugLog('状态查询HTTP错误', { status: resp.status });
+            throw new Error('查询状态失败: HTTP ' + resp.status);
+        }
+
+        const data = await resp.json().catch(() => ({}));
+        const code = data?.code;
+        const status = data?.data?.taskStatus || data?.taskStatus || data?.data;
+        const msg = data?.msg || data?.message;
+
+        window._rhLastStatus = status;
+        window._rhLastMsg = msg;
+        window._rhLastPollCount = pollCount;
+
+        debugLog(`第${pollCount}次轮询结果`, { code, status, msg, rawData: data });
+
+        // 详细打印轮询状态到控制台
+        console.log(`\n======== RunningHub 任务状态轮询 #${pollCount} ========`);
+        console.log(`🕐 时间: ${new Date().toLocaleTimeString()}`);
+        console.log(`⏱️ 已耗时: ${Math.round((Date.now() - start) / 1000)}秒`);
+        console.log(`🆔 任务ID: ${taskId}`);
+        console.log(`📊 响应码: ${code}`);
+        console.log(`📋 任务状态: ${status}`);
+        console.log(`💬 消息: ${msg || '无'}`);
+        console.log(`🔍 原始响应:`, data);
+
+        // 状态分析
+        const statusAnalysis = {
+            'QUEUED': '🟡 任务排队中',
+            'RUNNING': '🔵 任务执行中',
+            'SUCCESS': '🟢 任务成功完成',
+            'FAILED': '🔴 任务执行失败',
+            'ERROR': '🔴 系统错误',
+            'CANCELED': '🟠 任务已取消'
+        };
+
+        console.log(`📈 状态说明: ${statusAnalysis[status] || '❓ 未知状态'}`);
+
+        if (status === 'FAILED' && data?.data?.failedReason) {
+            console.log(`🚨 失败详情:`, data.data.failedReason);
+        }
+
+        console.log(`================================================\n`);
+
+        if (typeof onTick === 'function') {
+            onTick({ status, msg, pollCount, elapsed: Date.now() - start });
+        }
+
+        // 检查终止条件 - 任务完成、失败或出错
+        if (code === 0 && ['SUCCESS', 'FAILED', 'ERROR', 'CANCELED'].includes(status)) {
+            debugLog('任务终止条件满足，停止轮询', {
+                finalStatus: status,
+                pollCount,
+                totalTime: Date.now() - start
+            });
+
+            // 打印轮询停止信息
+            console.log(`\n🛑 ======== RunningHub 轮询已停止 ========`);
+            console.log(`✅ 终止原因: 任务状态变为 ${status}`);
+            console.log(`📊 总轮询次数: ${pollCount}`);
+            console.log(`⏱️ 总耗时: ${Math.round((Date.now() - start) / 1000)}秒`);
+            console.log(`🆔 任务ID: ${taskId}`);
+            console.log(`📋 最终状态: ${statusAnalysis[status] || status}`);
+            console.log(`==========================================\n`);
+
+            try {
+                const btn = document.querySelector('#rh-cancel-btn');
+                if (btn) btn.style.display = 'none';
+            } catch (_) {}
+
+            // 重要：通过新模块和兼容模式双重重置轮询状态
+            window._rhPollingActive = false;
+            if (window.runningHubManager && window.runningHubManager.isInitialized()) {
+                window.runningHubManager.getStateManager().set('isPollingActive', false);
+                debugLog('通过新模块重置轮询状态为false');
+            }
+
+            return { final: status, raw: data, pollCount, totalTime: Date.now() - start };
+        }
+
+        // 检查超时
+        if (Date.now() - start > maxWaitMs) {
+            debugLog('轮询超时，强制停止', {
+                pollCount,
+                totalTime: Date.now() - start,
+                lastStatus: status
+            });
+
+            // 打印超时停止信息
+            console.log(`\n⏰ ======== RunningHub 轮询超时停止 ========`);
+            console.log(`❌ 终止原因: 超时 (${Math.round(maxWaitMs / 1000)}秒)`);
+            console.log(`📊 总轮询次数: ${pollCount}`);
+            console.log(`📋 最后状态: ${status}`);
+            console.log(`🆔 任务ID: ${taskId}`);
+            console.log(`💡 建议: 任务可能仍在执行，请稍后手动查询`);
+            console.log(`==========================================\n`);
+
+            try {
+                const btn = document.querySelector('#rh-cancel-btn');
+                if (btn) btn.style.display = 'none';
+            } catch (_) {}
+
+            // 重要：通过新模块和兼容模式双重重置轮询状态（超时情况）
+            window._rhPollingActive = false;
+            if (window.runningHubManager && window.runningHubManager.isInitialized()) {
+                window.runningHubManager.getStateManager().set('isPollingActive', false);
+                debugLog('超时时通过新模块重置轮询状态为false');
+            }
+
+            throw new Error(`轮询超时，任务仍未完成。最后状态: ${status}, 轮询${pollCount}次`);
+        }
+
+        // 等待下次轮询
+        await new Promise(r => setTimeout(r, intervalMs));
+    }
+}
 
 async function fetchRunningHubTaskOutputs(apiKey, taskId) {
     debugLog('开始获取任务输出', { apiKey: apiKey.substring(0, 10) + '...', taskId });
@@ -8662,4 +8858,56 @@ async function loadRunningHubConfig() {
 }
 
 // 创建Running Hub AI应用任务
-// createWorkflowTask 函数已移动到 src/modules/RunningHubManager.js
+async function createWorkflowTask(apiKey, prompt, imageFileName = null, workflowName = 'defaultWorkflow') {
+    const myHeaders = new Headers();
+    myHeaders.append("Host", "www.runninghub.cn");
+    myHeaders.append("Content-Type", "application/json");
+
+    // 加载配置文件
+    const config = await loadRunningHubConfig();
+
+    // 获取AI应用配置
+    let appConfig;
+    if (workflowName === 'defaultWorkflow') {
+        appConfig = config.defaultWorkflow;
+    } else {
+        appConfig = config.workflows[workflowName] || config.defaultWorkflow;
+    }
+
+    if (!appConfig) {
+        throw new Error(`未找到AI应用配置: ${workflowName}`);
+    }
+
+    // 深拷贝配置并替换占位符
+    const nodeInfoList = JSON.parse(JSON.stringify(appConfig.nodeInfoList));
+    nodeInfoList.forEach(node => {
+        if (node.fieldValue === "{PROMPT}") {
+            node.fieldValue = prompt;
+        } else if (node.fieldValue === "{IMAGE_FILE}" && imageFileName) {
+            node.fieldValue = imageFileName;
+        }
+    });
+
+    const raw = JSON.stringify({
+        "webappId": appConfig.webappId,
+        "apiKey": apiKey,
+        "nodeInfoList": nodeInfoList
+    });
+
+    const requestOptions = {
+        method: 'POST',
+        headers: myHeaders,
+        body: raw,
+        redirect: 'follow'
+    };
+
+    // 使用AI应用API端点
+    const response = await fetch("https://www.runninghub.cn/task/openapi/ai-app/run", requestOptions);
+
+    if (!response.ok) {
+        throw new Error(`HTTP错误: ${response.status}`);
+    }
+
+    const result = await response.text();
+    return result;
+}
