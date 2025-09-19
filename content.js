@@ -7560,7 +7560,7 @@ function renderRunningHubResultsInModal(outputsJson) {
                 uploadBtn.innerHTML = `
                     <span style="display: flex; align-items: center; gap: 6px;">
                         <span>📤</span>
-                        上传图片
+                        应用图片
                     </span>
                 `;
                 uploadBtn.style.cssText = `
