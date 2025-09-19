@@ -6021,6 +6021,11 @@ function showDimensionCheckModal(imageInfo, isDimensionValid) {
     if (!cachedRunningHubResults && window._rhPollingActive && window._rhTaskIdForCancel && !window._rhCancelRequested) {
         updateDimensionModalProgress(`🆔 任务ID: ${window._rhTaskIdForCancel}\n📊 状态: 正在执行中...`);
         showRhCancelBtn();
+
+        // 设置提交按钮为进行中状态
+        if (submitBtn) {
+            disableSubmitButton(submitBtn);
+        }
     }
 
     // 按钮悬停效果
@@ -6150,6 +6155,29 @@ function enableSubmitButton(submitBtn, status = 'ready') {
             </span>
         `;
         submitBtn.style.background = 'linear-gradient(135deg, #d97706 0%, #b45309 100%)';
+
+        // 为重新提交按钮添加事件监听器
+        const handleResubmit = () => {
+            if (submitBtn.disabled) {
+                debugLog('提交按钮已禁用，忽略点击');
+                return;
+            }
+
+            // 获取备注内容
+            const modal = document.querySelector('.dimension-check-modal');
+            const textarea = modal ? modal.querySelector('#dimensionCheckTextarea') : null;
+            const comment = textarea ? textarea.value.trim() : '';
+
+            // 禁用按钮并开始处理
+            disableSubmitButton(submitBtn);
+            submitDimensionCheck(comment);
+        };
+
+        // 添加事件监听器（避免重复添加）
+        if (!submitBtn._resubmitHandler) {
+            submitBtn._resubmitHandler = handleResubmit;
+            submitBtn.addEventListener('click', handleResubmit);
+        }
     } else {
         // ready状态 - 恢复原始样式
         submitBtn.innerHTML = `
@@ -6372,11 +6400,35 @@ function closeDimensionCheckModal() {
 async function submitDimensionCheck(comment) {
     debugLog('提交尺寸检查结果', { comment });
 
+    const submitBtn = document.querySelector('#dimensionCheckSubmitBtn');
+
+    // 立即禁用按钮并显示进行中状态
+    disableSubmitButton(submitBtn);
+
+    // 清除之前的缓存和状态信息
+    debugLog('重新提交时清除之前的缓存和状态');
+    clearRunningHubCache();
+
+    // 清除之前的轮询状态
+    window._rhPollingActive = false;
+    window._rhCancelRequested = false;
+    window._rhTaskIdForCancel = null;
+    window._rhApiKeyForCancel = null;
+
+    // 隐藏取消按钮
+    hideRhCancelBtn();
+
+    // 清除之前的结果显示
+    const resultWrap = dimensionCheckModal?.querySelector('#rh-result-wrap');
+    if (resultWrap) {
+        resultWrap.remove();
+        debugLog('清除了之前的结果显示');
+    }
+
     // 检查是否有原图
     if (!originalImage) {
         showNotification('未找到原图，无法上传', 3000);
         // 重新启用按钮
-        const submitBtn = document.querySelector('#dimensionCheckSubmitBtn');
         enableSubmitButton(submitBtn, 'failed');
         return;
     }
@@ -6388,14 +6440,11 @@ async function submitDimensionCheck(comment) {
         if (!apiKey) {
             showNotification('未提供API Key，取消上传', 2000);
             // 重新启用按钮
-            const submitBtn = document.querySelector('#dimensionCheckSubmitBtn');
             enableSubmitButton(submitBtn, 'ready');
             return;
         }
         localStorage.setItem('runninghub_api_key', apiKey);
     }
-
-    const submitBtn = document.querySelector('#dimensionCheckSubmitBtn');
 
     try {
         showNotification('正在上传图片到Running Hub...', 0);
@@ -6422,6 +6471,10 @@ async function submitDimensionCheck(comment) {
 
                 // 开始轮询并展示结果
                 updateDimensionModalProgress(`任务已创建\n🆔 任务ID: ${taskId}\n📊 状态: 正在执行中...`);
+
+                // 显示取消按钮
+                showRhCancelBtn();
+
                 try {
                     const poll = await pollRunningHubTaskStatus(apiKey, taskId, (tick) => {
                         updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n📊 状态: ${tick.status || 'RUNNING'}${tick.msg ? ' (' + tick.msg + ')' : ''}\n🔄 第${tick.pollCount || 0}次查询 - ${Math.round((tick.elapsed || 0) / 1000)}秒`);
