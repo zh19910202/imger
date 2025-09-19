@@ -7369,28 +7369,36 @@ function renderRunningHubResultsInModal(outputsJson) {
                     </span>
                 `;
 
-                // 图片容器 - 添加点击查看大图功能
+                // 图片容器 - 添加点击查看大图功能和双向滚动支持
                 const imgContainer = document.createElement('div');
                 imgContainer.style.cssText = `
                     text-align: center;
                     cursor: pointer;
                     position: relative;
                     border-radius: 8px;
-                    overflow: hidden;
+                    overflow: auto;
                     transition: all 0.2s ease;
+                    max-height: 400px;
+                    max-width: 100%;
+                    border: 1px solid #e2e8f0;
+                    background: #f9fafb;
                 `;
 
                 const img = document.createElement('img');
                 img.src = fileUrl;
                 img.alt = 'RunningHub生成结果';
                 img.style.cssText = `
-                    max-width: 100%;
-                    max-height: 300px;
+                    max-width: none;
+                    max-height: none;
+                    width: auto;
+                    height: auto;
                     border-radius: 8px;
                     box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-                    border: 2px solid #e2e8f0;
+                    border: none;
                     transition: all 0.2s ease;
-                    object-fit: contain;
+                    display: block;
+                    min-width: 200px;
+                    min-height: 100px;
                 `;
 
                 // 添加悬停提示
@@ -7412,17 +7420,36 @@ function renderRunningHubResultsInModal(outputsJson) {
                     font-size: 16px;
                     font-weight: 500;
                 `;
-                hoverOverlay.innerHTML = '🔍 点击查看大图';
+                hoverOverlay.innerHTML = '🔍 点击查看大图 • 滚轮查看更多';
 
-                // 悬停效果
+                // 悬停效果和滚动提示
                 imgContainer.addEventListener('mouseenter', () => {
                     hoverOverlay.style.opacity = '1';
-                    img.style.transform = 'scale(1.02)';
+                    // 检查是否需要滚动并显示相应提示
+                    const needsVerticalScroll = img.scrollHeight > imgContainer.clientHeight;
+                    const needsHorizontalScroll = img.scrollWidth > imgContainer.clientWidth;
+
+                    if (needsVerticalScroll || needsHorizontalScroll) {
+                        if (needsVerticalScroll && needsHorizontalScroll) {
+                            scrollIndicator.innerHTML = '↕️↔️ 双向滚动';
+                        } else if (needsVerticalScroll) {
+                            scrollIndicator.innerHTML = '↕️ 垂直滚动';
+                        } else {
+                            scrollIndicator.innerHTML = '↔️ 水平滚动';
+                        }
+                        scrollIndicator.style.opacity = '0.8';
+                    }
                 });
 
                 imgContainer.addEventListener('mouseleave', () => {
                     hoverOverlay.style.opacity = '0';
-                    img.style.transform = 'scale(1)';
+                    scrollIndicator.style.opacity = '0';
+                });
+
+                // 滚轮事件优化 - 阻止冒泡避免页面滚动
+                imgContainer.addEventListener('wheel', (e) => {
+                    e.stopPropagation();
+                    // 让容器内部正常滚动
                 });
 
                 // 点击查看大图
@@ -7437,6 +7464,46 @@ function renderRunningHubResultsInModal(outputsJson) {
 
                 imgContainer.appendChild(img);
                 imgContainer.appendChild(hoverOverlay);
+
+                // 添加滚动指示器
+                const scrollIndicator = document.createElement('div');
+                scrollIndicator.style.cssText = `
+                    position: absolute;
+                    bottom: 8px;
+                    right: 8px;
+                    background: rgba(0, 0, 0, 0.7);
+                    color: white;
+                    padding: 4px 8px;
+                    border-radius: 12px;
+                    font-size: 11px;
+                    font-weight: 500;
+                    opacity: 0;
+                    transition: opacity 0.3s ease;
+                    pointer-events: none;
+                    z-index: 10;
+                `;
+                scrollIndicator.innerHTML = '🔄 滚动查看';
+                imgContainer.appendChild(scrollIndicator);
+
+                // 图片加载完成后检查是否需要滚动
+                img.addEventListener('load', () => {
+                    const needsVerticalScroll = img.scrollHeight > imgContainer.clientHeight;
+                    const needsHorizontalScroll = img.scrollWidth > imgContainer.clientWidth;
+
+                    if (needsVerticalScroll || needsHorizontalScroll) {
+                        if (needsVerticalScroll && needsHorizontalScroll) {
+                            scrollIndicator.innerHTML = '↕️↔️ 双向滚动';
+                        } else if (needsVerticalScroll) {
+                            scrollIndicator.innerHTML = '↕️ 垂直滚动';
+                        } else {
+                            scrollIndicator.innerHTML = '↔️ 水平滚动';
+                        }
+                        scrollIndicator.style.opacity = '1';
+                        setTimeout(() => {
+                            scrollIndicator.style.opacity = '0';
+                        }, 3000); // 3秒后自动隐藏
+                    }
+                });
 
                 // 操作按钮区域
                 const buttonContainer = document.createElement('div');
