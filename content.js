@@ -7781,26 +7781,76 @@ function showImageLightbox(resultImageUrl, title, metadata) {
             const originalImgWrapper = originalContainer.children[1];
             const resultImgWrapper = resultContainer.children[1];
 
+            // 验证元素存在性
             if (originalImgWrapper && resultImgWrapper) {
                 // 同步滚动事件
                 let isSyncingScroll = false;
 
-                originalImgWrapper.addEventListener('scroll', () => {
+                // 创建防抖函数
+                const debounceSync = (callback) => {
                     if (!isSyncingScroll) {
                         isSyncingScroll = true;
-                        resultImgWrapper.scrollTop = originalImgWrapper.scrollTop;
-                        resultImgWrapper.scrollLeft = originalImgWrapper.scrollLeft;
-                        setTimeout(() => { isSyncingScroll = false; }, 10);
+                        callback();
+                        requestAnimationFrame(() => {
+                            isSyncingScroll = false;
+                        });
                     }
+                };
+
+                // 原图滚动同步到结果图
+                originalImgWrapper.addEventListener('scroll', () => {
+                    debounceSync(() => {
+                        // 同步垂直滚动
+                        const originalScrollTop = originalImgWrapper.scrollTop;
+                        const originalScrollHeight = originalImgWrapper.scrollHeight;
+                        const originalClientHeight = originalImgWrapper.clientHeight;
+
+                        const resultScrollHeight = resultImgWrapper.scrollHeight;
+                        const resultClientHeight = resultImgWrapper.clientHeight;
+
+                        // 按比例同步滚动位置
+                        const scrollRatio = originalScrollTop / (originalScrollHeight - originalClientHeight);
+                        resultImgWrapper.scrollTop = scrollRatio * (resultScrollHeight - resultClientHeight);
+
+                        // 同步水平滚动
+                        const originalScrollLeft = originalImgWrapper.scrollLeft;
+                        const originalScrollWidth = originalImgWrapper.scrollWidth;
+                        const originalClientWidth = originalImgWrapper.clientWidth;
+
+                        const resultScrollWidth = resultImgWrapper.scrollWidth;
+                        const resultClientWidth = resultImgWrapper.clientWidth;
+
+                        const scrollLeftRatio = originalScrollLeft / (originalScrollWidth - originalClientWidth);
+                        resultImgWrapper.scrollLeft = scrollLeftRatio * (resultScrollWidth - resultClientWidth);
+                    });
                 });
 
+                // 结果图滚动同步到原图
                 resultImgWrapper.addEventListener('scroll', () => {
-                    if (!isSyncingScroll) {
-                        isSyncingScroll = true;
-                        originalImgWrapper.scrollTop = resultImgWrapper.scrollTop;
-                        originalImgWrapper.scrollLeft = resultImgWrapper.scrollLeft;
-                        setTimeout(() => { isSyncingScroll = false; }, 10);
-                    }
+                    debounceSync(() => {
+                        // 同步垂直滚动
+                        const resultScrollTop = resultImgWrapper.scrollTop;
+                        const resultScrollHeight = resultImgWrapper.scrollHeight;
+                        const resultClientHeight = resultImgWrapper.clientHeight;
+
+                        const originalScrollHeight = originalImgWrapper.scrollHeight;
+                        const originalClientHeight = originalImgWrapper.clientHeight;
+
+                        // 按比例同步滚动位置
+                        const scrollRatio = resultScrollTop / (resultScrollHeight - resultClientHeight);
+                        originalImgWrapper.scrollTop = scrollRatio * (originalScrollHeight - originalClientHeight);
+
+                        // 同步水平滚动
+                        const resultScrollLeft = resultImgWrapper.scrollLeft;
+                        const resultScrollWidth = resultImgWrapper.scrollWidth;
+                        const resultClientWidth = resultImgWrapper.clientWidth;
+
+                        const originalScrollWidth = originalImgWrapper.scrollWidth;
+                        const originalClientWidth = originalImgWrapper.clientWidth;
+
+                        const scrollLeftRatio = resultScrollLeft / (resultScrollWidth - resultClientWidth);
+                        originalImgWrapper.scrollLeft = scrollLeftRatio * (originalScrollWidth - originalClientWidth);
+                    });
                 });
             }
         }, 0);
