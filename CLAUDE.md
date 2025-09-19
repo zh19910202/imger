@@ -4,91 +4,134 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is **AnnotateFlow Assistant**, a Chrome extension (Manifest V3) designed for the Tencent QLabel annotation platform. The extension provides fast image downloading capabilities and keyboard shortcuts for annotation workflows.
+**AnnotateFlow Assistant (Auxis)** is a Chrome extension (Manifest V3) designed for the Tencent QLabel annotation platform. The extension provides fast image downloading capabilities, keyboard shortcuts for annotation workflows, and AI-powered image processing through RunningHub integration.
 
 ## Architecture
 
-The extension follows the standard Chrome Extension Manifest V3 architecture:
-
-- **manifest.json**: Extension configuration with permissions for downloads, contextMenus, activeTab, storage, notifications, tabs, and nativeMessaging
+### Core Components
+- **manifest.json**: Extension configuration with permissions for downloads, contextMenus, activeTab, storage, notifications, tabs, nativeMessaging, and webRequest
 - **background.js**: Service worker handling context menus, download operations, and native messaging for auto-opening files
-- **content.js**: Content script injected into qlabel.tencent.com pages, handling keyboard shortcuts, image hovering/downloading, and UI interactions
-- **popup.js + popup.html**: Extension popup interface for user settings (auto-open toggle, sound effects toggle)
+- **content.js**: Main content script (~8000+ lines) injected into qlabel.tencent.com pages, handling:
+  - Keyboard shortcuts and UI interactions
+  - Image downloading and processing
+  - RunningHub AI integration with task management
+  - Modal dialogs and state management
+- **resource-extractor.js**: Content script for resource extraction
+- **popup.js + popup.html**: Extension popup interface for user settings
+- **native_host.py**: Python-based native messaging host for PS-Chrome integration
+
+### Key Architecture Patterns
+- **State Management**: Extensive use of global variables and caching system for RunningHub results
+- **Event-Driven**: Heavy reliance on event delegation for dynamic content handling
+- **Modal System**: Complex modal management for image comparison and AI processing workflows
+- **Task Polling**: Asynchronous polling system for RunningHub task status with cancellation support
 
 ## Core Functionality
 
 ### Image Download System
+- **R key**: AI image processing via RunningHub integration with modal workflow
 - **D key + hover**: Primary download method - hover over image and press D
 - **Double-click**: Alternative download method
 - **Right-click menu**: Context menu download option
-- Downloads preserve original format and dimensions
-- Optional auto-open using native messaging host
+- **X key**: Mark image as invalid with auto-confirmation
+- **F1**: Batch mark invalid operations
 
 ### Keyboard Shortcuts
-- **D**: Download hovered image with visual feedback
 - **Space**: Click "Skip" button on annotation page
 - **S**: Click "Submit" button with optional sound effect
-- **A**: Click "Upload Image" button  
+- **A**: Click "Upload Image" button
 - **F**: Click "View History" link
+- **R**: RunningHub AI image processing (dimension check and generation)
 
-### Settings System
-- Chrome storage API for persistent settings
-- Auto-open images toggle (requires native host setup)
-- Sound effects toggle for S key submissions
-- Settings sync across browser instances
+### RunningHub AI Integration
+- **Task Management**: Create, poll, and cancel AI processing tasks
+- **Result Caching**: Persistent caching of AI results across page navigation
+- **State Recovery**: Automatic restoration of task state when modal is reopened
+- **Progress Tracking**: Real-time status updates with polling mechanism
+- **Error Handling**: Comprehensive error handling with retry logic
+
+### Native Messaging & PS Integration
+- **Dual Communication**: PS Plugin ↔ HTTP Server ↔ Native Host ↔ Chrome Extension
+- **Data Support**: Text and Base64 image transmission up to 50MB
+- **Auto-open**: Automatic file opening via native host integration
 
 ## Development Commands
 
-Since this is a Chrome extension, there are no build processes:
-
 ```bash
-# No build step required
-npm run build  # Echoes "No build process needed"
+# No build process for Chrome extension
+npm run build    # Echoes "No build process needed"
+npm run test     # Echoes "No tests specified"
+npm run lint     # Echoes "No linter configured"
 
-# No tests configured
-npm run test   # Echoes "No tests specified"
+# Native host testing
+python3 test_ps_integration.py
+
+# Health check for PS integration
+curl http://localhost:8888/api/health
 ```
 
-## Installation & Development
+## Development Workflow
 
-1. Load unpacked extension in Chrome developer mode
-2. Point to project root directory
-3. Extension runs only on `https://qlabel.tencent.com/*`
-4. For auto-open functionality, see `NATIVE_HOST_SETUP.md` for native messaging host setup
+### Extension Development
+1. Load unpacked extension in Chrome developer mode pointing to project root
+2. Extension activates on `https://qlabel.tencent.com/*` (also supports localhost and file:// for testing)
+3. Use Chrome DevTools Console to monitor debug output via `debugLog()` function
+4. Test keyboard shortcuts and modal interactions directly on QLabel pages
 
-## File Structure
+### RunningHub Configuration
+- Configuration stored in `runninghub-config.json` with webapp and node mapping
+- API key stored in localStorage as `runninghub_api_key`
+- Tasks use polling mechanism with 3-second intervals and 3.5-minute timeout
+- Results cached with `cachedRunningHubResults` for cross-session persistence
 
-- `manifest.json` - Extension configuration
-- `background.js` - Service worker for downloads and native messaging
-- `content.js` - Main functionality for keyboard shortcuts and image handling
-- `popup.js/html` - Settings interface
-- `notification.mp3` - Optional sound effect file (user-provided)
-- `SOUND_SETUP.md` - Instructions for adding sound effects
-- Various setup guides in markdown files
+### Native Host Setup
+1. Install Python dependencies for `native_host.py`
+2. Configure native messaging host manifest for Chrome
+3. Start HTTP server on localhost:8888 for PS integration
+4. See `NATIVE_HOST_SETUP.md` for detailed setup instructions
 
 ## Key Technical Details
 
-### Native Messaging
-- Uses `com.annotateflow.assistant` host for auto-opening downloaded files
-- Fallback gracefully when native host unavailable
-- Connection management with retry logic
+### Content Script State Management
+- **Global Variables**: Extensive use of module-level variables for state persistence
+- **Modal System**: Complex modal lifecycle management with cleanup and restoration
+- **Cache Management**: RunningHub results cached with timestamp and URL validation
+- **Event Delegation**: Dynamic content handling with Chinese text support for button detection
 
-### Content Script Integration
-- Event delegation for dynamic content
-- Image detection and hover state management
-- Button finding logic using text content matching (supports Chinese text)
-- Visual feedback system for download operations
+### RunningHub Integration Patterns
+```javascript
+// Task creation and polling pattern
+const taskResponse = await createWorkflowTask(apiKey, comment, imageFileName);
+const poll = await pollRunningHubTaskStatus(apiKey, taskId, onTick);
+if (poll.final === 'SUCCESS') {
+    const outputs = await fetchRunningHubTaskOutputs(apiKey, taskId);
+    renderRunningHubResultsInModal(outputs);
+    cacheRunningHubResults(taskId, outputs, taskInfo);
+}
+```
 
-### Chrome APIs Used
-- Downloads API for file downloading
-- Storage API for settings persistence  
-- ContextMenus API for right-click integration
-- Tabs API for cross-tab communication
-- Native Messaging for system integration
+### Error Handling Strategy
+- **Graceful Degradation**: Features fail silently when dependencies unavailable
+- **User Feedback**: Notification system with timeout-based messages
+- **State Recovery**: Automatic cleanup and restoration of interrupted operations
+- **Debug Logging**: Comprehensive debug system with `debugLog()` function
 
-## Target Platform
+### Chrome Extension APIs Usage
+- **Downloads API**: File downloading with progress tracking
+- **Storage API**: Settings persistence and synchronization
+- **ContextMenus API**: Right-click integration
+- **Tabs API**: Cross-tab communication
+- **Native Messaging**: PS plugin integration via Python host
+- **WebRequest**: Resource interception and modification
 
-Specifically designed for Tencent QLabel annotation platform:
-- Only activates on `https://qlabel.tencent.com/*`
-- Chinese interface support
-- Annotation workflow optimized shortcuts
+## Configuration Files
+
+### Key Configuration
+- `runninghub-config.json`: AI workflow configuration with webapp IDs and node mappings
+- `manifest.json`: Extension permissions and content script injection rules
+- Native host manifest: Platform-specific configuration for Chrome-Python communication
+
+### Important Settings
+- **Target Platform**: Specifically designed for `https://qlabel.tencent.com/*`
+- **Internationalization**: Supports Chinese interface elements and text matching
+- **Performance**: Optimized for large image processing and AI task management
