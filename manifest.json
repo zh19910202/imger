@@ -39,7 +39,12 @@
   "content_scripts": [
     {
       "matches": ["https://qlabel.tencent.com/*", "http://localhost:*/*", "file://*/*"],
-      "js": ["resource-extractor.js", "content.js"]
+      "js": [
+        "src/config/constants.js",
+        "src/utils/Logger.js",
+        "resource-extractor.js",
+        "content.js"
+      ]
     }
   ],
   "web_accessible_resources": [

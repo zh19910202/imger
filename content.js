@@ -4,6 +4,11 @@
 // 2. 空格键 - 点击"跳过"按钮
 // 3. S键 - 点击"提交并继续标注"按钮
 
+// === 模块兼容层 ===
+// 访问常量的便捷方式，向后兼容
+const CONSTANTS = window.AuxisConstants || {};
+// === 模块兼容层结束 ===
+
 // 全局变量
 let lastHoveredImage = null;
 let selectedImage = null;
@@ -3855,25 +3860,33 @@ function createComparisonInfo(original, uploaded) {
 
 // ============== 调试功能 ==============
 
-// 调试日志函数
+// 调试日志函数 - 支持新模块化架构
 function debugLog(message, data = null) {
+    // 使用新的 Logger 模块（如果可用）
+    if (window.AuxisLogger) {
+        window.AuxisLogger.debug(message, data);
+    }
+
+    // 保持原有的调试面板功能
     const timestamp = new Date().toLocaleTimeString();
     const logEntry = {
         time: timestamp,
         message: message,
         data: data
     };
-    
+
     debugLogs.push(logEntry);
-    
+
     // 限制日志数量
     if (debugLogs.length > 100) {
         debugLogs.shift();
     }
-    
-    // 输出到控制台
-    console.log(`[调试 ${timestamp}] ${message}`, data || '');
-    
+
+    // 输出到控制台（如果新模块不可用，保持原有格式）
+    if (!window.AuxisLogger) {
+        console.log(`[调试 ${timestamp}] ${message}`, data || '');
+    }
+
     // 更新调试面板
     if (debugPanel && debugMode) {
         updateDebugPanel();
