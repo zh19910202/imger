@@ -7775,6 +7775,36 @@ function showImageLightbox(resultImageUrl, title, metadata) {
 
         mainContent.appendChild(resultContainer);
 
+        // 添加同步滚动功能
+        setTimeout(() => {
+            // 获取两个图片容器的滚动元素（第二个子元素是imgWrapper）
+            const originalImgWrapper = originalContainer.children[1];
+            const resultImgWrapper = resultContainer.children[1];
+
+            if (originalImgWrapper && resultImgWrapper) {
+                // 同步滚动事件
+                let isSyncingScroll = false;
+
+                originalImgWrapper.addEventListener('scroll', () => {
+                    if (!isSyncingScroll) {
+                        isSyncingScroll = true;
+                        resultImgWrapper.scrollTop = originalImgWrapper.scrollTop;
+                        resultImgWrapper.scrollLeft = originalImgWrapper.scrollLeft;
+                        setTimeout(() => { isSyncingScroll = false; }, 10);
+                    }
+                });
+
+                resultImgWrapper.addEventListener('scroll', () => {
+                    if (!isSyncingScroll) {
+                        isSyncingScroll = true;
+                        originalImgWrapper.scrollTop = resultImgWrapper.scrollTop;
+                        originalImgWrapper.scrollLeft = resultImgWrapper.scrollLeft;
+                        setTimeout(() => { isSyncingScroll = false; }, 10);
+                    }
+                });
+            }
+        }, 0);
+
     } else {
         // 单图模式：只显示生成结果 - 添加滚动支持
         debugLog('创建单图查看模式');
