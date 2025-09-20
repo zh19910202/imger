@@ -154,17 +154,18 @@ class ComparisonUIManager {
         `;
 
         // 添加图片到容器
-        if (original && original.element) {
+        // 支持两种图片对象格式：带element属性的（新格式）和直接带src属性的（旧格式）
+        if (original) {
             const originalContainer = this.createImageContainer(original, '原图');
             imageContainer.appendChild(originalContainer);
         }
 
-        if (uploaded && uploaded.element) {
+        if (uploaded) {
             const uploadedContainer = this.createImageContainer(uploaded, '上传/修改图');
             imageContainer.appendChild(uploadedContainer);
         }
 
-        if (newImage && newImage.element && newImage !== uploaded) {
+        if (newImage && newImage !== uploaded) {
             const newContainer = this.createImageContainer(newImage, '新图片');
             imageContainer.appendChild(newContainer);
         }
@@ -233,7 +234,20 @@ class ComparisonUIManager {
             max-height: 75vh;
         `;
 
-        const img = imageInfo.element.cloneNode(false);
+        // 处理不同的图片对象格式
+        let img;
+        if (imageInfo.element) {
+            // 新格式：包含element属性
+            img = imageInfo.element.cloneNode(false);
+        } else if (imageInfo.src) {
+            // 旧格式：直接包含src属性
+            img = document.createElement('img');
+            img.src = imageInfo.src;
+        } else {
+            // 兜底：创建空图片
+            img = document.createElement('img');
+        }
+
         img.style.cssText = `
             max-width: 100%;
             max-height: 70vh;
