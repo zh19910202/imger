@@ -369,6 +369,10 @@ function checkPageChange() {
             window.clearPageState();
         } else {
             // 回退到手动重置（兼容模式）
+            debugLog('🚨 页面跳转重置图片状态！！！', {
+                reason: 'checkPageChange触发',
+                currentTime: new Date().toISOString()
+            });
             originalImageLocked = false;
             originalImage = null;
             shouldAutoCompare = false;
@@ -380,15 +384,19 @@ function checkPageChange() {
             });
             pendingComparisonTimeouts = [];
         }
-        
+
         // 关闭已存在的对比弹窗
         if (comparisonModal && comparisonModal.parentNode) {
             debugLog('关闭已存在的对比弹窗');
             comparisonModal.parentNode.removeChild(comparisonModal);
             comparisonModal = null;
         }
-        
+
         // 清空上传的对比图，避免内存泄漏和页面间的状态污染
+        debugLog('🚨 清空上传图片状态！！！', {
+            reason: 'checkPageChange触发',
+            currentTime: new Date().toISOString()
+        });
         uploadedImage = null;
         isComparisonModalOpen = false;
 
