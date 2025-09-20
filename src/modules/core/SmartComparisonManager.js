@@ -34,35 +34,13 @@ class SmartComparisonManager {
     triggerSmartComparisonWithFallback() {
         debugLog('启动智能图片对比');
 
+        // 调用全局调试函数
+        if (typeof window.debugImageState === 'function') {
+            window.debugImageState('W键触发');
+        }
+
         // 直接访问全局变量
         const { originalImage, uploadedImage } = window;
-
-        // 添加详细的变量检查
-        debugLog('🔍 全局变量检查:', {
-            windowOriginalImage: !!window.originalImage,
-            windowUploadedImage: !!window.uploadedImage,
-            directOriginalImage: !!originalImage,
-            directUploadedImage: !!uploadedImage
-        });
-
-        if (window.originalImage) {
-            debugLog('🔍 originalImage详情:', {
-                hasSrc: !!window.originalImage.src,
-                src: window.originalImage.src ? window.originalImage.src.substring(0, 100) + '...' : '无src',
-                width: window.originalImage.width,
-                height: window.originalImage.height
-            });
-        }
-
-        if (window.uploadedImage) {
-            debugLog('🔍 uploadedImage详情:', {
-                hasSrc: !!window.uploadedImage.src,
-                src: window.uploadedImage.src ? window.uploadedImage.src.substring(0, 100) + '...' : '无src',
-                name: window.uploadedImage.name,
-                width: window.uploadedImage.width,
-                height: window.uploadedImage.height
-            });
-        }
 
         debugLog('📊 图片对比状态检查:', {
             hasOriginalImage: !!originalImage,
