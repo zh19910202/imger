@@ -65,7 +65,14 @@ class SmartComparisonManager {
                 showSmartComparison(comparisonPair);
             }
             window.shouldAutoCompare = false;
+        } else if (originalImage && originalImage.src) {
+            // 如果只有原图没有上传图片，提示用户上传
+            debugLog('只有原图，缺少上传图片');
+            if (typeof showNotification === 'function') {
+                showNotification('📤 请先上传图片再进行对比', 2000);
+            }
         } else {
+            // 如果连原图都没有
             debugLog('缺少必要的图片进行对比', {
                 originalImageAvailable: !!originalImage,
                 originalImageSrc: originalImage && originalImage.src ? '有' : '无',
@@ -73,7 +80,7 @@ class SmartComparisonManager {
                 uploadedImageSrc: uploadedImage && uploadedImage.src ? '有' : '无'
             });
             if (typeof showNotification === 'function') {
-                showNotification('❌ 请先上传图片再进行对比', 2000);
+                showNotification('❌ 未检测到原图，请按B键重新检测', 2000);
             }
         }
     }

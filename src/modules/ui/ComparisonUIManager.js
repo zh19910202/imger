@@ -398,6 +398,11 @@ class ComparisonUIManager {
         window.isComparisonModalOpen = false;
 
         debugLog('对比弹窗已关闭');
+
+        // 显示提示信息，告知用户可以重新按W键进行对比
+        if (typeof showNotification === 'function') {
+            showNotification('🔄 可重新按W键进行图片对比', 1500);
+        }
     }
 
     // 显示智能对比 - 简化实现，直接使用已保存的原图
