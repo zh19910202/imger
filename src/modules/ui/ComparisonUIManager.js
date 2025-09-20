@@ -33,7 +33,7 @@ class ComparisonUIManager {
         }
     }
 
-    // 创建对比弹窗
+    // 创建对比弹窗 - 使用原始实现以确保兼容性
     createComparisonModal(original, uploaded, newImage) {
         // 移除已存在的对比弹窗
         if (this.comparisonModal && this.comparisonModal.parentNode) {
@@ -153,21 +153,196 @@ class ComparisonUIManager {
             max-height: 85vh;
         `;
 
+        // 创建简单的图片创建函数
+        const createSimpleImage = (src, alt) => {
+            const img = document.createElement('img');
+            img.src = src;
+            img.alt = alt;
+            img.style.cssText = `
+                max-width: 100%;
+                max-height: 100%;
+                object-fit: contain;
+                border-radius: 4px;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            `;
+            return img;
+        };
+
         // 添加图片到容器
-        // 支持两种图片对象格式：带element属性的（新格式）和直接带src属性的（旧格式）
-        if (original) {
-            const originalContainer = this.createImageContainer(original, '原图');
+        if (original && original.src) {
+            const originalContainer = document.createElement('div');
+            originalContainer.style.cssText = `
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 15px;
+            `;
+
+            const originalLabel = document.createElement('div');
+            originalLabel.textContent = '原图';
+            originalLabel.style.cssText = `
+                color: white;
+                font-size: 16px;
+                font-weight: 500;
+                padding: 8px 16px;
+                background: rgba(0, 0, 0, 0.5);
+                border-radius: 20px;
+                backdrop-filter: blur(5px);
+            `;
+
+            const originalImg = createSimpleImage(original.src, '原图');
+            originalImg.style.cssText = `
+                max-width: 45vw;
+                max-height: 70vh;
+                object-fit: contain;
+                display: block;
+                border-radius: 4px;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            `;
+
+            // 添加下载按钮
+            const downloadButton1 = document.createElement('button');
+            downloadButton1.innerHTML = '⬇';
+            downloadButton1.title = '下载原图';
+            downloadButton1.style.cssText = `
+                position: absolute;
+                top: 10px;
+                right: 10px;
+                width: 32px;
+                height: 32px;
+                border-radius: 50%;
+                border: none;
+                background: rgba(0, 0, 0, 0.7);
+                color: white;
+                font-size: 16px;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transition: all 0.2s ease;
+            `;
+
+            downloadButton1.addEventListener('mouseenter', () => {
+                downloadButton1.style.background = 'rgba(33, 150, 243, 0.9)';
+                downloadButton1.style.transform = 'scale(1.1)';
+            });
+
+            downloadButton1.addEventListener('mouseleave', () => {
+                downloadButton1.style.background = 'rgba(0, 0, 0, 0.7)';
+                downloadButton1.style.transform = 'scale(1)';
+            });
+
+            downloadButton1.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (typeof downloadImage === 'function') {
+                    downloadImage(originalImg);
+                }
+            });
+
+            const originalWrapper = document.createElement('div');
+            originalWrapper.style.cssText = `
+                position: relative;
+                border: 2px solid rgba(255, 255, 255, 0.2);
+                border-radius: 8px;
+                overflow: hidden;
+                max-width: 45vw;
+                max-height: 75vh;
+            `;
+
+            originalWrapper.appendChild(originalImg);
+            originalWrapper.appendChild(downloadButton1);
+
+            originalContainer.appendChild(originalLabel);
+            originalContainer.appendChild(originalWrapper);
             imageContainer.appendChild(originalContainer);
         }
 
-        if (uploaded) {
-            const uploadedContainer = this.createImageContainer(uploaded, '上传/修改图');
-            imageContainer.appendChild(uploadedContainer);
-        }
+        if (uploaded && uploaded.src) {
+            const uploadedContainer = document.createElement('div');
+            uploadedContainer.style.cssText = `
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 15px;
+            `;
 
-        if (newImage && newImage !== uploaded) {
-            const newContainer = this.createImageContainer(newImage, '新图片');
-            imageContainer.appendChild(newContainer);
+            const uploadedLabel = document.createElement('div');
+            uploadedLabel.textContent = '上传/修改图';
+            uploadedLabel.style.cssText = `
+                color: white;
+                font-size: 16px;
+                font-weight: 500;
+                padding: 8px 16px;
+                background: rgba(0, 0, 0, 0.5);
+                border-radius: 20px;
+                backdrop-filter: blur(5px);
+            `;
+
+            const uploadedImg = createSimpleImage(uploaded.src, '上传/修改图');
+            uploadedImg.style.cssText = `
+                max-width: 45vw;
+                max-height: 70vh;
+                object-fit: contain;
+                display: block;
+                border-radius: 4px;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            `;
+
+            // 添加下载按钮
+            const downloadButton2 = document.createElement('button');
+            downloadButton2.innerHTML = '⬇';
+            downloadButton2.title = '下载修改图';
+            downloadButton2.style.cssText = `
+                position: absolute;
+                top: 10px;
+                right: 10px;
+                width: 32px;
+                height: 32px;
+                border-radius: 50%;
+                border: none;
+                background: rgba(0, 0, 0, 0.7);
+                color: white;
+                font-size: 16px;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transition: all 0.2s ease;
+            `;
+
+            downloadButton2.addEventListener('mouseenter', () => {
+                downloadButton2.style.background = 'rgba(33, 150, 243, 0.9)';
+                downloadButton2.style.transform = 'scale(1.1)';
+            });
+
+            downloadButton2.addEventListener('mouseleave', () => {
+                downloadButton2.style.background = 'rgba(0, 0, 0, 0.7)';
+                downloadButton2.style.transform = 'scale(1)';
+            });
+
+            downloadButton2.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (typeof downloadImage === 'function') {
+                    downloadImage(uploadedImg);
+                }
+            });
+
+            const uploadedWrapper = document.createElement('div');
+            uploadedWrapper.style.cssText = `
+                position: relative;
+                border: 2px solid rgba(255, 255, 255, 0.2);
+                border-radius: 8px;
+                overflow: hidden;
+                max-width: 45vw;
+                max-height: 75vh;
+            `;
+
+            uploadedWrapper.appendChild(uploadedImg);
+            uploadedWrapper.appendChild(downloadButton2);
+
+            uploadedContainer.appendChild(uploadedLabel);
+            uploadedContainer.appendChild(uploadedWrapper);
+            imageContainer.appendChild(uploadedContainer);
         }
 
         content.appendChild(imageContainer);
@@ -202,107 +377,6 @@ class ComparisonUIManager {
         window.isComparisonModalOpen = true;
     }
 
-    // 创建图片容器
-    createImageContainer(imageInfo, label) {
-        const container = document.createElement('div');
-        container.style.cssText = `
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 15px;
-        `;
-
-        const labelElement = document.createElement('div');
-        labelElement.textContent = label;
-        labelElement.style.cssText = `
-            color: white;
-            font-size: 16px;
-            font-weight: 500;
-            padding: 8px 16px;
-            background: rgba(0, 0, 0, 0.5);
-            border-radius: 20px;
-            backdrop-filter: blur(5px);
-        `;
-
-        const imgWrapper = document.createElement('div');
-        imgWrapper.style.cssText = `
-            position: relative;
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            border-radius: 8px;
-            overflow: hidden;
-            max-width: 45vw;
-            max-height: 75vh;
-        `;
-
-        // 处理不同的图片对象格式
-        let img;
-        if (imageInfo.element) {
-            // 新格式：包含element属性
-            img = imageInfo.element.cloneNode(false);
-        } else if (imageInfo.src) {
-            // 旧格式：直接包含src属性
-            img = document.createElement('img');
-            img.src = imageInfo.src;
-        } else {
-            // 兜底：创建空图片
-            img = document.createElement('img');
-        }
-
-        img.style.cssText = `
-            max-width: 100%;
-            max-height: 70vh;
-            object-fit: contain;
-            display: block;
-        `;
-
-        // 添加下载按钮
-        const downloadButton = document.createElement('button');
-        downloadButton.innerHTML = '⬇';
-        downloadButton.title = '下载图片';
-        downloadButton.style.cssText = `
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            border: none;
-            background: rgba(0, 0, 0, 0.7);
-            color: white;
-            font-size: 16px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s ease;
-        `;
-
-        downloadButton.addEventListener('mouseenter', () => {
-            downloadButton.style.background = 'rgba(33, 150, 243, 0.9)';
-            downloadButton.style.transform = 'scale(1.1)';
-        });
-
-        downloadButton.addEventListener('mouseleave', () => {
-            downloadButton.style.background = 'rgba(0, 0, 0, 0.7)';
-            downloadButton.style.transform = 'scale(1)';
-        });
-
-        downloadButton.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (typeof downloadImage === 'function') {
-                downloadImage(img);
-            }
-        });
-
-        imgWrapper.appendChild(img);
-        imgWrapper.appendChild(downloadButton);
-
-        container.appendChild(labelElement);
-        container.appendChild(imgWrapper);
-
-        return container;
-    }
-
     // 关闭对比弹窗
     closeComparisonModal() {
         if (this.comparisonModal && this.comparisonModal.parentNode) {
@@ -326,17 +400,22 @@ class ComparisonUIManager {
         debugLog('对比弹窗已关闭');
     }
 
-    // 显示智能对比
+    // 显示智能对比 - 简化实现，直接使用已保存的原图
     async showSmartComparison(comparisonPair) {
-        debugLog('显示智能对比 (仅显示模式)', comparisonPair);
+        debugLog('显示智能对比', comparisonPair);
 
         try {
-            // 仅显示模式：直接创建img元素，无需blob转换
-            const img1 = await this.createImageElementForDisplay(comparisonPair.image1.src);
-            const img2 = await this.createImageElementForDisplay(comparisonPair.image2.src);
+            // 直接使用comparisonPair中的图片信息创建对比弹窗
+            const originalImgObj = {
+                src: comparisonPair.image1.src
+            };
+
+            const uploadedImgObj = {
+                src: comparisonPair.image2.src
+            };
 
             // 调用创建对比弹窗函数
-            this.createComparisonModal(img1, img2, img2);
+            this.createComparisonModal(originalImgObj, uploadedImgObj, uploadedImgObj);
 
             debugLog('智能对比弹窗已创建', {
                 image1: comparisonPair.image1.label,
@@ -350,57 +429,6 @@ class ComparisonUIManager {
                 showNotification('❌ 图片对比失败: ' + error.message, 3000);
             }
         }
-    }
-
-    // 为显示创建图片元素 - 无需跨域处理
-    createImageElementForDisplay(imageUrl) {
-        return new Promise((resolve, reject) => {
-            const img = new Image();
-
-            // 设置较短的超时时间
-            const timeout = setTimeout(() => {
-                img.onload = img.onerror = null;
-                reject(new Error('图片加载超时'));
-            }, 8000);
-
-            img.onload = function() {
-                clearTimeout(timeout);
-                debugLog('图片加载成功 (仅显示)', {
-                    src: imageUrl,
-                    width: this.naturalWidth,
-                    height: this.naturalHeight
-                });
-
-                // 创建一个包含必要属性的图片对象
-                const imageObj = {
-                    src: this.src,
-                    width: this.naturalWidth,
-                    height: this.naturalHeight,
-                    name: typeof extractFileNameFromUrl === 'function' ? extractFileNameFromUrl(this.src) : 'image',
-                    element: this
-                };
-
-                resolve(imageObj);
-            };
-
-            img.onerror = function() {
-                clearTimeout(timeout);
-                reject(new Error('图片加载失败'));
-            };
-
-            // COS图片也可以正常显示，只是不能进行canvas操作
-            img.src = imageUrl;
-        });
-    }
-
-    // 获取弹窗状态
-    isModalOpen() {
-        return this.isComparisonModalOpen;
-    }
-
-    // 获取弹窗元素
-    getModal() {
-        return this.comparisonModal;
     }
 }
 
