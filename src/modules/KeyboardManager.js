@@ -114,6 +114,13 @@ class KeyboardManager {
             closeModal: false,
             handler: (event) => this.handlePKey(event)
         });
+
+        // W键 - 智能图片对比
+        this.keyHandlers.set('w', {
+            description: '智能图片对比',
+            closeModal: false,
+            handler: (event) => this.handleSmartComparisonKey(event)
+        });
     }
 
     // 绑定事件监听器
@@ -362,6 +369,16 @@ class KeyboardManager {
         if (typeof checkImageDimensionsAndShowModal === 'function') {
             event.preventDefault();
             checkImageDimensionsAndShowModal();
+        }
+    }
+
+    // W键处理 - 智能图片对比
+    handleSmartComparisonKey(event) {
+        if (typeof triggerSmartComparisonWithFallback === 'function') {
+            event.preventDefault();
+            triggerSmartComparisonWithFallback();
+        } else {
+            console.warn('W键智能对比功能不可用：triggerSmartComparisonWithFallback 函数未找到');
         }
     }
 

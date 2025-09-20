@@ -102,10 +102,6 @@ function showRhCancelBtn() {
     } catch (_) {}
 }
 
-// 已移除：模式状态管理函数
-// function loadModeState() { ... }
-// function saveModeState() { ... }
-
 // 检查并关闭模态框的辅助函数
 function checkAndCloseModalIfOpen(keyName) {
     const modal = document.querySelector('.dimension-check-modal');
@@ -126,25 +122,6 @@ function ensureModalClosed() {
     }
 }
 
-// 检查并关闭模态框的辅助函数
-function checkAndCloseModalIfOpen(keyName) {
-    const modal = document.querySelector('.dimension-check-modal');
-    if (modal) {
-        console.log(`[${keyName.toUpperCase()}键] 检测到尺寸检查模态框已打开，先关闭模态框`);
-        modal.remove();
-        return true; // 返回true表示关闭了模态框
-    }
-    return false; // 返回false表示没有模态框需要关闭
-}
-
-// 确保模态框被关闭的函数
-function ensureModalClosed() {
-    const modal = document.querySelector('.dimension-check-modal');
-    if (modal) {
-        modal.remove();
-        console.log('[模态框管理] 强制关闭尺寸检查模态框');
-    }
-}
 function checkAndCloseModalIfOpen(currentKey) {
     // 如果尺寸检查模态框打开，且不是ESC键和R键，先关闭模态框
     if (isDimensionCheckModalOpen && currentKey !== 'escape' && currentKey !== 'r') {
@@ -1058,68 +1035,6 @@ function updateTooltipPosition(event) {
 // 页面卸载时清理
 window.addEventListener('beforeunload', cleanup);
 
-// 图片上传监听和对比功能
-function initializeUploadMonitoring() {
-    console.log('初始化图片上传监听功能');
-    
-    // 监听文件输入元素的变化
-    observeFileInputs();
-    
-    // 监听网络请求中的图片上传
-    observeNetworkUploads();
-    
-    // 记录当前页面的原图
-    recordOriginalImages();
-}
-
-// 监听文件输入元素
-function observeFileInputs() {
-    // 查找所有现有的文件输入元素
-    const fileInputs = document.querySelectorAll('input[type="file"]');
-    fileInputs.forEach(input => addUploadListener(input));
-    
-    // 使用 MutationObserver 监听动态添加的文件输入元素
-    const observer = new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-            mutation.addedNodes.forEach((node) => {
-                if (node.nodeType === Node.ELEMENT_NODE) {
-                    // 检查新添加的元素是否是文件输入
-                    if (node.tagName === 'INPUT' && node.type === 'file') {
-                        addUploadListener(node);
-                    }
-                    // 检查新添加的元素内部是否有文件输入
-                    const inputs = node.querySelectorAll && node.querySelectorAll('input[type="file"]');
-                    if (inputs) {
-                        inputs.forEach(input => addUploadListener(input));
-                    }
-                }
-            });
-        });
-    });
-    
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true
-    });
-}
-
-// 为文件输入添加上传监听器
-function addUploadListener(input) {
-    if (input._uploadListenerAdded) return; // 防止重复添加
-    input._uploadListenerAdded = true;
-    
-    input.addEventListener('change', (event) => {
-        const files = event.target.files;
-        if (files && files.length > 0) {
-            const file = files[0];
-            if (file.type.startsWith('image/')) {
-                console.log('检测到图片上传:', file.name, file.type, file.size);
-                handleImageUpload(file, input);
-            }
-        }
-    });
-}
-
 // 处理图片上传
 function handleImageUpload(file, inputElement) {
     debugLog('开始处理图片上传', {
@@ -1841,93 +1756,6 @@ function hasImageHeaders(response) {
 }
 
 // 判断是否是原图候选 - 增强后端链接检测
-function isOriginalImageCandidate(url) {
-    if (!url) return false;
-    
-    const lowerUrl = url.toLowerCase();
-    
-    // 后端API图片链接特征检测 - 增强COS路径识别
-    const backendIndicators = [
-        '/api/', '/upload/', '/image/', '/media/', '/file/',
-        '/attachment/', '/resource/', '/assets/', '/static/',
-        '/target/', '/target/dataset/', '/dataset/',
-        '/origin/', '/source/', '/raw/'
-    ];
-    
-    // 原图关键词
-    const originalKeywords = [
-        'original', 'source', 'master', 'raw', 'full', 'origin',
-        '原图', '原始', '源图', 'src', 'orig',
-        'high', 'hd', 'quality', 'best', 'max'
-    ];
-    
-    // 文件名中的原图指示器
-    const filenameIndicators = [
-        'original', 'source', 'master', 'raw', 'full',
-        'large', 'big', 'huge', 'xl', 'xxl', 'max'
-    ];
-    
-    // 检查是否包含后端API路径
-    const hasBackendPath = backendIndicators.some(indicator => 
-        lowerUrl.includes(indicator)
-    );
-    
-    // 检查原图关键词
-    const hasOriginalKeyword = originalKeywords.some(keyword => 
-        lowerUrl.includes(keyword)
-    );
-    
-    // 检查文件名指示器（在URL路径的最后部分）
-    const urlParts = lowerUrl.split('/');
-    const fileName = urlParts[urlParts.length - 1] || '';
-    const hasFilenameIndicator = filenameIndicators.some(indicator => 
-        fileName.includes(indicator)
-    );
-    
-    // 检查尺寸格式（如 1920x1080）
-    const hasDimensions = /\d{3,4}[x×]\d{3,4}/.test(url);
-    
-    // 检查高质量指示器
-    const hasQualityIndicator = /[\?&](quality|q)=([89]\d|100)/.test(lowerUrl) || // 高质量参数
-                               /(high|hd|uhd|4k|8k)/i.test(lowerUrl);
-    
-    // 检查文件大小参数（通常原图会有更大的尺寸参数）
-    const hasSizeParams = /[\?&](w|width|h|height)=([5-9]\d{2,}|\d{4,})/.test(lowerUrl);
-    
-    // 避免缩略图
-    const isThumbnail = /(thumb|thumbnail|small|mini|tiny|preview|_s\.|_m\.|_xs\.|_sm\.)/i.test(lowerUrl);
-    
-    // 使用专门的COS原图检测
-    const isCOSOriginal = isCOSOriginalImage(url);
-    
-    // 综合判断
-    const isCandidate = (
-        hasBackendPath || 
-        hasOriginalKeyword || 
-        hasFilenameIndicator ||
-        hasDimensions ||
-        hasQualityIndicator ||
-        hasSizeParams ||
-        isCOSOriginal
-    ) && !isThumbnail;
-    
-    if (isCandidate) {
-        debugLog('识别为原图候选', {
-            url: url.substring(0, 100) + '...',
-            hasBackendPath,
-            hasOriginalKeyword,
-            hasFilenameIndicator,
-            hasDimensions,
-            hasQualityIndicator,
-            hasSizeParams,
-            isCOSOriginal,
-            isThumbnail
-        });
-    }
-    
-    return isCandidate;
-}
-
 // 判断是否是服务器返回的修改图 - 增强后端检测
 function isServerModifiedImageUrl(url) {
     if (!url) return false;
@@ -3545,13 +3373,6 @@ function debugLog(message, data = null) {
     }
 }
 
-// 已移除：返修模式专用日志函数
-// function revisionLog() { ... }
-
-// 打印返修模式图片状态的专用函数
-// 已移除：返修模式图片状态打印函数
-// function printRevisionModeStatus() { ... }
-
 // 初始化调试面板
 function initializeDebugPanel() {
     debugLog('初始化调试面板');
@@ -3705,33 +3526,6 @@ function toggleDebugMode() {
         showNotification('调试模式已关闭 (Z键切换)', 2000);
     }
 }
-
-// 已移除：模式切换函数
-// function toggleAnnotationMode() { ... }
-
-// 已移除：模式状态显示器创建函数
-// function createModeStatusIndicator() { ... }
-
-// 已移除：拖拽功能函数
-// function addDragListeners() { ... }
-
-// 已移除：拖拽开始函数
-// function startDrag() { ... }
-
-// 已移除：拖拽过程函数
-// function drag() { ... }
-
-// 已移除：停止拖拽函数
-// function stopDrag() { ... }
-
-// 已移除：重置指示器位置函数
-// function resetIndicatorPosition() { ... }
-
-// 已移除：更新模式状态显示器函数
-// function updateModeStatusIndicator() { ... }
-
-// 已移除：模式状态显示函数
-// function displayCurrentMode() { ... }
 
 // 增强的图片上传监听和对比功能（带调试）
 function initializeUploadMonitoring() {
