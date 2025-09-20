@@ -330,8 +330,9 @@ class RunningHubManager {
             debugLog(`第${pollCount}次轮询结果`, { code, status, msg, rawData: data });
 
             // 详细打印轮询状态到控制台
-            const elapsed = Math.round((Date.now() - start) / 1000);
-            console.log(`📊 第${pollCount}次轮询 | ⏱️ ${elapsed}s | 状态: ${status || '未知'} | 消息: ${msg || '无'}`);
+            const elapsedMs = Date.now() - start; // 毫秒
+            const elapsedSec = Math.round(elapsedMs / 1000); // 秒
+            console.log(`📊 第${pollCount}次轮询 | ⏱️ ${elapsedSec}s | 状态: ${status || '未知'} | 消息: ${msg || '无'}`);
 
             // 通知回调函数更新状态
             if (onTick) {
@@ -341,7 +342,7 @@ class RunningHubManager {
                         pollCount,
                         status,
                         msg,
-                        elapsed
+                        elapsed: elapsedMs // 传递毫秒数，保持与旧代码一致
                     });
                 } catch (callbackError) {
                     debugLog('onTick回调执行失败:', callbackError);
@@ -353,7 +354,7 @@ class RunningHubManager {
                 debugLog('任务成功完成');
                 console.log(`\n✅ ======== 任务完成 ========`);
                 console.log(`🕐 完成时间: ${new Date().toLocaleTimeString()}`);
-                console.log(`⏱️ 总耗时: ${elapsed}秒`);
+                console.log(`⏱️ 总耗时: ${elapsedSec}秒`);
                 console.log(`🔄 总轮询次数: ${pollCount}`);
                 console.log(`=============================\n`);
 
@@ -368,8 +369,8 @@ class RunningHubManager {
                     final: 'SUCCESS',
                     data,
                     pollCount,
-                    elapsed,
-                    totalTime: elapsed // 兼容性：旧代码期望 totalTime
+                    elapsed: elapsedMs, // 毫秒数
+                    totalTime: elapsedMs // 兼容性：旧代码期望毫秒数，会自己除以1000
                 };
             }
 
@@ -378,7 +379,7 @@ class RunningHubManager {
                 debugLog('任务失败', { code, status, msg });
                 console.log(`\n❌ ======== 任务失败 ========`);
                 console.log(`🕐 失败时间: ${new Date().toLocaleTimeString()}`);
-                console.log(`⏱️ 总耗时: ${elapsed}秒`);
+                console.log(`⏱️ 总耗时: ${elapsedSec}秒`);
                 console.log(`🔄 总轮询次数: ${pollCount}`);
                 console.log(`❌ 失败原因: ${msg || '未知错误'}`);
                 console.log(`=============================\n`);
@@ -398,7 +399,7 @@ class RunningHubManager {
                 debugLog('轮询超时');
                 console.log(`\n⏰ ======== 轮询超时 ========`);
                 console.log(`🕐 超时时间: ${new Date().toLocaleTimeString()}`);
-                console.log(`⏱️ 总耗时: ${elapsed}秒`);
+                console.log(`⏱️ 总耗时: ${elapsedSec}秒`);
                 console.log(`🔄 总轮询次数: ${pollCount}`);
                 console.log(`⏰ 超时原因: 超过${Math.round(maxWaitMs / 1000)}秒限制`);
                 console.log(`=============================\n`);

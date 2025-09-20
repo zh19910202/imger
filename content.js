@@ -6209,7 +6209,11 @@ async function submitDimensionCheck(comment) {
                             });
                             debugLog('📊 [POLL] 开始更新进度显示为任务完成', {
                                 taskId,
-                                totalTime: Math.round(pollResult.totalTime / 1000)
+                                totalTime: Math.round(pollResult.totalTime / 1000),
+                                elapsed: Math.round(pollResult.elapsed / 1000),
+                                rawTotalTime: pollResult.totalTime,
+                                rawElapsed: pollResult.elapsed,
+                                pollResult: pollResult
                             });
                             updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n✅ 任务已完成 - 耗时${Math.round(pollResult.totalTime / 1000)}秒`);
                             debugLog('✅ [POLL] 进度显示更新完成', {
@@ -7058,13 +7062,8 @@ function renderRunningHubResultsInModal(outputsJson) {
                 container.style.cssText = `
                     display: flex;
                     flex-direction: column;
-                    gap: 12px;
-                    margin-bottom: 16px;
-                    padding: 16px;
-                    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-                    border: 1px solid #e2e8f0;
-                    border-radius: 12px;
-                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+                    gap: 8px;
+                    margin-bottom: 12px;
                 `;
 
                 // 图片信息标题
@@ -7076,6 +7075,7 @@ function renderRunningHubResultsInModal(outputsJson) {
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
+                    margin-bottom: 8px;
                 `;
                 infoHeader.innerHTML = `
                     <span>🎨 生成结果 #${index + 1}</span>
@@ -7098,8 +7098,6 @@ function renderRunningHubResultsInModal(outputsJson) {
                     justify-content: center;
                     max-height: 400px;
                     max-width: 100%;
-                    border: 1px solid #e2e8f0;
-                    background: #f9fafb;
                 `;
 
                 const img = document.createElement('img');
