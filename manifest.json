@@ -44,6 +44,7 @@
         "src/utils/Logger.js",
         "src/modules/RunningHubManager.js",
         "src/modules/DownloadManager.js",
+        "src/modules/KeyboardManager.js",
         "resource-extractor.js",
         "content.js"
       ]

@@ -180,13 +180,7 @@ function initializeScript() {
     initializeAudio();
     
     // 添加键盘事件监听器
-    // 初始化 KeyboardManager
-    if (typeof initializeKeyboardManager === 'function') {
-        initializeKeyboardManager();
-    } else {
-        // 回退到兼容模式
-        document.addEventListener('keydown', handleKeydown);
-    }
+    document.addEventListener('keydown', handleKeydown);
     
     // 监听存储变化
     chrome.storage.onChanged.addListener((changes, namespace) => {
@@ -396,9 +390,278 @@ function closeComparisonModal() {
 }
 
 // 处理键盘事件
-// handleKeydown 函数已移动到 src/modules/KeyboardManager.js
+function handleKeydown(event) {
+    // 检查是否在输入框中
+    if (isInInputField(event.target)) {
+        return; // 在输入框中，不处理快捷键
+    }
+    // 处理F1键 - 连续执行“标记无效”(X键逻辑)并自动确认弹窗（再次按F1停止）
+    else if (event.key === 'F1') {
+        // 检查并关闭模态框
+        if (checkAndCloseModalIfOpen('f1')) {
+            return; // 如果关闭了模态框，停止执行
+        }
+        
+        event.preventDefault();
+        if (!f1AutoInvalidating) {
+            f1AutoInvalidating = true;
+            f1RunCount = 0;
+            showNotification(`F1 连续无效化启动（间隔 ${f1IntervalMs}ms）`);
+
+            const runOnce = () => {
+                if (!f1AutoInvalidating) return;
+                // 检查是否有次数限制且已达到限制
+                if (f1MaxRuns > 0 && f1RunCount >= f1MaxRuns) {
+                    f1AutoInvalidating = false;
+                    showNotification('F1 连续无效化已达最大次数，自动停止');
+                    return;
+                }
+                f1RunCount++;
+
+                // 复用 X 键逻辑：查找“标记无效”并点击，随后自动确认
+                const invalidButton = findButtonByText(['标记无效', '无效', 'Invalid', '标记为无效', 'Mark Invalid', '标记不合格']);
+                if (invalidButton) {
+                    clickButton(invalidButton, `标记无效 (#${f1RunCount})`);
+                    autoConfirmModalAfterAction();
+                }
+
+                // 安排下一次
+                if (f1AutoInvalidating) {
+                    f1TimerId = setTimeout(runOnce, f1IntervalMs);
+                }
+            };
+
+            runOnce();
+        } else {
+            // 停止
+            f1AutoInvalidating = false;
+            if (f1TimerId) {
+                clearTimeout(f1TimerId);
+                f1TimerId = null;
+            }
+            showNotification('F1 连续无效化已停止');
+        }
+    }
+    
+    const key = event.key.toLowerCase();
+    
+    // 处理D键 - 下载图片
+    if (key === 'd') {
+        // 检查并关闭模态框
+        if (checkAndCloseModalIfOpen(key)) {
+            return; // 如果关闭了模态框，停止执行
+        }
+        
+        // 阻止默认行为
+        event.preventDefault();
+        
+        // 获取要下载的图片
+        const imageToDownload = getImageToDownload();
+        
+        if (imageToDownload) {
+            downloadImage(imageToDownload);
+        } else {
+            console.log('没有找到可下载的图片');
+            showNotification('请先鼠标悬停在图片上，然后按D键下载');
+        }
+    }
+    // 处理空格键 - 点击"跳过"按钮
+    else if (event.code === 'Space') {
+        // 检查并关闭模态框（但不停止执行，继续执行跳过功能）
+        checkAndCloseModalIfOpen('space');
+        
+        // 如果对比页面打开，先关闭对比
+        if (isComparisonModalOpen) {
+            closeComparisonModal();
+            // 延迟执行跳过功能，确保对比页面完全关闭
+            setTimeout(() => {
+                const skipButton = findButtonByText(['跳过', 'Skip', '跳過']);
+                if (skipButton) {
+                    event.preventDefault(); // 阻止空格键的默认滚动行为
+                    clickButton(skipButton, '跳过');
+                }
+            }, 100);
+        } else {
+            const skipButton = findButtonByText(['跳过', 'Skip', '跳過']);
+            if (skipButton) {
+                event.preventDefault(); // 阻止空格键的默认滚动行为
+                clickButton(skipButton, '跳过');
+            }
+        }
+    }
+    // 处理S键 - 点击"提交并继续标注"按钮
+    else if (key === 's') {
+        // 检查并关闭模态框（但不停止执行，继续执行提交功能）
+        checkAndCloseModalIfOpen('s');
+        
+        // 如果对比页面打开，先关闭对比
+        if (isComparisonModalOpen) {
+            closeComparisonModal();
+            // 延迟执行提交功能，确保对比页面完全关闭
+            setTimeout(() => {
+                const submitButton = findButtonByText(['提交并继续标注', '提交', 'Submit', '继续标注', 'Continue']);
+                if (submitButton) {
+                    event.preventDefault();
+                    // 播放音效
+                    playNotificationSound();
+                    clickButton(submitButton, '提交并继续标注');
+                }
+            }, 100);
+        } else {
+            const submitButton = findButtonByText(['提交并继续标注', '提交', 'Submit', '继续标注', 'Continue']);
+            if (submitButton) {
+                event.preventDefault();
+                // 播放音效
+                playNotificationSound();
+                clickButton(submitButton, '提交并继续标注');
+            }
+        }
+    }
+    // 处理A键 - 点击"上传图片"按钮
+    else if (key === 'a') {
+        // 检查并关闭模态框（但不停止执行，继续执行上传功能）
+        checkAndCloseModalIfOpen('a');
+        
+        const uploadButton = findButtonByText(['上传图片', '上传', 'Upload', '选择图片', '选择文件']);
+        if (uploadButton) {
+            event.preventDefault();
+            clickButton(uploadButton, '上传图片');
+        } else {
+            showNotification('未找到上传图片按钮');
+        }
+    }
+    // 处理F键 - 点击"查看历史"链接
+    else if (key === 'f') {
+        // 检查并关闭模态框（但不停止执行，继续执行查看历史功能）
+        checkAndCloseModalIfOpen('f');
+        
+        const historyLink = findLinkByText(['点击查看历史', '查看历史', '历史', 'History', '历史记录', '查看记录']);
+        if (historyLink) {
+            event.preventDefault();
+            clickLink(historyLink, '查看历史');
+        } else {
+            showNotification('未找到查看历史链接');
+        }
+    }
+    // 处理X键 - 点击"标记无效"按钮
+    else if (key === 'x') {
+        // 检查并关闭模态框
+        if (checkAndCloseModalIfOpen('x')) {
+            return; // 如果关闭了模态框，停止执行
+        }
+        
+        // 如果对比页面打开，先关闭对比
+        if (isComparisonModalOpen) {
+            closeComparisonModal();
+            // 延迟执行标记无效功能，确保对比页面完全关闭
+            setTimeout(() => {
+                const invalidButton = findButtonByText(['标记无效', '无效', 'Invalid', '标记为无效', 'Mark Invalid', '标记不合格']);
+                if (invalidButton) {
+                    event.preventDefault();
+                    clickButton(invalidButton, '标记无效');
+                    // 尝试自动确认可能弹出的模态框
+                    autoConfirmModalAfterAction();
+                } else {
+                    showNotification('未找到标记无效按钮');
+                }
+            }, 100);
+        } else {
+            const invalidButton = findButtonByText(['标记无效', '无效', 'Invalid', '标记为无效', 'Mark Invalid', '标记不合格']);
+            if (invalidButton) {
+                event.preventDefault();
+                clickButton(invalidButton, '标记无效');
+                // 尝试自动确认可能弹出的模态框
+                autoConfirmModalAfterAction();
+            } else {
+                showNotification('未找到标记无效按钮');
+            }
+        }
+    }
+    // 处理W键 - 智能图片对比
+    else if (key === 'w') {
+        // 检查并关闭模态框（但不停止执行，继续执行智能对比功能）
+        checkAndCloseModalIfOpen('w');
+        
+        event.preventDefault();
+        debugLog('手动触发智能图片对比 (W键)');
+        showNotification('启动智能图片对比...', 1000);
+        triggerSmartComparisonWithFallback();
+    }
+    // 处理Z键 - 切换调试模式
+    else if (key === 'z') {
+        // 检查并关闭模态框
+        if (checkAndCloseModalIfOpen('z')) {
+            return; // 如果关闭了模态框，停止执行
+        }
+        
+        event.preventDefault();
+        toggleDebugMode();
+    }
+    // 处理I键 - 手动检查所有文件输入状态
+    else if (key === 'i') {
+        // 检查并关闭模态框
+        if (checkAndCloseModalIfOpen('i')) {
+            return; // 如果关闭了模态框，停止执行
+        }
+        
+        event.preventDefault();
+        debugLog('手动触发文件输入状态检查');
+        checkForFileInputChanges();
+        showNotification('已手动检查文件输入状态，查看调试面板', 2000);
+    }
+    // 处理B键 - 手动重新检测原图
+    else if (key === 'b') {
+        // 检查并关闭模态框
+        if (checkAndCloseModalIfOpen('b')) {
+            return; // 如果关闭了模态框，停止执行
+        }
+        
+        event.preventDefault();
+        debugLog('手动重新检测原图');
+        // 解锁原图并重新检测
+        originalImageLocked = false;
+        originalImage = null;
+        recordOriginalImages();
+        showNotification('已重新检测原图，查看调试面板', 2000);
+    }
+    // 移除：R键模式切换逻辑
+    // 处理M键 - 手动打印图片状态
+    else if (key === 'm') {
+        // 检查并关闭模态框
+        if (checkAndCloseModalIfOpen('m')) {
+            return; // 如果关闭了模态框，停止执行
+        }
+        
+        event.preventDefault();
+        // 已移除：revisionLog调用
+        // 已移除：printRevisionModeStatus();
+        showNotification('已打印图片状态，请查看调试面板', 2000);
+    }
+    // 处理F2键 - 检查图片尺寸并显示标注界面
+    else if (event.key === 'F2') {
+        // 检查并关闭模态框
+        if (checkAndCloseModalIfOpen('f2')) {
+            return; // 如果关闭了模态框，停止执行
+        }
+        
+        event.preventDefault();
+        debugLog('F2键触发 - 检查图片尺寸');
+        checkImageDimensionsAndShowModal();
+    }
+    // 处理R键 - 手动触发图片尺寸检查
+    else if (key === 'r') {
+        event.preventDefault();
+        debugLog('R键触发 - 手动检查图片尺寸是否为8的倍数');
+        manualDimensionCheck();
+    }
+}
+
 // 检查目标元素是否是输入框
-// isInInputField 函数已移动到 src/modules/KeyboardManager.js
+function isInInputField(target) {
+    const inputTypes = ['INPUT', 'TEXTAREA', 'SELECT'];
+    return inputTypes.includes(target.tagName) || target.contentEditable === 'true';
+}
+
 // 获取要下载的图片
 function getImageToDownload() {
     // 优先级：选中的图片 > 鼠标悬停的图片
@@ -4424,7 +4687,18 @@ function isOriginalImageCandidate(url) {
 }
 
 // 简化：N键重新检测原图（只使用COS原图和精确DOM选择器）
-// N键监听器已移动到 src/modules/KeyboardManager.js
+document.addEventListener('keydown', function(event) {
+    if (!isInInputField(event.target) && event.key.toLowerCase() === 'n') {
+        event.preventDefault();
+        debugLog('手动重新检测原图 (N键)');
+        showNotification('正在重新检测原图...', 1000);
+        // 解锁原图，重新检测
+        originalImageLocked = false;
+        originalImage = null;
+        recordOriginalImages();
+    }
+});
+
 // ============== 竞速模式原图获取系统 ==============
 
 // 竞速模式：多种方法并行执行，采用第一个成功的结果
@@ -4709,7 +4983,19 @@ function selectBestImage(results) {
 }
 
 // 简化：P键强制重新检测原图（忽略锁定状态）
-// P键监听器已移动到 src/modules/KeyboardManager.js
+document.addEventListener('keydown', function(event) {
+    if (!isInInputField(event.target) && event.key.toLowerCase() === 'p') {
+        // 检查并关闭模态框
+        if (checkAndCloseModalIfOpen('p')) {
+            return; // 如果关闭了模态框，停止执行
+        }
+        
+        event.preventDefault();
+        debugLog('P键触发：智能尺寸检查 (与F2键功能相同)');
+        checkImageDimensionsAndShowModal();
+    }
+});
+
 // 移除：R键相关逻辑（模式切换、资源提取测试）
 
 // 删除T键测试功能，合并到W键
