@@ -440,11 +440,8 @@ class RunningHubManager {
             const data = await response.json();
             debugLog('任务输出响应', data);
 
-            if (data.code !== 0) {
-                throw new Error(data.msg || '获取输出失败');
-            }
-
-            return data.data;
+            // 完全按照原有逻辑：返回完整的响应对象，不做任何处理
+            return data;
 
         } catch (error) {
             debugLog('获取任务输出失败:', error);

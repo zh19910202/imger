@@ -5706,8 +5706,8 @@ function showDimensionCheckModal(imageInfo, isDimensionValid) {
         addClearCacheButton();
 
         debugLog('✅ [MODAL] 状态恢复完成', {
-            taskId: modalTaskInfo ? modalTaskInfo.taskId : 'no-task-info',
-            finalStatus: modalTaskInfo ? modalTaskInfo.status : 'unknown',
+            taskId: currentPageTaskInfo.taskId,
+            finalStatus: currentPageTaskInfo.status,
             notificationShown: true,
             timestamp: new Date().toISOString()
         });
@@ -5746,8 +5746,8 @@ function showDimensionCheckModal(imageInfo, isDimensionValid) {
         }
     } else if (hasValidCache) {
         debugLog('有缓存结果，确保轮询状态已重置', {
-            taskId: modalTaskInfo ? modalTaskInfo.taskId : 'no-task-info',
-            cacheStatus: modalTaskInfo ? modalTaskInfo.status : 'unknown'
+            taskId: currentPageTaskInfo.taskId,
+            cacheStatus: currentPageTaskInfo.status
         });
 
         // 有缓存就确保轮询状态被重置
@@ -5942,15 +5942,7 @@ function enableSubmitButton(submitBtn, status = 'ready') {
 
 // 在模态框中添加缓存指示器
 function addCacheIndicator() {
-    if (!isDimensionCheckModalOpen || !dimensionCheckModal) return;
-
-    // 获取任务信息（简化逻辑，直接使用全局变量）
-    let taskInfo = window.currentPageTaskInfo;
-
-    if (!taskInfo) {
-        debugLog('addCacheIndicator: 没有任务信息，跳过添加缓存指示器');
-        return;
-    }
+    if (!isDimensionCheckModalOpen || !dimensionCheckModal || !currentPageTaskInfo) return;
 
     // 检查是否已存在缓存指示器
     let indicator = dimensionCheckModal.querySelector('#cache-indicator');
@@ -5973,7 +5965,7 @@ function addCacheIndicator() {
         z-index: 1001;
     `;
 
-    const timeAgo = Math.round((Date.now() - taskInfo.cachedAt) / 1000);
+    const timeAgo = Math.round((Date.now() - currentPageTaskInfo.cachedAt) / 1000);
     indicator.innerHTML = `
         <span style="display: flex; align-items: center; gap: 4px;">
             <span>💾</span>
@@ -6954,7 +6946,85 @@ function updateDimensionModalProgress(text) {
 
 // pollRunningHubTaskStatus 函数已移动到 src/modules/RunningHubManager.js
 
-// fetchRunningHubTaskOutputs 和 cancelRunningHubTask 函数已移动到 src/modules/RunningHubManager.js
+async function fetchRunningHubTaskOutputs(apiKey, taskId) {
+    debugLog('开始获取任务输出', { apiKey: apiKey.substring(0, 10) + '...', taskId });
+
+    const url = 'https://www.runninghub.cn/task/openapi/outputs';
+    const headers = { 'Host': 'www.runninghub.cn', 'Content-Type': 'application/json' };
+    const body = JSON.stringify({ apiKey, taskId });
+
+    debugLog('发送输出查询请求', { url, body });
+
+    const resp = await fetch(url, { method: 'POST', headers, body });
+
+    if (!resp.ok) {
+        const errorText = await resp.text();
+        debugLog('输出查询HTTP错误', { status: resp.status, statusText: resp.statusText, errorText });
+        throw new Error(`获取输出失败: HTTP ${resp.status} - ${errorText}`);
+    }
+
+    const result = await resp.json();
+    debugLog('输出查询响应', result);
+
+    // 详细打印输出查询结果
+    console.log(`\n📥 ======== RunningHub 输出查询结果 ========`);
+    console.log(`🕐 查询时间: ${new Date().toLocaleTimeString()}`);
+    console.log(`🆔 任务ID: ${taskId}`);
+    console.log(`📊 响应码: ${result.code}`);
+    console.log(`💬 消息: ${result.msg || '无'}`);
+    console.log(`📋 数据类型: ${typeof result.data}`);
+    console.log(`📊 数据长度: ${Array.isArray(result.data) ? result.data.length : 'N/A'}`);
+    console.log(`🔍 完整响应:`, result);
+
+    if (Array.isArray(result.data) && result.data.length > 0) {
+        console.log(`\n📸 ======== 输出项目详情 ========`);
+        result.data.forEach((item, index) => {
+            console.log(`📷 项目 #${index + 1}:`);
+            console.log(`  🔗 fileUrl: ${item.fileUrl || '无'}`);
+            console.log(`  📝 fileType: ${item.fileType || '无'}`);
+            console.log(`  🔢 nodeId: ${item.nodeId || '无'}`);
+            console.log(`  ⏱️ taskCostTime: ${item.taskCostTime || '无'}秒`);
+            console.log(`  🔍 完整数据:`, item);
+        });
+        console.log(`=====================================`);
+    } else {
+        console.log(`⚠️ 无输出数据或数据为空`);
+    }
+    console.log(`==========================================\n`);
+
+    // 详细记录API返回的结构
+    debugLog('API输出结构分析', {
+        code: result.code,
+        msg: result.msg,
+        hasData: !!result.data,
+        dataType: typeof result.data,
+        dataIsArray: Array.isArray(result.data),
+        dataLength: Array.isArray(result.data) ? result.data.length : 'N/A',
+        firstItem: Array.isArray(result.data) && result.data.length > 0 ? result.data[0] : null
+    });
+
+    return result;
+}
+
+async function cancelRunningHubTask(apiKey, taskId) {
+    window._rhCancelRequested = true;
+    const url = 'https://www.runninghub.cn/task/openapi/cancel';
+    const headers = { 'Host': 'www.runninghub.cn', 'Content-Type': 'application/json' };
+    const body = JSON.stringify({ apiKey, taskId });
+    debugLog('发送取消任务请求', { taskId });
+    const resp = await fetch(url, { method: 'POST', headers, body });
+    if (!resp.ok) {
+        const t = await resp.text().catch(() => '');
+        debugLog('取消任务HTTP错误', { status: resp.status, statusText: resp.statusText, body: t });
+        throw new Error('取消失败: HTTP ' + resp.status);
+    }
+    const data = await resp.json().catch(() => ({}));
+    debugLog('取消任务响应', data);
+    if (data?.code !== 0) {
+        throw new Error(data?.msg || '取消失败');
+    }
+    return data;
+}
 
 function renderRunningHubResultsInModal(outputsJson) {
     try {
@@ -6963,14 +7033,6 @@ function renderRunningHubResultsInModal(outputsJson) {
             modalOpen: isDimensionCheckModalOpen,
             modalExists: !!dimensionCheckModal,
             timestamp: new Date().toISOString()
-        });
-
-        // 检查函数依赖是否可用
-        debugLog('🔍 [RENDER] 检查函数依赖', {
-            downloadImageToLocal: typeof downloadImageToLocal,
-            generateResultImageFileName: typeof generateResultImageFileName,
-            extractFileNameFromUrl: typeof extractFileNameFromUrl,
-            showNotification: typeof showNotification
         });
 
         if (!isDimensionCheckModalOpen || !dimensionCheckModal) {
@@ -6996,7 +7058,7 @@ function renderRunningHubResultsInModal(outputsJson) {
             else dimensionCheckModal.appendChild(wrap);
         }
 
-        // 根据API文档，正确解析返回结果（恢复原有逻辑）
+        // 根据API文档，正确解析返回结果
         const outputs = outputsJson?.data || outputsJson?.outputs || outputsJson;
         const items = Array.isArray(outputs) ? outputs : (outputs?.outputs || []);
 
@@ -8024,4 +8086,50 @@ async function uploadImageToAnnotationPlatform(imageUrl, fileType, index) {
 let RUNNINGHUB_CONFIG = null;
 
 // 加载Running Hub配置文件
-// loadRunningHubConfig 和 createWorkflowTask 函数已移动到 src/modules/RunningHubManager.js
+async function loadRunningHubConfig() {
+    if (RUNNINGHUB_CONFIG) {
+        return RUNNINGHUB_CONFIG; // 如果已加载，直接返回缓存
+    }
+    
+    try {
+        const configUrl = chrome.runtime.getURL('runninghub-config.json');
+        const response = await fetch(configUrl);
+        
+        if (!response.ok) {
+            throw new Error(`配置文件加载失败: ${response.status}`);
+        }
+        
+        RUNNINGHUB_CONFIG = await response.json();
+        debugLog('Running Hub配置加载成功:', RUNNINGHUB_CONFIG);
+        return RUNNINGHUB_CONFIG;
+        
+    } catch (error) {
+        debugLog('配置文件加载失败，使用默认配置:', error);
+        
+        // 如果配置文件加载失败，使用默认配置
+        RUNNINGHUB_CONFIG = {
+            defaultWorkflow: {
+                webappId: "1967790629851922434",
+                nodeInfoList: [
+                    {
+                        nodeId: "189",
+                        fieldName: "image",
+                        fieldValue: "{IMAGE_FILE}",
+                        description: "image"
+                    },
+                    {
+                        nodeId: "191",
+                        fieldName: "prompt",
+                        fieldValue: "{PROMPT}",
+                        description: "prompt"
+                    }
+                ]
+            }
+        };
+        
+        return RUNNINGHUB_CONFIG;
+    }
+}
+
+// 创建Running Hub AI应用任务
+// createWorkflowTask 函数已移动到 src/modules/RunningHubManager.js

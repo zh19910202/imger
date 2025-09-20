@@ -2,6 +2,90 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Code Migration and Refactoring Principles
+
+### 🚨 Critical Migration Rules
+
+#### 1. Logic Preservation Principle
+**NEVER modify business logic during code migration**
+- Migrated code must be 100% identical to original code
+- Function parameters, return values, and behavior must remain exactly the same
+- All error handling, data processing, and edge cases must be preserved
+- Business logic optimization should ONLY happen AFTER migration is complete
+
+#### 2. API Interface Consistency
+**Maintain exact API compatibility**
+- Function signatures must remain identical
+- Return value formats must stay the same
+- Error message formats and types must be preserved
+- Global variable access patterns must not change
+
+#### 3. Migration-Only Changes
+**Only these changes are allowed during migration:**
+- Moving code from one file to another
+- Adding module imports/exports
+- Creating compatibility wrapper functions
+- Adding necessary debugging/logging for migration verification
+
+#### 4. Forbidden During Migration
+**These changes are STRICTLY FORBIDDEN during migration:**
+- Changing function return value formats
+- "Improving" error handling or data processing
+- Optimizing algorithms or performance
+- Modifying business logic or validation rules
+- Changing API response handling
+- Adding new features or capabilities
+
+#### 5. Migration Verification
+**Each migration must preserve exact behavior:**
+- Test with same inputs, expect same outputs
+- Verify error cases produce identical results
+- Confirm side effects and state changes match
+- Validate timing and async behavior consistency
+
+#### 6. Post-Migration Optimization
+**After migration is complete and verified:**
+- Then consider optimizations and improvements
+- Document any proposed logic changes
+- Test improvements separately from migration
+- Maintain backward compatibility
+
+### Example: Wrong vs Right Migration
+
+❌ **Wrong - Modified during migration:**
+```javascript
+// Old code
+const result = await response.text();
+return result;
+
+// New code (WRONG - changed return format)
+const data = await response.json();
+return { success: true, data: data.data, message: data.msg };
+```
+
+✅ **Right - Exact code preservation:**
+```javascript
+// Old code
+const result = await response.text();
+return result;
+
+// New code (CORRECT - identical logic)
+const result = await response.text();
+return result;
+```
+
+### Migration Checklist
+- [ ] Code logic 100% identical
+- [ ] Function signatures unchanged
+- [ ] Return formats preserved
+- [ ] Error handling identical
+- [ ] Dependencies satisfied
+- [ ] Behavior verification passed
+
+**Remember: Migration = Move, Don't Modify**
+
+---
+
 ## Project Overview
 
 **AnnotateFlow Assistant (Auxis)** is a Chrome extension (Manifest V3) designed for the Tencent QLabel annotation platform. The extension provides fast image downloading capabilities, keyboard shortcuts for annotation workflows, and AI-powered image processing through RunningHub integration.
