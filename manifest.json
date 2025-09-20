@@ -47,13 +47,14 @@
         "src/modules/DownloadManager.js",
         "src/modules/KeyboardManager.js",
         "src/modules/ui/ImageHelper.js",
+        "src/modules/ui/UIHelper.js",
         "content.js"
       ]
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["runninghub-config.json", "src/modules/ui/ImageHelper.js"],
+      "resources": ["runninghub-config.json", "src/modules/ui/ImageHelper.js", "src/modules/ui/UIHelper.js"],
       "matches": ["https://qlabel.tencent.com/*", "http://localhost:*/*", "file://*/*"]
     }
   ]

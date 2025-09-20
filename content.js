@@ -22,6 +22,19 @@ if (typeof window.getImageHelper === 'undefined' && typeof window.initializeImag
     document.head.appendChild(imageHelperScript);
 }
 
+if (typeof window.getUIHelper === 'undefined' && typeof window.initializeUIHelper === 'undefined') {
+    // 如果模块未加载，动态加载UIHelper模块
+    const uiHelperScript = document.createElement('script');
+    uiHelperScript.src = chrome.runtime.getURL('src/modules/ui/UIHelper.js');
+    uiHelperScript.onload = function() {
+        console.log('UIHelper 模块加载成功');
+    };
+    uiHelperScript.onerror = function() {
+        console.error('UIHelper 模块加载失败');
+    };
+    document.head.appendChild(uiHelperScript);
+}
+
 // 检查模块是否可用的便捷函数
 function isModuleAvailable(moduleName) {
     switch(moduleName) {
@@ -31,6 +44,8 @@ function isModuleAvailable(moduleName) {
             return typeof window.initializeDownloadManager === 'function';
         case 'ImageHelper':
             return typeof window.initializeImageHelper === 'function';
+        case 'UIHelper':
+            return typeof window.initializeUIHelper === 'function';
         default:
             return false;
     }
@@ -508,58 +523,10 @@ function showNotification(message, duration = 3000) {
 }
 
 // 根据文本内容查找按钮
-function findButtonByText(textOptions) {
-    // 查找所有可能的按钮元素
-    const buttonSelectors = [
-        'button',
-        'input[type="button"]',
-        'input[type="submit"]',
-        '[role="button"]',
-        '.btn',
-        '.button',
-        'a[href="#"]',
-        'a[onclick]',
-        'div[onclick]',
-        'span[onclick]'
-    ];
-    
-    const allElements = document.querySelectorAll(buttonSelectors.join(','));
-    
-    // 遍历所有元素，查找匹配的文本
-    for (const element of allElements) {
-        const text = (element.textContent || element.value || element.innerText || '').trim();
-        
-        // 检查是否匹配任一文本选项
-        if (textOptions.some(option => 
-            text.includes(option) || 
-            text.toLowerCase().includes(option.toLowerCase())
-        )) {
-            return element;
-        }
-    }
-    
-    return null;
-}
+// findButtonByText 函数已移动到 src/modules/ui/UIHelper.js
 
 // 点击按钮并显示反馈
-function clickButton(button, actionName) {
-    try {
-        console.log(`点击${actionName}按钮:`, button);
-        
-        // 添加视觉反馈
-        addButtonClickEffect(button);
-        
-        // 模拟点击事件
-        button.click();
-        
-        // 显示通知
-        showNotification(`已执行: ${actionName}`);
-        
-    } catch (error) {
-        console.error(`点击${actionName}按钮时发生错误:`, error);
-        showNotification(`执行${actionName}失败: ${error.message}`);
-    }
-}
+// clickButton 函数已移动到 src/modules/ui/UIHelper.js
 
 // 在执行可能触发确认弹窗的操作后，尝试自动点击“确定/确认/OK”按钮
 function autoConfirmModalAfterAction() {
@@ -636,25 +603,7 @@ function autoConfirmModalAfterAction() {
 }
 
 // 为按钮添加点击视觉效果
-function addButtonClickEffect(button) {
-    const originalStyle = {
-        backgroundColor: button.style.backgroundColor,
-        transform: button.style.transform,
-        transition: button.style.transition
-    };
-    
-    // 添加点击效果
-    button.style.transition = 'all 0.2s ease';
-    button.style.transform = 'scale(0.95)';
-    button.style.backgroundColor = '#e3f2fd';
-    
-    // 恢复原始样式
-    setTimeout(() => {
-        button.style.backgroundColor = originalStyle.backgroundColor;
-        button.style.transform = originalStyle.transform;
-        button.style.transition = originalStyle.transition;
-    }, 200);
-}
+// addButtonClickEffect 函数已移动到 src/modules/ui/UIHelper.js
 
 // 清理函数
 function cleanup() {
@@ -801,112 +750,13 @@ function playNotificationSound() {
 }
 
 // 根据文本内容查找链接
-function findLinkByText(textOptions) {
-    // 查找所有可能的链接元素，包括更广泛的选择器
-    const linkSelectors = [
-        'a[href]',
-        'a[onclick]',
-        '[role="link"]',
-        '.link',
-        '.history-link',
-        '.nav-link',
-        'span[onclick]',
-        'div[onclick]',
-        'span[style*="cursor: pointer"]',
-        'div[style*="cursor: pointer"]',
-        'span[class*="link"]',
-        'div[class*="link"]',
-        'span[class*="history"]',
-        'div[class*="history"]',
-        'span[class*="click"]',
-        'div[class*="click"]'
-    ];
-    
-    const allElements = document.querySelectorAll(linkSelectors.join(','));
-    
-    // 遍历所有元素，查找匹配的文本
-    for (const element of allElements) {
-        const text = (element.textContent || element.innerText || element.title || '').trim();
-        
-        // 检查是否匹配任一文本选项
-        if (textOptions.some(option => 
-            text.includes(option) || 
-            text.toLowerCase().includes(option.toLowerCase())
-        )) {
-            return element;
-        }
-    }
-    
-    // 如果上面的方法没找到，尝试在整个页面中搜索包含目标文本的元素
-    const allTextElements = document.querySelectorAll('*');
-    for (const element of allTextElements) {
-        const text = (element.textContent || element.innerText || '').trim();
-        
-        // 检查是否包含目标文本
-        if (textOptions.some(option => 
-            text.includes(option) || 
-            text.toLowerCase().includes(option.toLowerCase())
-        )) {
-            // 检查这个元素是否可点击（有onclick、cursor:pointer等）
-            const style = window.getComputedStyle(element);
-            const hasClickHandler = element.onclick || 
-                                  element.getAttribute('onclick') ||
-                                  style.cursor === 'pointer' ||
-                                  element.tagName === 'A' ||
-                                  element.getAttribute('role') === 'link';
-            
-            if (hasClickHandler) {
-                return element;
-            }
-        }
-    }
-    
-    return null;
-}
+// findLinkByText 函数已移动到 src/modules/ui/UIHelper.js
 
 // 点击链接并显示反馈
-function clickLink(link, actionName) {
-    try {
-        console.log(`点击${actionName}链接:`, link);
-        
-        // 添加视觉反馈
-        addLinkClickEffect(link);
-        
-        // 模拟点击事件
-        link.click();
-        
-        // 显示通知
-        showNotification(`已执行: ${actionName}`);
-        
-    } catch (error) {
-        console.error(`点击${actionName}链接时发生错误:`, error);
-        showNotification(`执行${actionName}失败: ${error.message}`);
-    }
-}
+// clickLink 函数已移动到 src/modules/ui/UIHelper.js
 
 // 为链接添加点击视觉效果
-function addLinkClickEffect(link) {
-    const originalStyle = {
-        backgroundColor: link.style.backgroundColor,
-        transform: link.style.transform,
-        transition: link.style.transition,
-        color: link.style.color
-    };
-    
-    // 添加点击效果
-    link.style.transition = 'all 0.2s ease';
-    link.style.transform = 'scale(0.95)';
-    link.style.backgroundColor = '#e3f2fd';
-    link.style.color = '#1976d2';
-    
-    // 恢复原始样式
-    setTimeout(() => {
-        link.style.backgroundColor = originalStyle.backgroundColor;
-        link.style.transform = originalStyle.transform;
-        link.style.transition = originalStyle.transition;
-        link.style.color = originalStyle.color;
-    }, 200);
-}
+// addLinkClickEffect 函数已移动到 src/modules/ui/UIHelper.js
 
 // 显示图片尺寸提示框
 // showImageDimensions 函数已移动到 src/modules/ui/ImageHelper.js
