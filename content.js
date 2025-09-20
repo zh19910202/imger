@@ -93,6 +93,55 @@ let currentPageUrl = ''; // 记录当前页面URL，用于检测页面跳转
 let pendingComparisonTimeouts = []; // 记录待执行的对比任务
 let shouldAutoCompare = false; // 标记是否应该自动触发对比（只有上传图片时为true）
 let uploadedImage = null; // 存储上传图片引用
+
+// 添加调试getter/setter来追踪变量变化
+if (typeof window._debugImageVariables === 'undefined') {
+    window._debugImageVariables = {
+        _originalImage: null,
+        _uploadedImage: null,
+
+        get originalImage() {
+            return this._originalImage;
+        },
+
+        set originalImage(value) {
+            if (this._originalImage && !value) {
+                debugLog('🚨 originalImage被清空', {
+                    oldValue: this._originalImage.src ? this._originalImage.src.substring(0, 50) + '...' : '无src',
+                    newValue: value,
+                    stack: new Error().stack
+                });
+            }
+            this._originalImage = value;
+        },
+
+        get uploadedImage() {
+            return this._uploadedImage;
+        },
+
+        set uploadedImage(value) {
+            if (this._uploadedImage && !value) {
+                debugLog('🚨 uploadedImage被清空', {
+                    oldValue: this._uploadedImage.src ? this._uploadedImage.src.substring(0, 50) + '...' : '无src',
+                    newValue: value,
+                    stack: new Error().stack
+                });
+            }
+            this._uploadedImage = value;
+        }
+    };
+
+    // 重定义全局变量指向调试对象
+    Object.defineProperty(window, 'originalImage', {
+        get: function() { return window._debugImageVariables.originalImage; },
+        set: function(value) { window._debugImageVariables.originalImage = value; }
+    });
+
+    Object.defineProperty(window, 'uploadedImage', {
+        get: function() { return window._debugImageVariables.uploadedImage; },
+        set: function(value) { window._debugImageVariables.uploadedImage = value; }
+    });
+}
 let comparisonModal = null; // 图片对比弹窗元素
 let isComparisonModalOpen = false; // 对比页面开启状态
 let debugMode = false; // 调试模式开关（默认关闭）
