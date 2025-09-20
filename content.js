@@ -8,15 +8,40 @@
 // 访问常量的便捷方式，向后兼容
 const CONSTANTS = window.AuxisConstants || {};
 
+// 确保模块兼容性
+if (typeof window.getImageHelper === 'undefined' && typeof window.initializeImageHelper === 'undefined') {
+    // 如果模块未加载，动态加载ImageHelper模块
+    const imageHelperScript = document.createElement('script');
+    imageHelperScript.src = chrome.runtime.getURL('src/modules/ui/ImageHelper.js');
+    imageHelperScript.onload = function() {
+        console.log('ImageHelper 模块加载成功');
+    };
+    imageHelperScript.onerror = function() {
+        console.error('ImageHelper 模块加载失败');
+    };
+    document.head.appendChild(imageHelperScript);
+}
+
+// 检查模块是否可用的便捷函数
+function isModuleAvailable(moduleName) {
+    switch(moduleName) {
+        case 'KeyboardManager':
+            return typeof window.initializeKeyboardManager === 'function';
+        case 'DownloadManager':
+            return typeof window.initializeDownloadManager === 'function';
+        case 'ImageHelper':
+            return typeof window.initializeImageHelper === 'function';
+        default:
+            return false;
+    }
+}
+
 // === 模块兼容层结束 ===
 
 // 全局变量
-let lastHoveredImage = null;
-let selectedImage = null;
 let notificationAudio = null;
 let soundEnabled = true; // 音效开关状态
 let autoCompareEnabled = true; // 自动对比开关状态
-let dimensionTooltip = null; // 尺寸提示框元素
 let originalImage = null; // 存储原图引用用于对比（在单个页面生命周期内不可变更）
 let originalImageLocked = false; // 原图锁定状态，防止在同一页面被覆盖
 let currentPageUrl = ''; // 记录当前页面URL，用于检测页面跳转
@@ -204,11 +229,20 @@ function initializeScript() {
         }
     });
     
-    // 为所有图片添加鼠标事件监听器
-    addImageEventListeners();
-    
-    // 使用 MutationObserver 监听动态添加的图片
-    observeImageChanges();
+    // 初始化 ImageHelper
+    if (typeof initializeImageHelper === 'function') {
+        initializeImageHelper();
+        // 为所有图片添加鼠标事件监听器
+        if (typeof getImageHelper === 'function') {
+            const imageHelper = getImageHelper();
+            imageHelper.addImageEventListeners();
+        }
+        // 使用 MutationObserver 监听动态添加的图片
+        observeImageChanges();
+    } else {
+        console.warn('ImageHelper 模块不可用，图片交互功能可能受限');
+        observeImageChanges();
+    }
     
     // 初始化图片上传监听
     initializeUploadMonitoring();
@@ -396,78 +430,19 @@ function closeComparisonModal() {
 // 检查目标元素是否是输入框
 // isInInputField 函数已移动到 src/modules/KeyboardManager.js
 // 获取要下载的图片
-function getImageToDownload() {
-    // 优先级：选中的图片 > 鼠标悬停的图片
-    return selectedImage || lastHoveredImage;
-}
+// getImageToDownload 函数已移动到 src/modules/ui/ImageHelper.js
 
 // 为所有图片添加事件监听器
-function addImageEventListeners() {
-    const images = document.querySelectorAll('img');
-    images.forEach(img => {
-        addImageListeners(img);
-    });
-}
+// addImageEventListeners 函数已移动到 src/modules/ui/ImageHelper.js
 
 // 为单个图片添加事件监听器
-function addImageListeners(img) {
-    // 鼠标悬停事件
-    img.addEventListener('mouseenter', (event) => {
-        lastHoveredImage = event.target;
-        highlightImage(event.target, true);
-        showImageDimensions(event.target, event);
-    });
-    
-    img.addEventListener('mouseleave', (event) => {
-        if (lastHoveredImage === event.target) {
-            highlightImage(event.target, false);
-        }
-        hideImageDimensions();
-    });
-    
-    // 鼠标移动事件 - 更新提示框位置
-    img.addEventListener('mousemove', (event) => {
-        updateTooltipPosition(event);
-    });
-    
-    // 点击选择事件
-    img.addEventListener('click', (event) => {
-        // 如果按住Ctrl键点击，选择图片
-        if (event.ctrlKey) {
-            event.preventDefault();
-            selectImage(event.target);
-        }
-    });
-}
+// addImageListeners 函数已移动到 src/modules/ui/ImageHelper.js
 
 // 高亮显示图片
-function highlightImage(img, highlight) {
-    if (highlight) {
-        img.style.outline = '3px solid #4CAF50';
-        img.style.boxShadow = '0 0 10px rgba(76, 175, 80, 0.5)';
-    } else {
-        if (selectedImage !== img) {
-            img.style.outline = '';
-            img.style.boxShadow = '';
-        }
-    }
-}
+// highlightImage 函数已移动到 src/modules/ui/ImageHelper.js
 
 // 选择图片
-function selectImage(img) {
-    // 清除之前选中的图片样式
-    if (selectedImage) {
-        selectedImage.style.outline = '';
-        selectedImage.style.boxShadow = '';
-    }
-    
-    // 设置新选中的图片
-    selectedImage = img;
-    img.style.outline = '3px solid #2196F3';
-    img.style.boxShadow = '0 0 15px rgba(33, 150, 243, 0.7)';
-    
-    showNotification('图片已选中，按D键下载');
-}
+// selectImage 函数已移动到 src/modules/ui/ImageHelper.js
 
 // 监听动态添加的图片
 function observeImageChanges() {
@@ -684,18 +659,13 @@ function addButtonClickEffect(button) {
 // 清理函数
 function cleanup() {
     debugLog('执行清理函数');
-    
+
     document.removeEventListener('keydown', handleKeydown);
     // 移除所有图片的事件监听器和样式
     document.querySelectorAll('img').forEach(img => {
         img.style.outline = '';
         img.style.boxShadow = '';
     });
-    // 清理尺寸提示框
-    if (dimensionTooltip && dimensionTooltip.parentNode) {
-        dimensionTooltip.parentNode.removeChild(dimensionTooltip);
-        dimensionTooltip = null;
-    }
     // 清理图片对比弹窗
     if (comparisonModal && comparisonModal.parentNode) {
         comparisonModal.parentNode.removeChild(comparisonModal);
@@ -744,18 +714,26 @@ function cleanup() {
 
 // 初始化音效
 function initializeAudio() {
+    debugLog('初始化音效系统');
     try {
         // 获取扩展中音效文件的URL
         const audioUrl = chrome.runtime.getURL('notification.mp3');
         notificationAudio = new Audio(audioUrl);
-        
+
         // 设置音效属性
         notificationAudio.volume = 0.6; // 设置音量为60%
         notificationAudio.preload = 'auto'; // 预加载音效
-        
-        console.log('音效初始化成功:', audioUrl);
+
+        // 测试音频文件是否存在
+        notificationAudio.addEventListener('error', (e) => {
+            console.warn('音效文件加载失败，可能文件不存在:', e);
+            notificationAudio = null; // 清除引用
+        });
+
+        console.log('音效初始化完成:', audioUrl);
     } catch (error) {
-        console.error('音效初始化失败:', error);
+        console.warn('音效初始化失败，音效功能将不可用:', error);
+        notificationAudio = null;
     }
 }
 
@@ -931,98 +909,16 @@ function addLinkClickEffect(link) {
 }
 
 // 显示图片尺寸提示框
-function showImageDimensions(img, event) {
-    try {
-        // 获取图片的真实尺寸
-        const width = img.naturalWidth || img.width;
-        const height = img.naturalHeight || img.height;
-        
-        // 如果尺寸无效，不显示提示框
-        if (!width || !height) {
-            return;
-        }
-        
-        // 创建或更新提示框
-        if (!dimensionTooltip) {
-            createDimensionTooltip();
-        }
-        
-        // 设置提示框内容
-        dimensionTooltip.textContent = `${width} × ${height}`;
-        
-        // 显示提示框
-        dimensionTooltip.style.display = 'block';
-        
-        // 更新位置
-        updateTooltipPosition(event);
-        
-    } catch (error) {
-        console.error('显示图片尺寸时发生错误:', error);
-    }
-}
+// showImageDimensions 函数已移动到 src/modules/ui/ImageHelper.js
 
 // 隐藏图片尺寸提示框
-function hideImageDimensions() {
-    if (dimensionTooltip) {
-        dimensionTooltip.style.display = 'none';
-    }
-}
+// hideImageDimensions 函数已移动到 src/modules/ui/ImageHelper.js
 
 // 创建尺寸提示框元素
-function createDimensionTooltip() {
-    dimensionTooltip = document.createElement('div');
-    dimensionTooltip.style.cssText = `
-        position: fixed;
-        background: rgba(0, 0, 0, 0.8);
-        color: white;
-        padding: 6px 12px;
-        border-radius: 6px;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        font-size: 12px;
-        font-weight: 500;
-        z-index: 999999;
-        pointer-events: none;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        backdrop-filter: blur(4px);
-        transition: opacity 0.2s ease;
-        white-space: nowrap;
-        display: none;
-    `;
-    
-    document.body.appendChild(dimensionTooltip);
-}
+// createDimensionTooltip 函数已移动到 src/modules/ui/ImageHelper.js
 
 // 更新提示框位置
-function updateTooltipPosition(event) {
-    if (!dimensionTooltip || dimensionTooltip.style.display === 'none') {
-        return;
-    }
-    
-    const offsetX = 15;
-    const offsetY = -30;
-    
-    let x = event.clientX + offsetX;
-    let y = event.clientY + offsetY;
-    
-    // 防止提示框超出屏幕边界
-    const tooltipRect = dimensionTooltip.getBoundingClientRect();
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-    
-    // 右边界检查
-    if (x + tooltipRect.width > viewportWidth) {
-        x = event.clientX - tooltipRect.width - offsetX;
-    }
-    
-    // 上边界检查
-    if (y < 0) {
-        y = event.clientY + Math.abs(offsetY);
-    }
-    
-    dimensionTooltip.style.left = x + 'px';
-    dimensionTooltip.style.top = y + 'px';
-}
+// updateTooltipPosition 函数已移动到 src/modules/ui/ImageHelper.js
 
 // 页面卸载时清理
 window.addEventListener('beforeunload', cleanup);
@@ -1517,8 +1413,8 @@ function observeNetworkUploads() {
     observeResourceLoading();
     
     // 新增：从浏览器缓存获取图片
-    getCachedImages();
-    
+    // getCachedImages(); // 函数未定义，暂时注释掉
+
     // 新增：启动竞速模式原图获取
     startParallelImageAcquisition();
 }
@@ -7725,3 +7621,9 @@ let RUNNINGHUB_CONFIG = null;
 
 // 加载Running Hub配置文件
 // loadRunningHubConfig 和 createWorkflowTask 函数已移动到 src/modules/RunningHubManager.js
+
+// 从浏览器缓存获取图片 - 空实现以防止错误
+function getCachedImages() {
+    debugLog('getCachedImages: 功能尚未实现');
+    // TODO: 实现从浏览器缓存获取图片的功能
+}

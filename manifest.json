@@ -46,14 +46,14 @@
         "src/modules/RunningHubManager.js",
         "src/modules/DownloadManager.js",
         "src/modules/KeyboardManager.js",
-        "resource-extractor.js",
+        "src/modules/ui/ImageHelper.js",
         "content.js"
       ]
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["notification.mp3", "runninghub-config.json"],
+      "resources": ["runninghub-config.json", "src/modules/ui/ImageHelper.js"],
       "matches": ["https://qlabel.tencent.com/*", "http://localhost:*/*", "file://*/*"]
     }
   ]
