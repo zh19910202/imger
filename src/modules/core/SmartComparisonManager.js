@@ -40,8 +40,12 @@ class SmartComparisonManager {
         debugLog('📊 图片对比状态检查:', {
             hasOriginalImage: !!originalImage,
             hasUploadedImage: !!uploadedImage,
-            originalSrc: originalImage ? originalImage.src.substring(0, 50) + '...' : '无',
-            uploadedSrc: uploadedImage ? uploadedImage.src.substring(0, 50) + '...' : '无'
+            originalSrc: originalImage ? originalImage.src.substring(0, 100) + '...' : '无',
+            originalWidth: originalImage ? originalImage.width : '无',
+            originalHeight: originalImage ? originalImage.height : '无',
+            uploadedSrc: uploadedImage ? uploadedImage.src.substring(0, 100) + '...' : '无',
+            uploadedWidth: uploadedImage ? uploadedImage.width : '无',
+            uploadedHeight: uploadedImage ? uploadedImage.height : '无'
         });
 
         // 最简单的逻辑：直接使用已检测的原图和上传图片
@@ -62,7 +66,12 @@ class SmartComparisonManager {
             }
             window.shouldAutoCompare = false;
         } else {
-            debugLog('缺少必要的图片进行对比');
+            debugLog('缺少必要的图片进行对比', {
+                originalImageAvailable: !!originalImage,
+                originalImageSrc: originalImage && originalImage.src ? '有' : '无',
+                uploadedImageAvailable: !!uploadedImage,
+                uploadedImageSrc: uploadedImage && uploadedImage.src ? '有' : '无'
+            });
             if (typeof showNotification === 'function') {
                 showNotification('❌ 请先上传图片再进行对比', 2000);
             }

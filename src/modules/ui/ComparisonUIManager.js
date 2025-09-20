@@ -405,6 +405,13 @@ class ComparisonUIManager {
         debugLog('显示智能对比', comparisonPair);
 
         try {
+            debugLog('图片源信息:', {
+                image1Src: comparisonPair.image1.src,
+                image2Src: comparisonPair.image2.src,
+                image1Label: comparisonPair.image1.label,
+                image2Label: comparisonPair.image2.label
+            });
+
             // 直接使用comparisonPair中的图片信息创建对比弹窗
             const originalImgObj = {
                 src: comparisonPair.image1.src
@@ -413,6 +420,11 @@ class ComparisonUIManager {
             const uploadedImgObj = {
                 src: comparisonPair.image2.src
             };
+
+            debugLog('创建的图片对象:', {
+                original: originalImgObj,
+                uploaded: uploadedImgObj
+            });
 
             // 调用创建对比弹窗函数
             this.createComparisonModal(originalImgObj, uploadedImgObj, uploadedImgObj);
