@@ -45,7 +45,12 @@ class SmartComparisonManager {
             originalHeight: originalImage ? originalImage.height : '无',
             uploadedSrc: uploadedImage ? uploadedImage.src.substring(0, 100) + '...' : '无',
             uploadedWidth: uploadedImage ? uploadedImage.width : '无',
-            uploadedHeight: uploadedImage ? uploadedImage.height : '无'
+            uploadedHeight: uploadedImage ? uploadedImage.height : '无',
+            uploadedImageDetails: uploadedImage ? {
+                hasSrc: !!uploadedImage.src,
+                hasName: !!uploadedImage.name,
+                hasElement: !!uploadedImage.element
+            } : '无'
         });
 
         // 最简单的逻辑：直接使用已检测的原图和上传图片

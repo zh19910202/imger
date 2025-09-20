@@ -318,9 +318,10 @@ function checkPageChange() {
     const newUrl = window.location.href;
     
     if (currentPageUrl && currentPageUrl !== newUrl) {
-        debugLog('检测到页面跳转，使用StateManager重置状态', {
+        debugLog('⚠️ 检测到页面跳转，使用StateManager重置状态', {
             oldUrl: currentPageUrl.substring(0, 100) + '...',
-            newUrl: newUrl.substring(0, 100) + '...'
+            newUrl: newUrl.substring(0, 100) + '...',
+            urlChanged: true
         });
 
         // 使用 StateManager 清理页面状态
