@@ -35,6 +35,32 @@ if (typeof window.getUIHelper === 'undefined' && typeof window.initializeUIHelpe
     document.head.appendChild(uiHelperScript);
 }
 
+if (typeof window.getComparisonUIManager === 'undefined' && typeof window.initializeComparisonUIManager === 'undefined') {
+    // 如果模块未加载，动态加载ComparisonUIManager模块
+    const comparisonUIManagerScript = document.createElement('script');
+    comparisonUIManagerScript.src = chrome.runtime.getURL('src/modules/ui/ComparisonUIManager.js');
+    comparisonUIManagerScript.onload = function() {
+        console.log('ComparisonUIManager 模块加载成功');
+    };
+    comparisonUIManagerScript.onerror = function() {
+        console.error('ComparisonUIManager 模块加载失败');
+    };
+    document.head.appendChild(comparisonUIManagerScript);
+}
+
+if (typeof window.getSmartComparisonManager === 'undefined' && typeof window.initializeSmartComparisonManager === 'undefined') {
+    // 如果模块未加载，动态加载SmartComparisonManager模块
+    const smartComparisonManagerScript = document.createElement('script');
+    smartComparisonManagerScript.src = chrome.runtime.getURL('src/modules/core/SmartComparisonManager.js');
+    smartComparisonManagerScript.onload = function() {
+        console.log('SmartComparisonManager 模块加载成功');
+    };
+    smartComparisonManagerScript.onerror = function() {
+        console.error('SmartComparisonManager 模块加载失败');
+    };
+    document.head.appendChild(smartComparisonManagerScript);
+}
+
 // 检查模块是否可用的便捷函数
 function isModuleAvailable(moduleName) {
     switch(moduleName) {
@@ -46,6 +72,10 @@ function isModuleAvailable(moduleName) {
             return typeof window.initializeImageHelper === 'function';
         case 'UIHelper':
             return typeof window.initializeUIHelper === 'function';
+        case 'ComparisonUIManager':
+            return typeof window.initializeComparisonUIManager === 'function';
+        case 'SmartComparisonManager':
+            return typeof window.initializeSmartComparisonManager === 'function';
         default:
             return false;
     }
@@ -4240,86 +4270,8 @@ function selectBestImage(results) {
 // T键: 手动测试智能对比 - 已删除，请使用W键
 
 // 智能图片对比 - 包含回退逻辑
-function triggerSmartComparisonWithFallback() {
-    debugLog('启动智能图片对比 (包含回退逻辑)');
-    
-    console.log('📊 图片对比状态检查:', {
-        capturedOriginalImage,
-        capturedModifiedImage,
-        uploadedImage: uploadedImage ? uploadedImage.src : null,
-        originalImage: !!originalImage,
-        shouldAutoCompare,
-        cosImageCache: cosImageCache.size
-    });
-    
-    let comparisonPair = null;
-    
-    // 策略1: 使用COS拦截的图片（最优）
-    if (capturedOriginalImage && capturedModifiedImage) {
-        comparisonPair = {
-            image1: { src: capturedOriginalImage, label: '原图' },
-            image2: { src: capturedModifiedImage, label: '修改图' },
-            mode: 'COS原图vs修改图'
-        };
-        debugLog('策略1: 使用COS拦截图片', comparisonPair);
-        showNotification('🎯 使用COS拦截图片对比', 1000);
-    }
-    // 策略2: 原图 vs 用户上传图片
-    else if (capturedOriginalImage && uploadedImage) {
-        comparisonPair = {
-            image1: { src: capturedOriginalImage, label: '原图' },
-            image2: { src: uploadedImage.src, label: '上传图片' },
-            mode: 'COS原图vs上传图'
-        };
-        debugLog('策略2: COS原图vs用户上传', comparisonPair);
-        showNotification('📷 原图vs上传图对比', 1000);
-    }
-    // 策略3: 现有逻辑 - 原图 vs 上传图片
-    else if (originalImage && uploadedImage) {
-        comparisonPair = {
-            image1: { src: originalImage.src, label: '页面原图' },
-            image2: { src: uploadedImage.src, label: '上传图片' },
-            mode: '页面原图vs上传图'
-        };
-        debugLog('策略3: 页面原图vs用户上传', comparisonPair);
-        showNotification('📋 页面原图vs上传图对比', 1000);
-    }
-    // 策略4: 如果只有COS原图，与页面其他图片对比
-    else if (capturedOriginalImage) {
-        const pageImages = document.querySelectorAll('img');
-        if (pageImages.length >= 2) {
-            comparisonPair = {
-                image1: { src: capturedOriginalImage, label: '原图' },
-                image2: { src: pageImages[1].src, label: '页面图片' },
-                mode: '原图vs页面图片'
-            };
-            debugLog('策略4: 原图vs页面图片', comparisonPair);
-            showNotification('🔄 原图vs页面图片对比', 1000);
-        }
-    }
-    // 策略5: 页面图片互相对比（回退）
-    else {
-        const pageImages = document.querySelectorAll('img');
-        if (pageImages.length >= 2) {
-            comparisonPair = {
-                image1: { src: pageImages[0].src, label: '页面图片1' },
-                image2: { src: pageImages[1].src, label: '页面图片2' },
-                mode: '页面图片对比'
-            };
-            debugLog('策略5: 页面图片对比', comparisonPair);
-            showNotification('🖼️ 页面图片对比', 1000);
-        }
-    }
-    
-    if (comparisonPair) {
-        debugLog('执行图片对比', comparisonPair.mode);
-        showSmartComparison(comparisonPair);
-        shouldAutoCompare = false;
-    } else {
-        debugLog('无可用图片进行对比');
-        showNotification('❌ 无可用图片进行对比', 2000);
-    }
-}
+// 启动智能图片对比 (包含回退逻辑)
+// triggerSmartComparisonWithFallback 函数已移动到 src/modules/core/SmartComparisonManager.js
 
 // ============== COS图片拦截和智能对比系统 ==============
 
@@ -4534,69 +4486,10 @@ function triggerSmartComparison() {
 }
 
 // 显示智能对比弹窗 - 仅显示模式（无跨域问题）
-async function showSmartComparison(comparisonPair) {
-    debugLog('显示智能对比 (仅显示模式)', comparisonPair);
-    
-    try {
-        // 仅显示模式：直接创建img元素，无需blob转换
-        const img1 = await createImageElementForDisplay(comparisonPair.image1.src);
-        const img2 = await createImageElementForDisplay(comparisonPair.image2.src);
-        
-        // 调用现有的对比函数
-        createComparisonModal(img1, img2, img2);
-        
-        debugLog('智能对比弹窗已创建', {
-            image1: comparisonPair.image1.label,
-            image2: comparisonPair.image2.label,
-            mode: comparisonPair.mode
-        });
-        
-    } catch (error) {
-        debugLog('智能对比失败', error);
-        showNotification('❌ 图片对比失败: ' + error.message, 3000);
-    }
-}
+// showSmartComparison 函数已移动到 src/modules/core/SmartComparisonManager.js
 
 // 为显示创建图片元素 - 无需跨域处理
-function createImageElementForDisplay(imageUrl) {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        
-        // 设置较短的超时时间
-        const timeout = setTimeout(() => {
-            img.onload = img.onerror = null;
-            reject(new Error('图片加载超时'));
-        }, 8000);
-        
-        img.onload = function() {
-            clearTimeout(timeout);
-            debugLog('图片加载成功 (仅显示)', {
-                src: imageUrl,
-                width: this.naturalWidth,
-                height: this.naturalHeight
-            });
-            
-            // 创建一个包含必要属性的图片对象
-            const imageObj = {
-                src: this.src,
-                width: this.naturalWidth,
-                height: this.naturalHeight,
-                name: extractFileNameFromUrl(this.src),
-                element: this
-            };
-            
-            resolve(imageObj);
-        };
-        
-        img.onerror = function() {
-            clearTimeout(timeout);
-            reject(new Error('图片加载失败'));
-        };
-        
-        // COS图片也可以正常显示，只是不能进行canvas操作
-        img.src = imageUrl;
-    });
-}
+// createImageElementForDisplay 函数已移动到 src/modules/core/SmartComparisonManager.js
 
 // F2键功能：检查图片尺寸并显示标注界面
 let dimensionCheckModal = null;
