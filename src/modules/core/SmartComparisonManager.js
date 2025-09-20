@@ -30,108 +30,41 @@ class SmartComparisonManager {
         }
     }
 
-    // 启动智能图片对比 (包含回退逻辑)
+    // 启动智能图片对比 (直接使用已检测的原图)
     triggerSmartComparisonWithFallback() {
-        debugLog('启动智能图片对比 (包含回退逻辑)');
+        debugLog('启动智能图片对比');
 
-        // 访问全局变量
-        const {
-            capturedOriginalImage,
-            capturedModifiedImage,
-            uploadedImage,
-            originalImage,
-            shouldAutoCompare,
-            cosImageCache
-        } = window;
+        // 直接访问全局变量
+        const { originalImage, uploadedImage } = window;
 
         debugLog('📊 图片对比状态检查:', {
-            capturedOriginalImage,
-            capturedModifiedImage,
-            uploadedImage: uploadedImage ? uploadedImage.src : null,
-            originalImage: !!originalImage,
-            shouldAutoCompare,
-            cosImageCache: cosImageCache ? cosImageCache.size : 0
+            hasOriginalImage: !!originalImage,
+            hasUploadedImage: !!uploadedImage,
+            originalSrc: originalImage ? originalImage.src.substring(0, 50) + '...' : '无',
+            uploadedSrc: uploadedImage ? uploadedImage.src.substring(0, 50) + '...' : '无'
         });
 
-        let comparisonPair = null;
-
-        // 策略1: 使用COS拦截的图片（最优）
-        if (capturedOriginalImage && capturedModifiedImage) {
-            comparisonPair = {
-                image1: { src: capturedOriginalImage, label: '原图' },
-                image2: { src: capturedModifiedImage, label: '修改图' },
-                mode: 'COS原图vs修改图'
-            };
-            debugLog('策略1: 使用COS拦截图片', comparisonPair);
-            if (typeof showNotification === 'function') {
-                showNotification('🎯 使用COS拦截图片对比', 1000);
-            }
-        }
-        // 策略2: 原图 vs 用户上传图片
-        else if (capturedOriginalImage && uploadedImage) {
-            comparisonPair = {
-                image1: { src: capturedOriginalImage, label: '原图' },
-                image2: { src: uploadedImage.src, label: '上传图片' },
-                mode: 'COS原图vs上传图'
-            };
-            debugLog('策略2: COS原图vs用户上传', comparisonPair);
-            if (typeof showNotification === 'function') {
-                showNotification('📷 原图vs上传图对比', 1000);
-            }
-        }
-        // 策略3: 现有逻辑 - 原图 vs 上传图片
-        else if (originalImage && uploadedImage) {
-            comparisonPair = {
+        // 最简单的逻辑：直接使用已检测的原图和上传图片
+        if (originalImage && originalImage.src && uploadedImage && uploadedImage.src) {
+            const comparisonPair = {
                 image1: { src: originalImage.src, label: '页面原图' },
                 image2: { src: uploadedImage.src, label: '上传图片' },
                 mode: '页面原图vs上传图'
             };
-            debugLog('策略3: 页面原图vs用户上传', comparisonPair);
+
+            debugLog('使用已检测的原图和上传图片进行对比', comparisonPair);
             if (typeof showNotification === 'function') {
                 showNotification('📋 页面原图vs上传图对比', 1000);
             }
-        }
-        // 策略4: 如果只有COS原图，与页面其他图片对比
-        else if (capturedOriginalImage) {
-            const pageImages = document.querySelectorAll('img');
-            if (pageImages.length >= 2) {
-                comparisonPair = {
-                    image1: { src: capturedOriginalImage, label: '原图' },
-                    image2: { src: pageImages[1].src, label: '页面图片' },
-                    mode: '原图vs页面图片'
-                };
-                debugLog('策略4: 原图vs页面图片', comparisonPair);
-                if (typeof showNotification === 'function') {
-                    showNotification('🔄 原图vs页面图片对比', 1000);
-                }
-            }
-        }
-        // 策略5: 页面图片互相对比（回退）
-        else {
-            const pageImages = document.querySelectorAll('img');
-            if (pageImages.length >= 2) {
-                comparisonPair = {
-                    image1: { src: pageImages[0].src, label: '页面图片1' },
-                    image2: { src: pageImages[1].src, label: '页面图片2' },
-                    mode: '页面图片对比'
-                };
-                debugLog('策略5: 页面图片对比', comparisonPair);
-                if (typeof showNotification === 'function') {
-                    showNotification('🖼️ 页面图片对比', 1000);
-                }
-            }
-        }
 
-        if (comparisonPair) {
-            debugLog('执行图片对比', comparisonPair.mode);
             if (typeof showSmartComparison === 'function') {
                 showSmartComparison(comparisonPair);
             }
             window.shouldAutoCompare = false;
         } else {
-            debugLog('无可用图片进行对比');
+            debugLog('缺少必要的图片进行对比');
             if (typeof showNotification === 'function') {
-                showNotification('❌ 无可用图片进行对比', 2000);
+                showNotification('❌ 请先上传图片再进行对比', 2000);
             }
         }
     }
