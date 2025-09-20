@@ -153,11 +153,17 @@ class ComparisonUIManager {
             max-height: 85vh;
         `;
 
-        // 创建简单的图片创建函数
+        // 创建简单的图片创建函数（带错误处理）
         const createSimpleImage = (src, alt) => {
             const img = document.createElement('img');
             img.src = src;
             img.alt = alt;
+
+            // 设置跨域属性
+            if (src && (src.includes('myqcloud.com') || src.includes('cos.') || !src.startsWith(window.location.origin))) {
+                img.crossOrigin = 'anonymous';
+            }
+
             img.style.cssText = `
                 max-width: 100%;
                 max-height: 100%;
@@ -165,6 +171,54 @@ class ComparisonUIManager {
                 border-radius: 4px;
                 box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
             `;
+
+            // 添加加载错误处理
+            img.addEventListener('error', (e) => {
+                debugLog('图片加载失败', {
+                    src: src,
+                    error: e.message,
+                    alt: alt
+                });
+
+                // 显示错误占位符
+                const errorPlaceholder = document.createElement('div');
+                errorPlaceholder.style.cssText = `
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    width: 100%;
+                    height: 200px;
+                    background: rgba(255, 0, 0, 0.1);
+                    border: 2px dashed #ff6b6b;
+                    border-radius: 4px;
+                    color: #ff6b6b;
+                    font-size: 14px;
+                    text-align: center;
+                `;
+                errorPlaceholder.innerHTML = `
+                    <div>
+                        <div>❌ 图片加载失败</div>
+                        <div style="font-size: 12px; margin-top: 5px;">
+                            ${alt || '图片'}<br>
+                            可能原因：链接过期或网络问题
+                        </div>
+                        <button onclick="location.reload()" style="
+                            margin-top: 10px;
+                            padding: 5px 10px;
+                            background: #ff6b6b;
+                            color: white;
+                            border: none;
+                            border-radius: 3px;
+                            cursor: pointer;
+                            font-size: 12px;
+                        ">刷新页面</button>
+                    </div>
+                `;
+
+                // 替换图片元素
+                img.parentNode.replaceChild(errorPlaceholder, img);
+            });
+
             return img;
         };
 
