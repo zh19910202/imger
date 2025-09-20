@@ -316,12 +316,29 @@ function initializeScript() {
 // 检查页面是否发生变化，如果是新页面则重置原图锁定
 function checkPageChange() {
     const newUrl = window.location.href;
-    
+
+    // 添加URL变化的详细日志
+    if (currentPageUrl) {
+        debugLog('🔍 URL检查', {
+            currentPageUrl: currentPageUrl.substring(0, 100) + '...',
+            newUrl: newUrl.substring(0, 100) + '...',
+            areEqual: currentPageUrl === newUrl,
+            lengthCheck: {
+                currentLength: currentPageUrl.length,
+                newLength: newUrl.length
+            }
+        });
+    }
+
     if (currentPageUrl && currentPageUrl !== newUrl) {
         debugLog('⚠️ 检测到页面跳转，使用StateManager重置状态', {
             oldUrl: currentPageUrl.substring(0, 100) + '...',
             newUrl: newUrl.substring(0, 100) + '...',
-            urlChanged: true
+            urlChanged: true,
+            urlDifference: {
+                oldLength: currentPageUrl.length,
+                newLength: newUrl.length
+            }
         });
 
         // 使用 StateManager 清理页面状态
