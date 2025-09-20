@@ -379,6 +379,14 @@ class ComparisonUIManager {
 
     // 关闭对比弹窗
     closeComparisonModal() {
+        // 检查关闭前的图片状态
+        debugLog('🚪 关闭对比弹窗前的状态检查:', {
+            hasOriginalImage: !!window.originalImage,
+            hasUploadedImage: !!window.uploadedImage,
+            originalSrc: window.originalImage ? window.originalImage.src.substring(0, 50) + '...' : '无',
+            uploadedSrc: window.uploadedImage ? window.uploadedImage.src.substring(0, 50) + '...' : '无'
+        });
+
         if (this.comparisonModal && this.comparisonModal.parentNode) {
             this.comparisonModal.parentNode.removeChild(this.comparisonModal);
             this.comparisonModal = null;
@@ -398,6 +406,14 @@ class ComparisonUIManager {
         window.isComparisonModalOpen = false;
 
         debugLog('对比弹窗已关闭');
+
+        // 检查关闭后的图片状态
+        debugLog('🚪 关闭对比弹窗后的状态检查:', {
+            hasOriginalImage: !!window.originalImage,
+            hasUploadedImage: !!window.uploadedImage,
+            originalSrc: window.originalImage ? window.originalImage.src.substring(0, 50) + '...' : '无',
+            uploadedSrc: window.uploadedImage ? window.uploadedImage.src.substring(0, 50) + '...' : '无'
+        });
 
         // 显示提示信息，告知用户可以重新按W键进行对比
         if (typeof showNotification === 'function') {
