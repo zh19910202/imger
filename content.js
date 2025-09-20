@@ -36,6 +36,28 @@ if (window.RunningHubManager) {
     debugLog('RunningHub Manager 已设置完成');
 }
 
+// 初始化 StateManager（在其他管理器之后）
+let stateManager = null;
+if (window.StateManager) {
+    stateManager = window.getStateManager();
+    // 延迟初始化，确保所有依赖都已加载
+    setTimeout(() => {
+        if (stateManager && !stateManager.isInitialized()) {
+            try {
+                stateManager.initialize();
+                debugLog('StateManager 已初始化完成');
+
+                // 启动状态同步检查
+                if (window.checkPageChangeAndReset) {
+                    window.checkPageChangeAndReset();
+                }
+            } catch (error) {
+                debugLog('StateManager 初始化失败:', error);
+            }
+        }
+    }, 100);
+}
+
 // F1 连续无效化相关
 let f1AutoInvalidating = false;
 let f1IntervalMs = 800; // 可调整的执行间隔（毫秒）
@@ -248,22 +270,27 @@ function checkPageChange() {
     const newUrl = window.location.href;
     
     if (currentPageUrl && currentPageUrl !== newUrl) {
-        debugLog('检测到页面跳转，重置原图锁定状态', {
+        debugLog('检测到页面跳转，使用StateManager重置状态', {
             oldUrl: currentPageUrl.substring(0, 100) + '...',
             newUrl: newUrl.substring(0, 100) + '...'
         });
-        
-        // 重置原图相关状态
-        originalImageLocked = false;
-        originalImage = null;
-        shouldAutoCompare = false; // 重置自动对比标记
-        
-        // 取消所有待执行的对比任务
-        debugLog('取消待执行的对比任务', { count: pendingComparisonTimeouts.length });
-        pendingComparisonTimeouts.forEach(timeoutId => {
-            clearTimeout(timeoutId);
-        });
-        pendingComparisonTimeouts = [];
+
+        // 使用 StateManager 清理页面状态
+        if (window.clearPageState) {
+            window.clearPageState();
+        } else {
+            // 回退到手动重置（兼容模式）
+            originalImageLocked = false;
+            originalImage = null;
+            shouldAutoCompare = false;
+
+            // 取消所有待执行的对比任务
+            debugLog('取消待执行的对比任务', { count: pendingComparisonTimeouts.length });
+            pendingComparisonTimeouts.forEach(timeoutId => {
+                clearTimeout(timeoutId);
+            });
+            pendingComparisonTimeouts = [];
+        }
         
         // 关闭已存在的对比弹窗
         if (comparisonModal && comparisonModal.parentNode) {
