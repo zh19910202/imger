@@ -86,6 +86,78 @@ return result;
 
 ---
 
+## Code Cleanup Principles
+
+### 🚨 Critical Cleanup Rules
+
+#### 1. Reference Check Principle
+**NEVER delete code that is currently being referenced**
+- Before deleting any function, variable, or code block, verify it's not being used
+- Use grep/search tools to find all references to the code
+- Check for dynamic references (string-based function calls, eval, etc.)
+- Functions currently being called must NOT be removed
+
+#### 2. Safe Cleanup Targets
+**Only these types of code can be safely removed:**
+- Commented-out code blocks (`// function oldFunc() { ... }`)
+- Duplicate function definitions (keep the one being used)
+- Dead code that has no references
+- Outdated comments and documentation
+- Excessive whitespace and empty lines
+- Debug console.log statements that are no longer needed
+
+#### 3. Function Usage Verification
+**Steps to verify a function can be deleted:**
+1. Search for all function calls: `grep -r "functionName(" .`
+2. Check for dynamic calls: `grep -r "functionName" .`
+3. Verify the function is not exported or assigned to global objects
+4. Confirm the function is not used in event handlers or callbacks
+5. Only delete if absolutely no references are found
+
+#### 4. Cleanup Verification Process
+**After each cleanup step:**
+- Run syntax check: `node -c filename.js`
+- Test core functionality to ensure nothing is broken
+- Commit changes incrementally to allow easy rollback
+- Document what was removed and why
+
+#### 5. Cleanup Priority Order
+**Clean in this order (safest to riskiest):**
+1. Comments and commented-out code
+2. Excessive whitespace and formatting
+3. Duplicate function definitions (keep the referenced one)
+4. Unused imports and requires
+5. Dead code with no references
+6. Consolidation of similar functions (only if safe)
+
+### Example: Reference Check Process
+
+❌ **Wrong - Delete without checking:**
+```javascript
+// Found function: generateFileName()
+// Delete immediately because it looks unused
+```
+
+✅ **Right - Verify first:**
+```bash
+# Check for references
+grep -r "generateFileName" .
+# Found in: modal.js:45, utils.js:12, main.js:234
+# Result: DO NOT DELETE - function is being used
+```
+
+### Cleanup Checklist
+- [ ] Searched for all function references
+- [ ] Checked for dynamic/string-based calls
+- [ ] Verified function is not in global scope
+- [ ] Confirmed no event handler usage
+- [ ] Tested functionality after removal
+- [ ] Committed changes incrementally
+
+**Remember: When in doubt, don't delete it**
+
+---
+
 ## Project Overview
 
 **AnnotateFlow Assistant (Auxis)** is a Chrome extension (Manifest V3) designed for the Tencent QLabel annotation platform. The extension provides fast image downloading capabilities, keyboard shortcuts for annotation workflows, and AI-powered image processing through RunningHub integration.

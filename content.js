@@ -4137,19 +4137,9 @@ function initializeDOMContentObserver() {
         attributes: false, // 不监听属性变化，避免过多触发
         attributeOldValue: false
     });
-    
+
     debugLog('DOM内容变化监听已启动');
 }
-
-
-
-
-
-
-
-
-
-
 
 // COS原图URL专门检测函数
 function isCOSOriginalImage(url) {
@@ -4618,36 +4608,6 @@ function triggerSmartComparisonWithFallback() {
     }
 }
 
-// 测试资源提取功能
-async function testResourceExtraction() {
-    if (typeof window.resourceExtractor === 'undefined') {
-        console.error('❌ ResourceExtractor未加载');
-        showNotification('资源提取器未加载', 2000);
-        return;
-    }
-    
-    try {
-        console.log('🚀 开始测试资源提取...');
-        const results = await window.resourceExtractor.extractAllResources();
-        
-        console.log('📊 资源提取结果:', results);
-        
-        const summary = results.summary;
-        const message = `提取完成: ${summary.uniqueResources}个独特资源 (DOM:${summary.byMethod.DOM}, Performance:${summary.byMethod.Performance}, Cache:${summary.byMethod.Cache}, Network:${summary.byMethod.Network})`;
-        
-        showNotification(message, 3000);
-        
-        // 显示详细结果
-        if (debugMode) {
-            debugLog('资源提取详细结果', results);
-        }
-        
-    } catch (error) {
-        console.error('❌ 资源提取失败:', error);
-        showNotification('资源提取失败: ' + error.message, 2000);
-    }
-}
-
 // ============== COS图片拦截和智能对比系统 ==============
 
 // 初始化COS图片监听器
@@ -4923,25 +4883,6 @@ function createImageElementForDisplay(imageUrl) {
         // COS图片也可以正常显示，只是不能进行canvas操作
         img.src = imageUrl;
     });
-}
-
-// 在返修模式下更新对比
-function updateComparisonInRevisionMode() {
-    if (!isComparisonModalOpen || !comparisonModal) {
-        return;
-    }
-    
-    debugLog('返修模式：更新对比弹窗');
-    
-    if (capturedOriginalImage && capturedModifiedImage) {
-        // 关闭当前对比弹窗
-        if (comparisonModal.parentNode) {
-            comparisonModal.parentNode.removeChild(comparisonModal);
-        }
-        
-        // 显示新的对比
-        triggerSmartComparison();
-    }
 }
 
 // F2键功能：检查图片尺寸并显示标注界面
