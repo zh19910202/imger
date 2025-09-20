@@ -71,16 +71,17 @@ class SmartComparisonManager {
             if (typeof showNotification === 'function') {
                 showNotification('📤 请先上传图片再进行对比', 2000);
             }
-        } else {
-            // 如果连原图都没有
-            debugLog('缺少必要的图片进行对比', {
-                originalImageAvailable: !!originalImage,
-                originalImageSrc: originalImage && originalImage.src ? '有' : '无',
-                uploadedImageAvailable: !!uploadedImage,
-                uploadedImageSrc: uploadedImage && uploadedImage.src ? '有' : '无'
-            });
+        } else if (uploadedImage && uploadedImage.src) {
+            // 如果只有上传图片没有原图，提示用户检测原图
+            debugLog('只有上传图片，缺少原图');
             if (typeof showNotification === 'function') {
-                showNotification('❌ 未检测到原图，请按B键重新检测', 2000);
+                showNotification('🎯 已检测到上传图片，但未找到页面原图，请按B键检测原图', 2500);
+            }
+        } else {
+            // 如果都没有
+            debugLog('未检测到任何图片');
+            if (typeof showNotification === 'function') {
+                showNotification('📤 请先上传图片，然后按B键检测原图', 2500);
             }
         }
     }
