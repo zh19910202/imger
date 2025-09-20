@@ -77,11 +77,6 @@ let userUploadedImage = null;
 let cachedRunningHubResults = null; // 缓存的RunningHub结果
 let currentPageTaskInfo = null; // 当前页面的任务信息
 let lastSuccessfulTaskId = null; // 最后成功的任务ID 
-// 已移除：模式相关变量
-// let isRevisionMode = false;
-// let modeStatusIndicator = null;
-// let isDragging = false;
-// let dragOffset = { x: 0, y: 0 }
 // 通用：隐藏取消按钮
 function hideRhCancelBtn() {
     try {
@@ -232,10 +227,7 @@ function initializeScript() {
     if (debugMode) {
         initializeDebugPanel();
     }
-    
-    // 已移除：模式状态加载
-    // loadModeState();
-    
+
     // 初始化COS图片拦截监听
     initializeCOSImageListener();
     
@@ -1583,34 +1575,9 @@ function handleNetworkResponse(url, response, type) {
             isOriginalCandidate: isOriginalImageCandidate(url),
             isServerModifiedImage: isServerModifiedImage
         };
-        
+
         capturedImageRequests.set(url, imageInfo);
-        
-        // 已移除：服务器修改图处理逻辑
-        // if (isServerModifiedImage && isRevisionMode) {
-        //     debugLog('检测到服务器修改图', {
-        //         url: url.substring(0, 100) + '...',
-        //         已移除：模式相关日志
-        //     });
-        //     
-        //     // 已移除：返修模式专用日志
-        //     revisionLog('服务器修改图检测', '发现服务器返回的修改图', {
-        //         url: url,
-        //         urlPreview: url.substring(0, 100) + '...',
-        //         timestamp: new Date(imageInfo.timestamp).toISOString(),
-        //         requestType: type,
-        //         status: response.status || 'unknown',
-        //         已移除：模式相关日志
-        //         urlFeatures: {
-        //             hasModifiedImageName: url.toLowerCase().includes('副本.jpg') || url.toLowerCase().includes('%e5%89%af%e6%9c%ac.jpg'),
-        //             isFromCOSDomain: url.toLowerCase().includes('cos.ap-guangzhou.myqcloud.com'),
-        //             hasTaskDetailPath: url.toLowerCase().includes('attachment/task-detail')
-        //         }
-        //     }, 'server_modified_image');
-        //     
-        //     processServerModifiedImage(imageInfo);
-        // }
-        
+
         // COS原图优先处理
         const isCOSOriginal = isCOSOriginalImage(url);
         
