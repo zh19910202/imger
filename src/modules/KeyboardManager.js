@@ -374,11 +374,20 @@ class KeyboardManager {
 
     // W键处理 - 智能图片对比
     handleSmartComparisonKey(event) {
-        if (typeof triggerSmartComparisonWithFallback === 'function') {
-            event.preventDefault();
+        event.preventDefault();
+        
+        // 使用SmartComparisonManager处理智能对比
+        if (typeof getSmartComparisonManager === 'function') {
+            const manager = getSmartComparisonManager();
+            if (!manager.isInitialized()) {
+                manager.initialize();
+            }
+            manager.triggerSmartComparisonWithFallback();
+        } else if (typeof triggerSmartComparisonWithFallback === 'function') {
+            // 回退到全局函数（兼容性）
             triggerSmartComparisonWithFallback();
         } else {
-            console.warn('W键智能对比功能不可用：triggerSmartComparisonWithFallback 函数未找到');
+            console.warn('W键智能对比功能不可用：SmartComparisonManager 或 triggerSmartComparisonWithFallback 函数未找到');
         }
     }
 
