@@ -778,7 +778,7 @@ function clearPageState () {
         }
     }
 
-    debugLog('页面状态已清理（包括上传图片、自动对比状态和SmartComparisonManager缓存）')
+    debugLog('页面状态已清理（包括上传图片、自动对比状态、SmartComparisonManager缓存和UploadManager任务）')
 }
 
 // 页面跳转检测和状态重置

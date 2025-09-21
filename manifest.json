@@ -38,13 +38,18 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://qlabel.tencent.com/*", "http://localhost:*/*", "file://*/*"],
+      "matches": [
+        "https://qlabel.tencent.com/*",
+        "http://localhost:*/*",
+        "file://*/*"
+      ],
       "js": [
         "src/config/constants.js",
         "src/utils/Logger.js",
         "src/modules/StateManager.js",
         "src/modules/RunningHubManager.js",
         "src/modules/DownloadManager.js",
+        "src/modules/UploadManager.js",
         "src/modules/KeyboardManager.js",
         "src/modules/SmartComparisonManager.js",
         "src/modules/core/OriginalImageDetector.js",
@@ -56,8 +61,19 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["runninghub-config.json", "src/modules/ui/ImageHelper.js", "src/modules/ui/UIHelper.js", "src/modules/SmartComparisonManager.js", "src/modules/core/OriginalImageDetector.js"],
-      "matches": ["https://qlabel.tencent.com/*", "http://localhost:*/*", "file://*/*"]
+      "resources": [
+        "runninghub-config.json",
+        "src/modules/ui/ImageHelper.js",
+        "src/modules/ui/UIHelper.js",
+        "src/modules/UploadManager.js",
+        "src/modules/SmartComparisonManager.js",
+        "src/modules/core/OriginalImageDetector.js"
+      ],
+      "matches": [
+        "https://qlabel.tencent.com/*",
+        "http://localhost:*/*",
+        "file://*/*"
+      ]
     }
   ]
 }

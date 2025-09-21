@@ -102,6 +102,14 @@ async function initializeModules () {
         console.warn('⚠️ OriginalImageDetector 模块不可用')
     }
 
+    // 初始化 UploadManager
+    if (typeof initializeUploadManager === 'function') {
+        initializeUploadManager()
+        console.log('✅ UploadManager 已初始化')
+    } else {
+        console.warn('⚠️ UploadManager 模块不可用')
+    }
+
     // 初始化 SmartComparisonManager
     if (typeof initializeSmartComparisonManager === 'function') {
         initializeSmartComparisonManager()
