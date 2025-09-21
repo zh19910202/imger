@@ -573,6 +573,148 @@ function initializeKeyboardManager() {
     }
 }
 
+// 兼容模式的键盘事件处理（从content.js迁移）
+function handleKeydownFallback(event) {
+    // 检查是否在输入框中
+    if (isInInputField(event.target)) {
+        return;
+    }
+    
+    const key = event.key.toLowerCase();
+    
+    switch (key) {
+        case 'd':
+            event.preventDefault();
+            handleDownloadImageFallback();
+            break;
+        case ' ':
+            event.preventDefault();
+            handleSkipButtonFallback();
+            break;
+        case 's':
+            event.preventDefault();
+            handleSubmitButtonFallback();
+            break;
+        case 'a':
+            event.preventDefault();
+            handleUploadImageFallback();
+            break;
+        case 'w':
+            event.preventDefault();
+            handleImageComparisonFallback();
+            break;
+        default:
+            // 其他键不处理
+            break;
+    }
+}
+
+// 兼容模式处理函数
+function handleDownloadImageFallback() {
+    if (typeof downloadImage === 'function') {
+        const img = getImageToDownloadFallback();
+        if (img) {
+            downloadImage(img);
+        } else {
+            if (typeof showNotification === 'function') {
+                showNotification('未找到可下载的图片', 2000);
+            }
+        }
+    } else {
+        if (typeof showNotification === 'function') {
+            showNotification('下载功能不可用', 2000);
+        }
+    }
+}
+
+function getImageToDownloadFallback() {
+    // 如果 ImageHelper 可用，使用它
+    if (typeof getImageHelper === 'function') {
+        const imageHelper = getImageHelper();
+        return imageHelper.getImageToDownload();
+    }
+    
+    // 兼容模式：简单查找图片
+    const images = document.querySelectorAll('img');
+    for (const img of images) {
+        if (img.naturalWidth > 100 && img.naturalHeight > 100) {
+            return img;
+        }
+    }
+    
+    return null;
+}
+
+function handleSkipButtonFallback() {
+    if (typeof findButtonByText === 'function') {
+        const skipButton = findButtonByText(['跳过', 'Skip', '下一个', 'Next']);
+        if (skipButton) {
+            skipButton.click();
+            if (typeof showNotification === 'function') {
+                showNotification('已点击跳过按钮', 1000);
+            }
+        } else {
+            if (typeof showNotification === 'function') {
+                showNotification('未找到跳过按钮', 2000);
+            }
+        }
+    } else {
+        if (typeof showNotification === 'function') {
+            showNotification('按钮查找功能不可用', 2000);
+        }
+    }
+}
+
+function handleSubmitButtonFallback() {
+    if (typeof findButtonByText === 'function') {
+        const submitButton = findButtonByText(['提交', 'Submit', '提交并继续标注', '继续']);
+        if (submitButton) {
+            submitButton.click();
+            if (typeof showNotification === 'function') {
+                showNotification('已点击提交按钮', 1000);
+            }
+        } else {
+            if (typeof showNotification === 'function') {
+                showNotification('未找到提交按钮', 2000);
+            }
+        }
+    } else {
+        if (typeof showNotification === 'function') {
+            showNotification('按钮查找功能不可用', 2000);
+        }
+    }
+}
+
+function handleUploadImageFallback() {
+    if (typeof findButtonByText === 'function') {
+        const uploadButton = findButtonByText(['上传图片', '上传', 'Upload', '选择图片']);
+        if (uploadButton) {
+            uploadButton.click();
+            if (typeof showNotification === 'function') {
+                showNotification('已触发上传功能', 1000);
+            }
+        } else {
+            if (typeof showNotification === 'function') {
+                showNotification('未找到上传按钮', 2000);
+            }
+        }
+    } else {
+        if (typeof showNotification === 'function') {
+            showNotification('上传功能不可用', 2000);
+        }
+    }
+}
+
+function handleImageComparisonFallback() {
+    if (typeof performImageComparison === 'function') {
+        performImageComparison();
+    } else {
+        if (typeof showNotification === 'function') {
+            showNotification('图片对比功能不可用', 2000);
+        }
+    }
+}
+
 // 导出到全局作用域
 window.KeyboardManager = KeyboardManager;
 window.getKeyboardManager = getKeyboardManager;
@@ -581,5 +723,6 @@ window.initializeKeyboardManager = initializeKeyboardManager;
 // 兼容性函数导出
 window.handleKeydown = handleKeydown;
 window.isInInputField = isInInputField;
+window.handleKeydownFallback = handleKeydownFallback;
 
 debugLog('KeyboardManager 模块加载完成');

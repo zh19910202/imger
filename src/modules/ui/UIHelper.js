@@ -288,6 +288,46 @@ function initializeUIHelper() {
     }
 }
 
+// 通知系统（从content.js迁移）
+function showNotification(message, duration = 3000) {
+    // 创建通知元素
+    const notification = document.createElement('div');
+    notification.textContent = message;
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #4CAF50;
+        color: white;
+        padding: 12px 20px;
+        border-radius: 4px;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        z-index: 999999;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        transition: opacity 0.3s ease;
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // 自动移除通知
+    setTimeout(() => {
+        notification.style.opacity = '0';
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 300);
+    }, duration);
+    
+    debugLog('显示通知', { message, duration });
+}
+
+// 扩展UIHelper类以包含通知功能
+UIHelper.prototype.showNotification = function(message, duration = 3000) {
+    return showNotification(message, duration);
+};
+
 // 导出到全局作用域
 window.UIHelper = UIHelper;
 window.getUIHelper = getUIHelper;
@@ -298,5 +338,6 @@ window.findLinkByText = findLinkByText;
 window.findButtonByText = findButtonByText;
 window.clickLink = clickLink;
 window.clickButton = clickButton;
+window.showNotification = showNotification;
 
 debugLog('UIHelper 模块加载完成');

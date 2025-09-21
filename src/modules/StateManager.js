@@ -45,7 +45,32 @@ class StateManager {
         }
     }
 
-    // 获取各个状态管理器
+    // 直接暴露子管理器（推荐访问方式）
+    get image() {
+        return this.imageState;
+    }
+
+    get modal() {
+        return this.modalState;
+    }
+
+    get ui() {
+        return this.uiState;
+    }
+
+    get system() {
+        return this.systemState;
+    }
+
+    get f1() {
+        return this.f1State;
+    }
+
+    get cache() {
+        return this.cacheState;
+    }
+
+    // 保留旧方法以确保兼容性
     getImageState() {
         return this.imageState;
     }
@@ -91,6 +116,117 @@ class StateManager {
             f1: this.f1State.getSnapshot(),
             cache: this.cacheState.getSnapshot()
         };
+    }
+
+    // 页面变化检测方法
+    checkPageChange() {
+        // 直接调用内部实现，避免递归
+        const newUrl = window.location.href;
+        const currentUrl = this.systemState.currentPageUrl;
+        
+        if (currentUrl && currentUrl !== newUrl) {
+            debugLog('检测到页面跳转，重置状态');
+            
+            // 使用 StateManager 清理页面状态
+            clearPageState();
+            
+            if (typeof showNotification === 'function') {
+                showNotification('页面切换，正在重新检测原图...', 2000);
+            }
+            
+            // 重新检测原图
+            setTimeout(() => {
+                if (typeof recordOriginalImages === 'function') {
+                    recordOriginalImages();
+                }
+            }, 1000);
+        }
+        
+        this.systemState.setCurrentPageUrl(newUrl);
+        
+        // 监听后续的URL变化
+        if (!window._pageChangeObserverStarted) {
+            window._pageChangeObserverStarted = true;
+            
+            // 监听路由变化
+            const originalPushState = history.pushState;
+            const originalReplaceState = history.replaceState;
+            
+            const self = this;
+            history.pushState = function() {
+                originalPushState.apply(history, arguments);
+                setTimeout(() => self.checkPageChange(), 100);
+            };
+            
+            history.replaceState = function() {
+                originalReplaceState.apply(history, arguments);
+                setTimeout(() => self.checkPageChange(), 100);
+            };
+            
+            window.addEventListener('popstate', () => {
+                setTimeout(() => self.checkPageChange(), 100);
+            });
+            
+            // 定期检查URL变化
+            setInterval(() => {
+                if (window.location.href !== self.systemState.currentPageUrl) {
+                    self.checkPageChange();
+                }
+            }, 1000);
+            
+            debugLog('页面变化监听器已启动');
+        }
+    }
+
+    // 设置页面监听器方法
+    setupPageListeners() {
+        // 监听存储变化
+        if (chrome.storage && chrome.storage.onChanged) {
+            chrome.storage.onChanged.addListener((changes, namespace) => {
+                if (namespace === 'sync') {
+                    debugLog('检测到设置变化:', changes);
+                    // 这里可以添加设置变化的处理逻辑
+                }
+            });
+        }
+        
+        // 监听页面卸载
+        window.addEventListener('beforeunload', () => this.cleanup());
+        
+        // 监听图片变化
+        if (typeof observeImageChanges === 'function') {
+            observeImageChanges();
+        }
+        
+        debugLog('页面监听器已设置');
+    }
+
+    // 清理方法
+    cleanup() {
+        debugLog('执行清理函数');
+        
+        // 移除事件监听器
+        if (typeof handleKeydownFallback === 'function') {
+            document.removeEventListener('keydown', handleKeydownFallback);
+        }
+        
+        // 清理模块状态
+        clearPageState();
+        
+        // 重置初始化状态
+        window._pageChangeObserverStarted = false;
+    }
+
+    // 保留最常用的委托方法（兼容性 + 便捷性）
+    setOriginalImage(image, force = false) {
+        return this.imageState.setOriginalImage(image, force);
+    }
+
+    clearPageState() {
+        this.imageState.clear();
+        this.modalState.clear();
+        this.systemState.clearPendingTimeouts();
+        debugLog('页面状态已清理');
     }
 }
 
@@ -603,11 +739,117 @@ function checkPageChangeAndReset() {
     return false;
 }
 
+// 页面变化检测和处理（从content.js迁移）
+function checkPageChange() {
+    const manager = getStateManager();
+    const newUrl = window.location.href;
+    const currentPageUrl = manager.getSystemState().currentPageUrl;
+    
+    if (currentPageUrl && currentPageUrl !== newUrl) {
+        debugLog('检测到页面跳转，重置状态');
+        
+        // 使用 StateManager 清理页面状态
+        if (typeof clearPageState === 'function') {
+            clearPageState();
+        }
+        
+        if (typeof showNotification === 'function') {
+            showNotification('页面切换，正在重新检测原图...', 2000);
+        }
+        
+        // 重新检测原图
+        setTimeout(() => {
+            if (typeof recordOriginalImages === 'function') {
+                recordOriginalImages();
+            }
+        }, 1000);
+    }
+    
+    manager.getSystemState().setCurrentPageUrl(newUrl);
+    
+    // 监听后续的URL变化
+    if (!window._pageChangeObserverStarted) {
+        window._pageChangeObserverStarted = true;
+        
+        // 监听路由变化
+        const originalPushState = history.pushState;
+        const originalReplaceState = history.replaceState;
+        
+        history.pushState = function() {
+            originalPushState.apply(history, arguments);
+            setTimeout(() => checkPageChange(), 100);
+        };
+        
+        history.replaceState = function() {
+            originalReplaceState.apply(history, arguments);
+            setTimeout(() => checkPageChange(), 100);
+        };
+        
+        window.addEventListener('popstate', () => {
+            setTimeout(() => checkPageChange(), 100);
+        });
+        
+        // 定期检查URL变化
+        setInterval(() => {
+            if (window.location.href !== manager.getSystemState().currentPageUrl) {
+                checkPageChange();
+            }
+        }, 1000);
+        
+        debugLog('页面变化监听器已启动');
+    }
+}
+
+// 设置页面监听器（从content.js迁移）
+function setupPageListeners() {
+    // 监听存储变化
+    if (chrome.storage && chrome.storage.onChanged) {
+        chrome.storage.onChanged.addListener((changes, namespace) => {
+            if (namespace === 'sync') {
+                debugLog('检测到设置变化:', changes);
+                // 这里可以添加设置变化的处理逻辑
+            }
+        });
+    }
+    
+    // 监听页面卸载
+    window.addEventListener('beforeunload', cleanup);
+    
+    // 监听图片变化
+    if (typeof observeImageChanges === 'function') {
+        observeImageChanges();
+    }
+    
+    debugLog('页面监听器已设置');
+}
+
+// 清理函数（从content.js迁移）
+function cleanup() {
+    debugLog('执行清理函数');
+    
+    // 移除事件监听器
+    if (typeof handleKeydownFallback === 'function') {
+        document.removeEventListener('keydown', handleKeydownFallback);
+    }
+    
+    // 清理模块状态
+    if (typeof clearPageState === 'function') {
+        clearPageState();
+    }
+    
+    // 重置初始化状态
+    window._pageChangeObserverStarted = false;
+}
+
 // 导出到全局作用域
 window.StateManager = StateManager;
 window.getStateManager = getStateManager;
 window.initializeStateManager = initializeStateManager;
 window.clearPageState = clearPageState;
 window.checkPageChangeAndReset = checkPageChangeAndReset;
+// 避免与content.js中的函数名冲突
+window.checkPageChangeFromStateManager = checkPageChange;
+window.setupPageListenersFromStateManager = setupPageListeners;
+window.cleanupFromStateManager = cleanup;
 
 debugLog('StateManager 模块加载完成');

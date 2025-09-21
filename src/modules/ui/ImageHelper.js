@@ -324,6 +324,63 @@ window.showImageDimensions = showImageDimensions;
 window.hideImageDimensions = hideImageDimensions;
 window.updateTooltipPosition = updateTooltipPosition;
 
+// 监听动态添加的图片（从content.js迁移）
+function observeImageChanges() {
+    const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            mutation.addedNodes.forEach((node) => {
+                if (node.nodeType === Node.ELEMENT_NODE) {
+                    // 检查新添加的元素是否是图片
+                    if (node.tagName === 'IMG') {
+                        handleNewImage(node);
+                    }
+                    // 检查新添加的元素内部是否有图片
+                    const images = node.querySelectorAll && node.querySelectorAll('img');
+                    if (images) {
+                        images.forEach(img => handleNewImage(img));
+                    }
+                }
+            });
+        });
+    });
+    
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
+    
+    debugLog('图片变化监听器已启动');
+    return observer;
+}
+
+// 处理新图片（从content.js迁移）
+function handleNewImage(img) {
+    // 如果 ImageHelper 可用，使用它来处理
+    if (typeof addImageListeners === 'function') {
+        addImageListeners(img);
+    }
+    
+    // 检查是否需要更新原图
+    if (typeof recordOriginalImages === 'function') {
+        // 延迟检测，等待图片加载
+        setTimeout(() => {
+            recordOriginalImages();
+        }, 500);
+    }
+    
+    debugLog('处理新图片', { src: img.src?.substring(0, 50) });
+}
+
+// 为所有现有图片添加监听器
+function addImageEventListenersToAll() {
+    const helper = getImageHelper();
+    if (!helper.isInitialized()) {
+        helper.initialize();
+    }
+    helper.addImageEventListeners();
+    debugLog('已为所有现有图片添加事件监听器');
+}
+
 // 导出addImageListeners函数
 window.addImageListeners = function(img) {
     const helper = getImageHelper();
@@ -333,5 +390,10 @@ window.addImageListeners = function(img) {
         console.warn('ImageHelper未初始化，无法为图片添加事件监听器');
     }
 };
+
+// 导出新增的函数
+window.observeImageChanges = observeImageChanges;
+window.handleNewImage = handleNewImage;
+window.addImageEventListenersToAll = addImageEventListenersToAll;
 
 debugLog('ImageHelper 模块加载完成');

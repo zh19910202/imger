@@ -764,7 +764,7 @@ class OriginalImageDetector {
         
         // 同步到全局状态
         if (window.stateManager) {
-            window.stateManager.unlockOriginalImage();
+            window.stateManager.image.unlockOriginalImage();
         } else {
             // 兼容性：直接设置全局变量
             window.originalImageLocked = false;

@@ -8,15 +8,180 @@
 // 访问常量的便捷方式，向后兼容
 const CONSTANTS = window.AuxisConstants || {};
 
+// 确保模块兼容性
+if (typeof window.getImageHelper === 'undefined' && typeof window.initializeImageHelper === 'undefined') {
+    // 如果模块未加载，动态加载ImageHelper模块
+    const imageHelperScript = document.createElement('script');
+    imageHelperScript.src = chrome.runtime.getURL('src/modules/ui/ImageHelper.js');
+    imageHelperScript.onload = function() {
+        console.log('ImageHelper 模块加载成功');
+    };
+    imageHelperScript.onerror = function() {
+        console.error('ImageHelper 模块加载失败');
+    };
+    document.head.appendChild(imageHelperScript);
+}
+
+if (typeof window.getUIHelper === 'undefined' && typeof window.initializeUIHelper === 'undefined') {
+    // 如果模块未加载，动态加载UIHelper模块
+    const uiHelperScript = document.createElement('script');
+    uiHelperScript.src = chrome.runtime.getURL('src/modules/ui/UIHelper.js');
+    uiHelperScript.onload = function() {
+        console.log('UIHelper 模块加载成功');
+    };
+    uiHelperScript.onerror = function() {
+        console.error('UIHelper 模块加载失败');
+    };
+    document.head.appendChild(uiHelperScript);
+}
+
+if (typeof window.getSmartComparisonManager === 'undefined' && typeof window.initializeSmartComparisonManager === 'undefined') {
+    // 如果模块未加载，动态加载SmartComparisonManager模块
+    const smartComparisonScript = document.createElement('script');
+    smartComparisonScript.src = chrome.runtime.getURL('src/modules/SmartComparisonManager.js');
+    smartComparisonScript.onload = function() {
+        console.log('SmartComparisonManager 模块加载成功');
+    };
+    smartComparisonScript.onerror = function() {
+        console.error('SmartComparisonManager 模块加载失败');
+    };
+    document.head.appendChild(smartComparisonScript);
+}
+
+if (typeof window.getOriginalImageDetector === 'undefined' && typeof window.initializeOriginalImageDetector === 'undefined') {
+    // 如果模块未加载，动态加载OriginalImageDetector模块
+    const originalImageDetectorScript = document.createElement('script');
+    originalImageDetectorScript.src = chrome.runtime.getURL('src/modules/core/OriginalImageDetector.js');
+    originalImageDetectorScript.onload = function() {
+        console.log('OriginalImageDetector 模块加载成功');
+    };
+    originalImageDetectorScript.onerror = function() {
+        console.error('OriginalImageDetector 模块加载失败');
+    };
+    document.head.appendChild(originalImageDetectorScript);
+}
+
+// 检查模块是否可用的便捷函数
+function isModuleAvailable(moduleName) {
+    switch(moduleName) {
+        case 'KeyboardManager':
+            return typeof window.initializeKeyboardManager === 'function';
+        case 'DownloadManager':
+            return typeof window.initializeDownloadManager === 'function';
+        case 'ImageHelper':
+            return typeof window.initializeImageHelper === 'function';
+        case 'UIHelper':
+            return typeof window.initializeUIHelper === 'function';
+        case 'SmartComparisonManager':
+            return typeof window.initializeSmartComparisonManager === 'function';
+        case 'OriginalImageDetector':
+            return typeof window.initializeOriginalImageDetector === 'function';
+        default:
+            return false;
+    }
+}
+
+// === 原图检测兼容性函数 ===
+// 获取检测器实例的通用函数
+function getDetectorOrFallback() {
+    return window.getOriginalImageDetector ? window.getOriginalImageDetector() : null;
+}
+
+// 兼容性函数：使用新的OriginalImageDetector模块
+function recordOriginalImages() {
+    const detector = getDetectorOrFallback();
+    if (detector) {
+        detector.detectOriginalImage();
+    } else {
+        recordOriginalImages_LEGACY();
+    }
+}
+
+function recordImageAsOriginal(img) {
+    const detector = getDetectorOrFallback();
+    return detector ? detector.recordImageAsOriginal(img) : recordImageAsOriginal_LEGACY(img);
+}
+
+function recordImageAsOriginalFlexible(img) {
+    const detector = getDetectorOrFallback();
+    return detector ? detector.recordImageAsOriginalFlexible(img) : recordImageAsOriginalFlexible_LEGACY(img);
+}
+
+function isJpegImage(url) {
+    const detector = getDetectorOrFallback();
+    if (detector) {
+        // 新模块支持多格式，但为了兼容性，这里仍然只检查JPEG
+        return /\.(jpe?g)(\?|$)/i.test(url);
+    } else {
+        return isJpegImage_LEGACY(url);
+    }
+}
+
+function isSupportedImageFormat(url) {
+    const detector = getDetectorOrFallback();
+    if (detector) {
+        return detector.isSupportedImageFormat(url);
+    } else {
+        // 回退：只支持JPEG
+        return /\.(jpe?g)(\?|$)/i.test(url);
+    }
+}
+
+function detectOriginalImage() {
+    const detector = getDetectorOrFallback();
+    if (detector) {
+        return detector.detectOriginalImage();
+    } else {
+        // LEGACY版本：直接调用recordOriginalImages_LEGACY
+        recordOriginalImages_LEGACY();
+        return originalImage;
+    }
+}
+
+function getOriginalImage() {
+    const detector = getDetectorOrFallback();
+    if (detector) {
+        return detector.getOriginalImage();
+    } else {
+        return originalImage;
+    }
+}
+
+function isOriginalImageLocked() {
+    const detector = getDetectorOrFallback();
+    if (detector) {
+        return detector.isOriginalImageLocked();
+    } else {
+        return originalImageLocked;
+    }
+}
+
+function unlockOriginalImage() {
+    const detector = getDetectorOrFallback();
+    if (detector) {
+        detector.unlockOriginalImage();
+    } else {
+        originalImageLocked = false;
+        originalImage = null;
+    }
+}
+
+function clearOriginalImage() {
+    const detector = getDetectorOrFallback();
+    if (detector) {
+        detector.clearOriginalImage();
+    } else {
+        originalImageLocked = false;
+        originalImage = null;
+    }
+}
+
 // === 模块兼容层结束 ===
 
 // 全局变量
-let lastHoveredImage = null;
-let selectedImage = null;
 let notificationAudio = null;
 let soundEnabled = true; // 音效开关状态
 let autoCompareEnabled = true; // 自动对比开关状态
-let dimensionTooltip = null; // 尺寸提示框元素
 let originalImage = null; // 存储原图引用用于对比（在单个页面生命周期内不可变更）
 let originalImageLocked = false; // 原图锁定状态，防止在同一页面被覆盖
 let currentPageUrl = ''; // 记录当前页面URL，用于检测页面跳转
@@ -64,10 +229,54 @@ let f1IntervalMs = 800; // 可调整的执行间隔（毫秒）
 let f1MaxRuns = 0; // 最大连续执行次数，0表示无限制
 let f1TimerId = null;
 let f1RunCount = 0;
-// COS图片拦截相关变量
-let capturedOriginalImage = null; // 捕获的原图URL
-let capturedModifiedImage = null; // 捕获的修改图URL
-let cosImageCache = new Map(); // COS图片缓存
+// COS图片拦截相关变量 - 现在由SmartComparisonManager管理
+// 为了保持兼容性，提供代理访问器
+Object.defineProperty(window, 'capturedOriginalImage', {
+    get() {
+        const manager = window.smartComparisonManager || window.getSmartComparisonManager?.();
+        return manager?.capturedOriginalImage || null;
+    },
+    set(value) {
+        const manager = window.smartComparisonManager || window.getSmartComparisonManager?.();
+        if (manager) {
+            manager.capturedOriginalImage = value;
+        }
+    }
+});
+
+Object.defineProperty(window, 'capturedModifiedImage', {
+    get() {
+        const manager = window.smartComparisonManager || window.getSmartComparisonManager?.();
+        return manager?.capturedModifiedImage || null;
+    },
+    set(value) {
+        const manager = window.smartComparisonManager || window.getSmartComparisonManager?.();
+        if (manager) {
+            manager.capturedModifiedImage = value;
+        }
+    }
+});
+
+Object.defineProperty(window, 'cosImageCache', {
+    get() {
+        const manager = window.smartComparisonManager || window.getSmartComparisonManager?.();
+        return manager?.cosImageCache || new Map();
+    }
+});
+
+Object.defineProperty(window, 'shouldAutoCompare', {
+    get() {
+        const manager = window.smartComparisonManager || window.getSmartComparisonManager?.();
+        return manager?.shouldAutoCompare || false;
+    },
+    set(value) {
+        const manager = window.smartComparisonManager || window.getSmartComparisonManager?.();
+        if (manager) {
+            manager.shouldAutoCompare = value;
+        }
+    }
+});
+
 let capturedImageRequests = new Map(); // 存储捕获的图片请求
 let originalImageFromNetwork = null; // 从网络请求中获取的原图
 // 兼容性变量（逐步清理中）
@@ -77,11 +286,6 @@ let userUploadedImage = null;
 let cachedRunningHubResults = null; // 缓存的RunningHub结果
 let currentPageTaskInfo = null; // 当前页面的任务信息
 let lastSuccessfulTaskId = null; // 最后成功的任务ID 
-// 已移除：模式相关变量
-// let isRevisionMode = false;
-// let modeStatusIndicator = null;
-// let isDragging = false;
-// let dragOffset = { x: 0, y: 0 }
 // 通用：隐藏取消按钮
 function hideRhCancelBtn() {
     try {
@@ -102,10 +306,6 @@ function showRhCancelBtn() {
     } catch (_) {}
 }
 
-// 已移除：模式状态管理函数
-// function loadModeState() { ... }
-// function saveModeState() { ... }
-
 // 检查并关闭模态框的辅助函数
 function checkAndCloseModalIfOpen(keyName) {
     const modal = document.querySelector('.dimension-check-modal');
@@ -126,25 +326,6 @@ function ensureModalClosed() {
     }
 }
 
-// 检查并关闭模态框的辅助函数
-function checkAndCloseModalIfOpen(keyName) {
-    const modal = document.querySelector('.dimension-check-modal');
-    if (modal) {
-        console.log(`[${keyName.toUpperCase()}键] 检测到尺寸检查模态框已打开，先关闭模态框`);
-        modal.remove();
-        return true; // 返回true表示关闭了模态框
-    }
-    return false; // 返回false表示没有模态框需要关闭
-}
-
-// 确保模态框被关闭的函数
-function ensureModalClosed() {
-    const modal = document.querySelector('.dimension-check-modal');
-    if (modal) {
-        modal.remove();
-        console.log('[模态框管理] 强制关闭尺寸检查模态框');
-    }
-}
 function checkAndCloseModalIfOpen(currentKey) {
     // 如果尺寸检查模态框打开，且不是ESC键和R键，先关闭模态框
     if (isDimensionCheckModalOpen && currentKey !== 'escape' && currentKey !== 'r') {
@@ -170,7 +351,7 @@ function initializeScript() {
     console.log('=== AnnotateFlow Assistant v2.0 已加载 ===');
     console.log('专为腾讯QLabel标注平台设计');
     console.log('支持功能: D键下载图片, 空格键跳过, S键提交标注, A键上传图片, F键查看历史, W键智能图片对比, Z键调试模式, I键检查文件输入, B键重新检测原图, N键重新检测原图, P键/F2键智能尺寸检查, R键手动检查尺寸是否为8的倍数');
-    console.log('🎯 原图检测: 只支持JPEG格式的COS原图 (.jpg/.jpeg)');
+    console.log('🎯 原图检测: 支持多种图片格式 (JPEG, PNG, WebP, GIF, BMP, TIFF)');
     console.log('Chrome对象:', typeof chrome);
     console.log('Chrome.runtime:', typeof chrome?.runtime);
     console.log('扩展ID:', chrome?.runtime?.id);
@@ -210,6 +391,27 @@ function initializeScript() {
         document.addEventListener('keydown', handleKeydown);
     }
     
+    // 初始化 SmartComparisonManager
+    if (typeof initializeSmartComparisonManager === 'function') {
+        initializeSmartComparisonManager();
+    }
+    
+    // 初始化 OriginalImageDetector
+    if (typeof initializeOriginalImageDetector === 'function') {
+        initializeOriginalImageDetector();
+        console.log('✅ OriginalImageDetector 模块已初始化');
+    } else {
+        console.warn('SmartComparisonManager 模块不可用，W键智能对比功能可能受限');
+    }
+    
+    // 初始化 OriginalImageDetector
+    if (typeof initializeOriginalImageDetector === 'function') {
+        initializeOriginalImageDetector();
+        console.log('OriginalImageDetector 已初始化 - 支持多格式原图检测');
+    } else {
+        console.warn('OriginalImageDetector 模块不可用，原图检测功能可能受限');
+    }
+    
     // 监听存储变化
     chrome.storage.onChanged.addListener((changes, namespace) => {
         if (namespace === 'sync') {
@@ -232,11 +434,20 @@ function initializeScript() {
         }
     });
     
-    // 为所有图片添加鼠标事件监听器
-    addImageEventListeners();
-    
-    // 使用 MutationObserver 监听动态添加的图片
-    observeImageChanges();
+    // 初始化 ImageHelper
+    if (typeof initializeImageHelper === 'function') {
+        initializeImageHelper();
+        // 为所有图片添加鼠标事件监听器
+        if (typeof getImageHelper === 'function') {
+            const imageHelper = getImageHelper();
+            imageHelper.addImageEventListeners();
+        }
+        // 使用 MutationObserver 监听动态添加的图片
+        observeImageChanges();
+    } else {
+        console.warn('ImageHelper 模块不可用，图片交互功能可能受限');
+        observeImageChanges();
+    }
     
     // 初始化图片上传监听
     initializeUploadMonitoring();
@@ -255,12 +466,8 @@ function initializeScript() {
     if (debugMode) {
         initializeDebugPanel();
     }
-    
-    // 已移除：模式状态加载
-    // loadModeState();
-    
-    // 初始化COS图片拦截监听
-    initializeCOSImageListener();
+
+    // COS图片拦截监听现在由SmartComparisonManager处理
     
     console.log('AnnotateFlow Assistant 初始化完成，调试模式:', debugMode ? '已启用' : '已禁用');
 }
@@ -427,78 +634,19 @@ function closeComparisonModal() {
 // 检查目标元素是否是输入框
 // isInInputField 函数已移动到 src/modules/KeyboardManager.js
 // 获取要下载的图片
-function getImageToDownload() {
-    // 优先级：选中的图片 > 鼠标悬停的图片
-    return selectedImage || lastHoveredImage;
-}
+// getImageToDownload 函数已移动到 src/modules/ui/ImageHelper.js
 
 // 为所有图片添加事件监听器
-function addImageEventListeners() {
-    const images = document.querySelectorAll('img');
-    images.forEach(img => {
-        addImageListeners(img);
-    });
-}
+// addImageEventListeners 函数已移动到 src/modules/ui/ImageHelper.js
 
 // 为单个图片添加事件监听器
-function addImageListeners(img) {
-    // 鼠标悬停事件
-    img.addEventListener('mouseenter', (event) => {
-        lastHoveredImage = event.target;
-        highlightImage(event.target, true);
-        showImageDimensions(event.target, event);
-    });
-    
-    img.addEventListener('mouseleave', (event) => {
-        if (lastHoveredImage === event.target) {
-            highlightImage(event.target, false);
-        }
-        hideImageDimensions();
-    });
-    
-    // 鼠标移动事件 - 更新提示框位置
-    img.addEventListener('mousemove', (event) => {
-        updateTooltipPosition(event);
-    });
-    
-    // 点击选择事件
-    img.addEventListener('click', (event) => {
-        // 如果按住Ctrl键点击，选择图片
-        if (event.ctrlKey) {
-            event.preventDefault();
-            selectImage(event.target);
-        }
-    });
-}
+// addImageListeners 函数已移动到 src/modules/ui/ImageHelper.js
 
 // 高亮显示图片
-function highlightImage(img, highlight) {
-    if (highlight) {
-        img.style.outline = '3px solid #4CAF50';
-        img.style.boxShadow = '0 0 10px rgba(76, 175, 80, 0.5)';
-    } else {
-        if (selectedImage !== img) {
-            img.style.outline = '';
-            img.style.boxShadow = '';
-        }
-    }
-}
+// highlightImage 函数已移动到 src/modules/ui/ImageHelper.js
 
 // 选择图片
-function selectImage(img) {
-    // 清除之前选中的图片样式
-    if (selectedImage) {
-        selectedImage.style.outline = '';
-        selectedImage.style.boxShadow = '';
-    }
-    
-    // 设置新选中的图片
-    selectedImage = img;
-    img.style.outline = '3px solid #2196F3';
-    img.style.boxShadow = '0 0 15px rgba(33, 150, 243, 0.7)';
-    
-    showNotification('图片已选中，按D键下载');
-}
+// selectImage 函数已移动到 src/modules/ui/ImageHelper.js
 
 // 监听动态添加的图片
 function observeImageChanges() {
@@ -564,58 +712,10 @@ function showNotification(message, duration = 3000) {
 }
 
 // 根据文本内容查找按钮
-function findButtonByText(textOptions) {
-    // 查找所有可能的按钮元素
-    const buttonSelectors = [
-        'button',
-        'input[type="button"]',
-        'input[type="submit"]',
-        '[role="button"]',
-        '.btn',
-        '.button',
-        'a[href="#"]',
-        'a[onclick]',
-        'div[onclick]',
-        'span[onclick]'
-    ];
-    
-    const allElements = document.querySelectorAll(buttonSelectors.join(','));
-    
-    // 遍历所有元素，查找匹配的文本
-    for (const element of allElements) {
-        const text = (element.textContent || element.value || element.innerText || '').trim();
-        
-        // 检查是否匹配任一文本选项
-        if (textOptions.some(option => 
-            text.includes(option) || 
-            text.toLowerCase().includes(option.toLowerCase())
-        )) {
-            return element;
-        }
-    }
-    
-    return null;
-}
+// findButtonByText 函数已移动到 src/modules/ui/UIHelper.js
 
 // 点击按钮并显示反馈
-function clickButton(button, actionName) {
-    try {
-        console.log(`点击${actionName}按钮:`, button);
-        
-        // 添加视觉反馈
-        addButtonClickEffect(button);
-        
-        // 模拟点击事件
-        button.click();
-        
-        // 显示通知
-        showNotification(`已执行: ${actionName}`);
-        
-    } catch (error) {
-        console.error(`点击${actionName}按钮时发生错误:`, error);
-        showNotification(`执行${actionName}失败: ${error.message}`);
-    }
-}
+// clickButton 函数已移动到 src/modules/ui/UIHelper.js
 
 // 在执行可能触发确认弹窗的操作后，尝试自动点击“确定/确认/OK”按钮
 function autoConfirmModalAfterAction() {
@@ -692,41 +792,18 @@ function autoConfirmModalAfterAction() {
 }
 
 // 为按钮添加点击视觉效果
-function addButtonClickEffect(button) {
-    const originalStyle = {
-        backgroundColor: button.style.backgroundColor,
-        transform: button.style.transform,
-        transition: button.style.transition
-    };
-    
-    // 添加点击效果
-    button.style.transition = 'all 0.2s ease';
-    button.style.transform = 'scale(0.95)';
-    button.style.backgroundColor = '#e3f2fd';
-    
-    // 恢复原始样式
-    setTimeout(() => {
-        button.style.backgroundColor = originalStyle.backgroundColor;
-        button.style.transform = originalStyle.transform;
-        button.style.transition = originalStyle.transition;
-    }, 200);
-}
+// addButtonClickEffect 函数已移动到 src/modules/ui/UIHelper.js
 
 // 清理函数
 function cleanup() {
     debugLog('执行清理函数');
-    
+
     document.removeEventListener('keydown', handleKeydown);
     // 移除所有图片的事件监听器和样式
     document.querySelectorAll('img').forEach(img => {
         img.style.outline = '';
         img.style.boxShadow = '';
     });
-    // 清理尺寸提示框
-    if (dimensionTooltip && dimensionTooltip.parentNode) {
-        dimensionTooltip.parentNode.removeChild(dimensionTooltip);
-        dimensionTooltip = null;
-    }
     // 清理图片对比弹窗
     if (comparisonModal && comparisonModal.parentNode) {
         comparisonModal.parentNode.removeChild(comparisonModal);
@@ -775,18 +852,26 @@ function cleanup() {
 
 // 初始化音效
 function initializeAudio() {
+    debugLog('初始化音效系统');
     try {
         // 获取扩展中音效文件的URL
         const audioUrl = chrome.runtime.getURL('notification.mp3');
         notificationAudio = new Audio(audioUrl);
-        
+
         // 设置音效属性
         notificationAudio.volume = 0.6; // 设置音量为60%
         notificationAudio.preload = 'auto'; // 预加载音效
-        
-        console.log('音效初始化成功:', audioUrl);
+
+        // 测试音频文件是否存在
+        notificationAudio.addEventListener('error', (e) => {
+            console.warn('音效文件加载失败，可能文件不存在:', e);
+            notificationAudio = null; // 清除引用
+        });
+
+        console.log('音效初始化完成:', audioUrl);
     } catch (error) {
-        console.error('音效初始化失败:', error);
+        console.warn('音效初始化失败，音效功能将不可用:', error);
+        notificationAudio = null;
     }
 }
 
@@ -854,271 +939,28 @@ function playNotificationSound() {
 }
 
 // 根据文本内容查找链接
-function findLinkByText(textOptions) {
-    // 查找所有可能的链接元素，包括更广泛的选择器
-    const linkSelectors = [
-        'a[href]',
-        'a[onclick]',
-        '[role="link"]',
-        '.link',
-        '.history-link',
-        '.nav-link',
-        'span[onclick]',
-        'div[onclick]',
-        'span[style*="cursor: pointer"]',
-        'div[style*="cursor: pointer"]',
-        'span[class*="link"]',
-        'div[class*="link"]',
-        'span[class*="history"]',
-        'div[class*="history"]',
-        'span[class*="click"]',
-        'div[class*="click"]'
-    ];
-    
-    const allElements = document.querySelectorAll(linkSelectors.join(','));
-    
-    // 遍历所有元素，查找匹配的文本
-    for (const element of allElements) {
-        const text = (element.textContent || element.innerText || element.title || '').trim();
-        
-        // 检查是否匹配任一文本选项
-        if (textOptions.some(option => 
-            text.includes(option) || 
-            text.toLowerCase().includes(option.toLowerCase())
-        )) {
-            return element;
-        }
-    }
-    
-    // 如果上面的方法没找到，尝试在整个页面中搜索包含目标文本的元素
-    const allTextElements = document.querySelectorAll('*');
-    for (const element of allTextElements) {
-        const text = (element.textContent || element.innerText || '').trim();
-        
-        // 检查是否包含目标文本
-        if (textOptions.some(option => 
-            text.includes(option) || 
-            text.toLowerCase().includes(option.toLowerCase())
-        )) {
-            // 检查这个元素是否可点击（有onclick、cursor:pointer等）
-            const style = window.getComputedStyle(element);
-            const hasClickHandler = element.onclick || 
-                                  element.getAttribute('onclick') ||
-                                  style.cursor === 'pointer' ||
-                                  element.tagName === 'A' ||
-                                  element.getAttribute('role') === 'link';
-            
-            if (hasClickHandler) {
-                return element;
-            }
-        }
-    }
-    
-    return null;
-}
+// findLinkByText 函数已移动到 src/modules/ui/UIHelper.js
 
 // 点击链接并显示反馈
-function clickLink(link, actionName) {
-    try {
-        console.log(`点击${actionName}链接:`, link);
-        
-        // 添加视觉反馈
-        addLinkClickEffect(link);
-        
-        // 模拟点击事件
-        link.click();
-        
-        // 显示通知
-        showNotification(`已执行: ${actionName}`);
-        
-    } catch (error) {
-        console.error(`点击${actionName}链接时发生错误:`, error);
-        showNotification(`执行${actionName}失败: ${error.message}`);
-    }
-}
+// clickLink 函数已移动到 src/modules/ui/UIHelper.js
 
 // 为链接添加点击视觉效果
-function addLinkClickEffect(link) {
-    const originalStyle = {
-        backgroundColor: link.style.backgroundColor,
-        transform: link.style.transform,
-        transition: link.style.transition,
-        color: link.style.color
-    };
-    
-    // 添加点击效果
-    link.style.transition = 'all 0.2s ease';
-    link.style.transform = 'scale(0.95)';
-    link.style.backgroundColor = '#e3f2fd';
-    link.style.color = '#1976d2';
-    
-    // 恢复原始样式
-    setTimeout(() => {
-        link.style.backgroundColor = originalStyle.backgroundColor;
-        link.style.transform = originalStyle.transform;
-        link.style.transition = originalStyle.transition;
-        link.style.color = originalStyle.color;
-    }, 200);
-}
+// addLinkClickEffect 函数已移动到 src/modules/ui/UIHelper.js
 
 // 显示图片尺寸提示框
-function showImageDimensions(img, event) {
-    try {
-        // 获取图片的真实尺寸
-        const width = img.naturalWidth || img.width;
-        const height = img.naturalHeight || img.height;
-        
-        // 如果尺寸无效，不显示提示框
-        if (!width || !height) {
-            return;
-        }
-        
-        // 创建或更新提示框
-        if (!dimensionTooltip) {
-            createDimensionTooltip();
-        }
-        
-        // 设置提示框内容
-        dimensionTooltip.textContent = `${width} × ${height}`;
-        
-        // 显示提示框
-        dimensionTooltip.style.display = 'block';
-        
-        // 更新位置
-        updateTooltipPosition(event);
-        
-    } catch (error) {
-        console.error('显示图片尺寸时发生错误:', error);
-    }
-}
+// showImageDimensions 函数已移动到 src/modules/ui/ImageHelper.js
 
 // 隐藏图片尺寸提示框
-function hideImageDimensions() {
-    if (dimensionTooltip) {
-        dimensionTooltip.style.display = 'none';
-    }
-}
+// hideImageDimensions 函数已移动到 src/modules/ui/ImageHelper.js
 
 // 创建尺寸提示框元素
-function createDimensionTooltip() {
-    dimensionTooltip = document.createElement('div');
-    dimensionTooltip.style.cssText = `
-        position: fixed;
-        background: rgba(0, 0, 0, 0.8);
-        color: white;
-        padding: 6px 12px;
-        border-radius: 6px;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        font-size: 12px;
-        font-weight: 500;
-        z-index: 999999;
-        pointer-events: none;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        backdrop-filter: blur(4px);
-        transition: opacity 0.2s ease;
-        white-space: nowrap;
-        display: none;
-    `;
-    
-    document.body.appendChild(dimensionTooltip);
-}
+// createDimensionTooltip 函数已移动到 src/modules/ui/ImageHelper.js
 
 // 更新提示框位置
-function updateTooltipPosition(event) {
-    if (!dimensionTooltip || dimensionTooltip.style.display === 'none') {
-        return;
-    }
-    
-    const offsetX = 15;
-    const offsetY = -30;
-    
-    let x = event.clientX + offsetX;
-    let y = event.clientY + offsetY;
-    
-    // 防止提示框超出屏幕边界
-    const tooltipRect = dimensionTooltip.getBoundingClientRect();
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-    
-    // 右边界检查
-    if (x + tooltipRect.width > viewportWidth) {
-        x = event.clientX - tooltipRect.width - offsetX;
-    }
-    
-    // 上边界检查
-    if (y < 0) {
-        y = event.clientY + Math.abs(offsetY);
-    }
-    
-    dimensionTooltip.style.left = x + 'px';
-    dimensionTooltip.style.top = y + 'px';
-}
+// updateTooltipPosition 函数已移动到 src/modules/ui/ImageHelper.js
 
 // 页面卸载时清理
 window.addEventListener('beforeunload', cleanup);
-
-// 图片上传监听和对比功能
-function initializeUploadMonitoring() {
-    console.log('初始化图片上传监听功能');
-    
-    // 监听文件输入元素的变化
-    observeFileInputs();
-    
-    // 监听网络请求中的图片上传
-    observeNetworkUploads();
-    
-    // 记录当前页面的原图
-    recordOriginalImages();
-}
-
-// 监听文件输入元素
-function observeFileInputs() {
-    // 查找所有现有的文件输入元素
-    const fileInputs = document.querySelectorAll('input[type="file"]');
-    fileInputs.forEach(input => addUploadListener(input));
-    
-    // 使用 MutationObserver 监听动态添加的文件输入元素
-    const observer = new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-            mutation.addedNodes.forEach((node) => {
-                if (node.nodeType === Node.ELEMENT_NODE) {
-                    // 检查新添加的元素是否是文件输入
-                    if (node.tagName === 'INPUT' && node.type === 'file') {
-                        addUploadListener(node);
-                    }
-                    // 检查新添加的元素内部是否有文件输入
-                    const inputs = node.querySelectorAll && node.querySelectorAll('input[type="file"]');
-                    if (inputs) {
-                        inputs.forEach(input => addUploadListener(input));
-                    }
-                }
-            });
-        });
-    });
-    
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true
-    });
-}
-
-// 为文件输入添加上传监听器
-function addUploadListener(input) {
-    if (input._uploadListenerAdded) return; // 防止重复添加
-    input._uploadListenerAdded = true;
-    
-    input.addEventListener('change', (event) => {
-        const files = event.target.files;
-        if (files && files.length > 0) {
-            const file = files[0];
-            if (file.type.startsWith('image/')) {
-                console.log('检测到图片上传:', file.name, file.type, file.size);
-                handleImageUpload(file, input);
-            }
-        }
-    });
-}
 
 // 处理图片上传
 function handleImageUpload(file, inputElement) {
@@ -1204,290 +1046,19 @@ function handleImageUpload(file, inputElement) {
     reader.readAsDataURL(file);
 }
 
-// 记录页面原始图片 - 增强后端图片检测
-function recordOriginalImages() {
-    debugLog('开始记录页面原始图片');
-    
-    // 只保留两种获取方式：
-    // 1. 精确的DOM选择器（最高优先级）
-    const preciseSelectorCandidates = [
-        'div[data-v-92a52416].safe-image img[data-v-92a52416][src]',
-        'div.safe-image img[data-v-92a52416][src]',
-        'img[data-v-92a52416][src].img',
-        'img[data-v-92a52416][src]',
-        'div.safe-image img[src]',
-        '.image-item img[src]'
-    ];
-    
-    // 2. COS原图选择器（只检测JPEG格式的COS图片）
-    const cosImageSelectors = [
-        'img[src*="cos.ap-guangzhou.myqcloud.com"][src*="/target/"][src*=".jpg"]',
-        'img[src*="cos.ap-guangzhou.myqcloud.com"][src*="/target/"][src*=".jpeg"]',
-        'img[src*="cos.ap-guangzhou.myqcloud.com"][src*="dataset"][src*=".jpg"]',
-        'img[src*="cos.ap-guangzhou.myqcloud.com"][src*="dataset"][src*=".jpeg"]',
-        'img[src*="/target/"][src*=".jpg"]',
-        'img[src*="/target/"][src*=".jpeg"]',
-        'img[src*="/target/dataset/"][src*=".jpg"]',
-        'img[src*="/target/dataset/"][src*=".jpeg"]',
-        'img[src*="dataset/"][src*=".jpg"]',
-        'img[src*="dataset/"][src*=".jpeg"]'
-    ];
-    
-    // 合并选择器，精确DOM选择器优先
-    const selectorCandidates = [
-        ...preciseSelectorCandidates,
-        ...cosImageSelectors
-    ];
-    
-    let targetImages = [];
-    let usedSelector = '';
-    
-    // 按优先级尝试每个选择器
-    for (const selector of selectorCandidates) {
-        targetImages = document.querySelectorAll(selector);
-        if (targetImages.length > 0) {
-            usedSelector = selector;
-            debugLog('使用选择器找到原图', {
-                selector: selector,
-                found: targetImages.length
-            });
-            break;
-        }
-    }
-    
-    // 如果所有特定选择器都没找到，使用更宽泛的查找
-    if (targetImages.length === 0) {
-        debugLog('所有特定选择器未找到图片，尝试查找所有带data-v属性的图片');
-        
-        // 查找所有带 data-v- 开头属性的JPEG图片
-        const allImages = document.querySelectorAll('img[src]');
-        const dataVImages = Array.from(allImages).filter(img => {
-            const hasDataV = Array.from(img.attributes).some(attr => 
-                attr.name.startsWith('data-v-')
-            );
-            const isJpeg = isJpegImage(img.src);
-            return hasDataV && isJpeg;
-        });
-        
-        debugLog('找到带data-v属性的JPEG图片', dataVImages.length);
-        targetImages = dataVImages;
-        usedSelector = '带data-v属性的JPEG图片';
-        
-        if (targetImages.length === 0) {
-            debugLog('仍未找到，使用所有JPEG图片作为备选');
-            const jpegImages = Array.from(allImages).filter(img => isJpegImage(img.src));
-            targetImages = jpegImages;
-            usedSelector = '所有JPEG图片';
-            debugLog('找到JPEG图片数量', jpegImages.length);
-        }
-    }
-    
-    debugLog('最终图片候选数量', {
-        count: targetImages.length,
-        selector: usedSelector
-    });
-    
-    if (targetImages.length === 0) {
-        debugLog('页面中无符合条件的图片元素');
-        // 延迟重试，可能图片还在动态加载
-        setTimeout(() => {
-            debugLog('延迟重试检测原图');
-            recordOriginalImages();
-        }, 2000);
-        return;
-    }
-    
-    // 详细检查每个候选图片
-    Array.from(targetImages).forEach((img, index) => {
-        const parentDiv = img.closest('div[data-v-92a52416], div.safe-image, div.image-item');
-        debugLog(`检查候选图片 #${index}`, {
-            src: img.src ? img.src.substring(0, 100) + '...' : '无src',
-            naturalWidth: img.naturalWidth,
-            naturalHeight: img.naturalHeight,
-            width: img.width,
-            height: img.height,
-            complete: img.complete,
-            className: img.className,
-            id: img.id || '无ID',
-            dataset: Object.keys(img.dataset).map(key => `${key}=${img.dataset[key]}`).join(', ') || '无data属性',
-            hasDataV92a52416: img.hasAttribute('data-v-92a52416'),
-            parentDivClasses: parentDiv ? parentDiv.className : '无父容器',
-            parentDivDataAttrs: parentDiv ? Object.keys(parentDiv.dataset).join(', ') : '无父容器data属性'
-        });
-    });
-    
-    let mainImage = null;
-    
-    // 方法1：优先选择最精确选择器找到的已加载JPEG图片
-    const exactSelector = 'div[data-v-92a52416].safe-image img[data-v-92a52416][src]';
-    const exactImages = document.querySelectorAll(exactSelector);
-    if (exactImages.length > 0) {
-        mainImage = Array.from(exactImages).find(img => {
-            const isLoaded = img.complete && img.naturalWidth > 0 && img.naturalHeight > 0;
-            const isJpeg = isJpegImage(img.src);
-            if (isLoaded && isJpeg) {
-                debugLog('找到精确选择器且已加载的JPEG原图', {
-                    src: img.src.substring(0, 50) + '...',
-                    naturalWidth: img.naturalWidth,
-                    naturalHeight: img.naturalHeight,
-                    selector: exactSelector
-                });
-            }
-            return isLoaded && isJpeg;
-        });
-        
-        // 如果没有已加载的JPEG，选择第一个JPEG
-        if (!mainImage) {
-            mainImage = Array.from(exactImages).find(img => isJpegImage(img.src));
-            if (mainImage) {
-                debugLog('选择精确选择器的第一个JPEG图片（可能未完全加载）', {
-                    src: mainImage.src ? mainImage.src.substring(0, 50) + '...' : '无src',
-                    complete: mainImage.complete
-                });
-            } else {
-                debugLog('精确选择器未找到JPEG格式图片');
-            }
-        }
-    }
-    
-    // 方法2：如果精确选择器没找到，从候选图片中选择（只选择JPEG格式）
-    if (!mainImage && targetImages.length > 0) {
-        // 优先选择已加载且在safe-image容器中的JPEG图片
-        mainImage = Array.from(targetImages).find(img => {
-            const isInSafeImage = img.closest('.safe-image') !== null;
-            const isLoaded = img.complete && img.naturalWidth > 0 && img.naturalHeight > 0;
-            const isJpeg = isJpegImage(img.src);
-            return isInSafeImage && isLoaded && isJpeg;
-        });
-        
-        if (mainImage) {
-            debugLog('找到safe-image容器中的已加载JPEG图片');
-        } else {
-            // 选择第一个已加载的JPEG图片
-            mainImage = Array.from(targetImages).find(img => {
-                const isLoaded = img.complete && img.naturalWidth > 0 && img.naturalHeight > 0;
-                const isJpeg = isJpegImage(img.src);
-                return isLoaded && isJpeg;
-            });
-            
-            if (mainImage) {
-                debugLog('找到已加载的候选JPEG图片');
-            } else {
-                // 选择第一个JPEG候选图片
-                mainImage = Array.from(targetImages).find(img => isJpegImage(img.src));
-                if (mainImage) {
-                    debugLog('选择第一个JPEG候选图片（可能未加载）');
-                } else {
-                    debugLog('未找到任何JPEG格式的候选图片');
-                }
-            }
-        }
-    }
-    
-    if (mainImage) {
-        debugLog('最终选定的原图', {
-            src: mainImage.src ? mainImage.src.substring(0, 100) + '...' : '无src',
-            complete: mainImage.complete,
-            naturalWidth: mainImage.naturalWidth,
-            naturalHeight: mainImage.naturalHeight,
-            hasDataV: mainImage.hasAttribute('data-v-92a52416'),
-            className: mainImage.className,
-            parentContainer: mainImage.closest('.safe-image, .image-item') ? '在安全图片容器中' : '不在特定容器中',
-            usedSelector: usedSelector
-        });
-        
-        // 如果图片还没完全加载，等待加载完成
-        if (!mainImage.complete || mainImage.naturalWidth === 0) {
-            debugLog('选中的原图还没完全加载，等待加载完成');
-            
-            const handleLoad = () => {
-                debugLog('原图加载完成，记录原图信息');
-                recordImageAsOriginal(mainImage);
-                mainImage.removeEventListener('load', handleLoad);
-            };
-            
-            const handleError = () => {
-                debugLog('原图加载失败，尝试记录当前状态');
-                recordImageAsOriginal(mainImage);
-                mainImage.removeEventListener('error', handleError);
-            };
-            
-            mainImage.addEventListener('load', handleLoad);
-            mainImage.addEventListener('error', handleError);
-            
-            // 也立即记录当前状态，以防万一
-            recordImageAsOriginal(mainImage);
-        } else {
-            recordImageAsOriginal(mainImage);
-        }
-    } else {
-        debugLog('未找到任何可用的原图');
-        
-        // 延迟重试，可能图片还在动态加载
-        setTimeout(() => {
-            debugLog('延迟3秒后重试检测原图');
-            recordOriginalImages();
-        }, 3000);
-    }
-}
+// LEGACY函数已迁移到 OriginalImageDetector 模块
+// recordOriginalImages_LEGACY 的逻辑已完全迁移到 OriginalImageDetector.detectWithGeneralScan()
 
-// 检查图片是否为JPEG格式
-function isJpegImage(url) {
-    if (!url) return false;
-    
-    const lowerUrl = url.toLowerCase();
-    
-    // 检查文件扩展名
-    const hasJpegExt = /\.(jpe?g)(\?|$)/i.test(url);
-    
-    // 检查URL中是否包含JPEG关键词
-    const hasJpegKeyword = lowerUrl.includes('jpeg') || lowerUrl.includes('jpg');
-    
-    const result = hasJpegExt || hasJpegKeyword;
-    
-    if (!result) {
-        debugLog('非JPEG格式图片', {
-            url: url.substring(0, 100) + '...',
-            hasJpegExt,
-            hasJpegKeyword
-        });
-    }
-    
-    return result;
-}
+// isJpegImage_LEGACY 已迁移到 OriginalImageDetector.isJpegImage()
 
 // 从URL中提取文件名
 // extractFileNameFromUrl 函数已移动到 src/modules/DownloadManager.js
-/**
- * 原有严格版本：仅允许 JPEG
- */
-function recordImageAsOriginal(img) {
-    // 如果原图已经被锁定，不允许在同一页面内更改
-    if (originalImageLocked && originalImage) {
-        debugLog('原图已在当前页面锁定，跳过更新', {
-            existingOriginal: originalImage.src.substring(0, 50) + '...',
-            attemptedNew: img.src ? img.src.substring(0, 50) + '...' : '无src',
-            currentPage: currentPageUrl.substring(0, 50) + '...'
-        });
-        return;
-    }
-    
-    // 验证图片格式：只接受JPEG格式的原图
-    if (!img.src || !isJpegImage(img.src)) {
-        debugLog('跳过非JPEG格式的图片', {
-            src: img.src ? img.src.substring(0, 100) + '...' : '无src',
-            reason: '不是JPEG格式'
-        });
-        return;
-    }
-
-    setOriginalImageCommon(img);
-}
+// recordImageAsOriginal_LEGACY 已迁移到 OriginalImageDetector.recordImageAsOriginal()
 
 /**
  * 宽松版本：允许常见位图格式（用于 D 键下载后“标记为原图”的需求）
  */
-function recordImageAsOriginalFlexible(img) {
+function recordImageAsOriginalFlexible_LEGACY(img) {
     // 如果原图已经被锁定，不允许在同一页面内更改
     if (originalImageLocked && originalImage) {
         debugLog('原图已在当前页面锁定（宽松模式跳过）');
@@ -1523,7 +1094,7 @@ function setOriginalImageCommon(img) {
         src: img.src,
         width: width,
         height: height,
-        name: extractFileNameFromUrl(img.src),
+        name: extractFileNameFromUrl ? extractFileNameFromUrl(img.src) : img.src.split('/').pop(),
         element: img
     };
 
@@ -1610,10 +1181,10 @@ function observeNetworkUploads() {
     observeResourceLoading();
     
     // 新增：从浏览器缓存获取图片
-    getCachedImages();
-    
+    // getCachedImages(); // 函数未定义，暂时注释掉
+
     // 新增：启动竞速模式原图获取
-    startParallelImageAcquisition();
+    // startParallelImageAcquisition();
 }
 
 // 处理网络响应，捕获图片资源 - 增强后端检测
@@ -1668,34 +1239,9 @@ function handleNetworkResponse(url, response, type) {
             isOriginalCandidate: isOriginalImageCandidate(url),
             isServerModifiedImage: isServerModifiedImage
         };
-        
+
         capturedImageRequests.set(url, imageInfo);
-        
-        // 已移除：服务器修改图处理逻辑
-        // if (isServerModifiedImage && isRevisionMode) {
-        //     debugLog('检测到服务器修改图', {
-        //         url: url.substring(0, 100) + '...',
-        //         已移除：模式相关日志
-        //     });
-        //     
-        //     // 已移除：返修模式专用日志
-        //     revisionLog('服务器修改图检测', '发现服务器返回的修改图', {
-        //         url: url,
-        //         urlPreview: url.substring(0, 100) + '...',
-        //         timestamp: new Date(imageInfo.timestamp).toISOString(),
-        //         requestType: type,
-        //         status: response.status || 'unknown',
-        //         已移除：模式相关日志
-        //         urlFeatures: {
-        //             hasModifiedImageName: url.toLowerCase().includes('副本.jpg') || url.toLowerCase().includes('%e5%89%af%e6%9c%ac.jpg'),
-        //             isFromCOSDomain: url.toLowerCase().includes('cos.ap-guangzhou.myqcloud.com'),
-        //             hasTaskDetailPath: url.toLowerCase().includes('attachment/task-detail')
-        //         }
-        //     }, 'server_modified_image');
-        //     
-        //     processServerModifiedImage(imageInfo);
-        // }
-        
+
         // COS原图优先处理
         const isCOSOriginal = isCOSOriginalImage(url);
         
@@ -1729,8 +1275,8 @@ function isImageUrl(url) {
     
     const lowerUrl = url.toLowerCase();
     
-    // 图片文件扩展名（只支持JPEG格式的原图）
-    const imageExtensions = ['.jpg', '.jpeg'];
+    // 图片文件扩展名（支持多种格式的原图）
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tiff'];
     const hasImageExt = imageExtensions.some(ext => lowerUrl.includes(ext));
     
     // 后端API图片路径关键词
@@ -1812,8 +1358,8 @@ function hasImageHeaders(response) {
         const hasImageContentType = lowerContentType.startsWith('image/') ||
                                    lowerContentType.includes('jpeg');
         
-        // 检查Content-Disposition中的文件名（只支持JPEG格式）
-        const hasImageFilename = /\.(jpe?g)[";\s]/i.test(lowerDisposition);
+        // 检查Content-Disposition中的文件名（支持多种图片格式）
+        const hasImageFilename = /\.(jpe?g|png|webp|gif|bmp|tiff)[";\s]/i.test(lowerDisposition);
         
         // 检查是否是二进制内容
         const isBinaryContent = lowerContentType.includes('application/octet-stream') ||
@@ -1841,93 +1387,6 @@ function hasImageHeaders(response) {
 }
 
 // 判断是否是原图候选 - 增强后端链接检测
-function isOriginalImageCandidate(url) {
-    if (!url) return false;
-    
-    const lowerUrl = url.toLowerCase();
-    
-    // 后端API图片链接特征检测 - 增强COS路径识别
-    const backendIndicators = [
-        '/api/', '/upload/', '/image/', '/media/', '/file/',
-        '/attachment/', '/resource/', '/assets/', '/static/',
-        '/target/', '/target/dataset/', '/dataset/',
-        '/origin/', '/source/', '/raw/'
-    ];
-    
-    // 原图关键词
-    const originalKeywords = [
-        'original', 'source', 'master', 'raw', 'full', 'origin',
-        '原图', '原始', '源图', 'src', 'orig',
-        'high', 'hd', 'quality', 'best', 'max'
-    ];
-    
-    // 文件名中的原图指示器
-    const filenameIndicators = [
-        'original', 'source', 'master', 'raw', 'full',
-        'large', 'big', 'huge', 'xl', 'xxl', 'max'
-    ];
-    
-    // 检查是否包含后端API路径
-    const hasBackendPath = backendIndicators.some(indicator => 
-        lowerUrl.includes(indicator)
-    );
-    
-    // 检查原图关键词
-    const hasOriginalKeyword = originalKeywords.some(keyword => 
-        lowerUrl.includes(keyword)
-    );
-    
-    // 检查文件名指示器（在URL路径的最后部分）
-    const urlParts = lowerUrl.split('/');
-    const fileName = urlParts[urlParts.length - 1] || '';
-    const hasFilenameIndicator = filenameIndicators.some(indicator => 
-        fileName.includes(indicator)
-    );
-    
-    // 检查尺寸格式（如 1920x1080）
-    const hasDimensions = /\d{3,4}[x×]\d{3,4}/.test(url);
-    
-    // 检查高质量指示器
-    const hasQualityIndicator = /[\?&](quality|q)=([89]\d|100)/.test(lowerUrl) || // 高质量参数
-                               /(high|hd|uhd|4k|8k)/i.test(lowerUrl);
-    
-    // 检查文件大小参数（通常原图会有更大的尺寸参数）
-    const hasSizeParams = /[\?&](w|width|h|height)=([5-9]\d{2,}|\d{4,})/.test(lowerUrl);
-    
-    // 避免缩略图
-    const isThumbnail = /(thumb|thumbnail|small|mini|tiny|preview|_s\.|_m\.|_xs\.|_sm\.)/i.test(lowerUrl);
-    
-    // 使用专门的COS原图检测
-    const isCOSOriginal = isCOSOriginalImage(url);
-    
-    // 综合判断
-    const isCandidate = (
-        hasBackendPath || 
-        hasOriginalKeyword || 
-        hasFilenameIndicator ||
-        hasDimensions ||
-        hasQualityIndicator ||
-        hasSizeParams ||
-        isCOSOriginal
-    ) && !isThumbnail;
-    
-    if (isCandidate) {
-        debugLog('识别为原图候选', {
-            url: url.substring(0, 100) + '...',
-            hasBackendPath,
-            hasOriginalKeyword,
-            hasFilenameIndicator,
-            hasDimensions,
-            hasQualityIndicator,
-            hasSizeParams,
-            isCOSOriginal,
-            isThumbnail
-        });
-    }
-    
-    return isCandidate;
-}
-
 // 判断是否是服务器返回的修改图 - 增强后端检测
 function isServerModifiedImageUrl(url) {
     if (!url) return false;
@@ -3545,13 +3004,6 @@ function debugLog(message, data = null) {
     }
 }
 
-// 已移除：返修模式专用日志函数
-// function revisionLog() { ... }
-
-// 打印返修模式图片状态的专用函数
-// 已移除：返修模式图片状态打印函数
-// function printRevisionModeStatus() { ... }
-
 // 初始化调试面板
 function initializeDebugPanel() {
     debugLog('初始化调试面板');
@@ -3705,33 +3157,6 @@ function toggleDebugMode() {
         showNotification('调试模式已关闭 (Z键切换)', 2000);
     }
 }
-
-// 已移除：模式切换函数
-// function toggleAnnotationMode() { ... }
-
-// 已移除：模式状态显示器创建函数
-// function createModeStatusIndicator() { ... }
-
-// 已移除：拖拽功能函数
-// function addDragListeners() { ... }
-
-// 已移除：拖拽开始函数
-// function startDrag() { ... }
-
-// 已移除：拖拽过程函数
-// function drag() { ... }
-
-// 已移除：停止拖拽函数
-// function stopDrag() { ... }
-
-// 已移除：重置指示器位置函数
-// function resetIndicatorPosition() { ... }
-
-// 已移除：更新模式状态显示器函数
-// function updateModeStatusIndicator() { ... }
-
-// 已移除：模式状态显示函数
-// function displayCurrentMode() { ... }
 
 // 增强的图片上传监听和对比功能（带调试）
 function initializeUploadMonitoring() {
@@ -4343,19 +3768,9 @@ function initializeDOMContentObserver() {
         attributes: false, // 不监听属性变化，避免过多触发
         attributeOldValue: false
     });
-    
+
     debugLog('DOM内容变化监听已启动');
 }
-
-
-
-
-
-
-
-
-
-
 
 // COS原图URL专门检测函数
 function isCOSOriginalImage(url) {
@@ -4377,21 +3792,21 @@ function isCOSOriginalImage(url) {
     
     const hasCOSOriginalPath = cosOriginalPaths.some(path => lowerUrl.includes(path));
     
-    // 检查文件扩展名（COS原图只有JPEG格式）
-    const hasJpegExt = /\.(jpe?g)(\?|$)/i.test(url);
+    // 检查文件扩展名（COS原图支持多种格式）
+    const hasSupportedExt = /\.(jpe?g|png|webp|gif|bmp|tiff)(\?|$)/i.test(url);
     
     // 检查URL参数（COS带签名参数）
     const hasSignParams = lowerUrl.includes('q-sign-algorithm') || 
                          lowerUrl.includes('?sign=') ||
                          lowerUrl.includes('&sign=');
     
-    const result = hasCOSOriginalPath && hasJpegExt;
+    const result = hasCOSOriginalPath && hasSupportedExt;
     
     if (result) {
-        debugLog('识别为COS原图 (JPEG格式)', {
+        debugLog('识别为COS原图 (支持格式)', {
             url: url.substring(0, 100) + '...',
             hasCOSOriginalPath,
-            hasJpegExt,
+            hasSupportedExt,
             hasSignParams
         });
     }
@@ -4742,211 +4157,13 @@ function selectBestImage(results) {
 // 删除T键测试功能，合并到W键
 // T键: 手动测试智能对比 - 已删除，请使用W键
 
-// 智能图片对比 - 包含回退逻辑
-function triggerSmartComparisonWithFallback() {
-    debugLog('启动智能图片对比 (包含回退逻辑)');
-    
-    console.log('📊 图片对比状态检查:', {
-        capturedOriginalImage,
-        capturedModifiedImage,
-        uploadedImage: uploadedImage ? uploadedImage.src : null,
-        originalImage: !!originalImage,
-        shouldAutoCompare,
-        cosImageCache: cosImageCache.size
-    });
-    
-    let comparisonPair = null;
-    
-    // 策略1: 使用COS拦截的图片（最优）
-    if (capturedOriginalImage && capturedModifiedImage) {
-        comparisonPair = {
-            image1: { src: capturedOriginalImage, label: '原图' },
-            image2: { src: capturedModifiedImage, label: '修改图' },
-            mode: 'COS原图vs修改图'
-        };
-        debugLog('策略1: 使用COS拦截图片', comparisonPair);
-        showNotification('🎯 使用COS拦截图片对比', 1000);
-    }
-    // 策略2: 原图 vs 用户上传图片
-    else if (capturedOriginalImage && uploadedImage) {
-        comparisonPair = {
-            image1: { src: capturedOriginalImage, label: '原图' },
-            image2: { src: uploadedImage.src, label: '上传图片' },
-            mode: 'COS原图vs上传图'
-        };
-        debugLog('策略2: COS原图vs用户上传', comparisonPair);
-        showNotification('📷 原图vs上传图对比', 1000);
-    }
-    // 策略3: 现有逻辑 - 原图 vs 上传图片
-    else if (originalImage && uploadedImage) {
-        comparisonPair = {
-            image1: { src: originalImage.src, label: '页面原图' },
-            image2: { src: uploadedImage.src, label: '上传图片' },
-            mode: '页面原图vs上传图'
-        };
-        debugLog('策略3: 页面原图vs用户上传', comparisonPair);
-        showNotification('📋 页面原图vs上传图对比', 1000);
-    }
-    // 策略4: 如果只有COS原图，与页面其他图片对比
-    else if (capturedOriginalImage) {
-        const pageImages = document.querySelectorAll('img');
-        if (pageImages.length >= 2) {
-            comparisonPair = {
-                image1: { src: capturedOriginalImage, label: '原图' },
-                image2: { src: pageImages[1].src, label: '页面图片' },
-                mode: '原图vs页面图片'
-            };
-            debugLog('策略4: 原图vs页面图片', comparisonPair);
-            showNotification('🔄 原图vs页面图片对比', 1000);
-        }
-    }
-    // 策略5: 页面图片互相对比（回退）
-    else {
-        const pageImages = document.querySelectorAll('img');
-        if (pageImages.length >= 2) {
-            comparisonPair = {
-                image1: { src: pageImages[0].src, label: '页面图片1' },
-                image2: { src: pageImages[1].src, label: '页面图片2' },
-                mode: '页面图片对比'
-            };
-            debugLog('策略5: 页面图片对比', comparisonPair);
-            showNotification('🖼️ 页面图片对比', 1000);
-        }
-    }
-    
-    if (comparisonPair) {
-        debugLog('执行图片对比', comparisonPair.mode);
-        showSmartComparison(comparisonPair);
-        shouldAutoCompare = false;
-    } else {
-        debugLog('无可用图片进行对比');
-        showNotification('❌ 无可用图片进行对比', 2000);
-    }
-}
-
-// 测试资源提取功能
-async function testResourceExtraction() {
-    if (typeof window.resourceExtractor === 'undefined') {
-        console.error('❌ ResourceExtractor未加载');
-        showNotification('资源提取器未加载', 2000);
-        return;
-    }
-    
-    try {
-        console.log('🚀 开始测试资源提取...');
-        const results = await window.resourceExtractor.extractAllResources();
-        
-        console.log('📊 资源提取结果:', results);
-        
-        const summary = results.summary;
-        const message = `提取完成: ${summary.uniqueResources}个独特资源 (DOM:${summary.byMethod.DOM}, Performance:${summary.byMethod.Performance}, Cache:${summary.byMethod.Cache}, Network:${summary.byMethod.Network})`;
-        
-        showNotification(message, 3000);
-        
-        // 显示详细结果
-        if (debugMode) {
-            debugLog('资源提取详细结果', results);
-        }
-        
-    } catch (error) {
-        console.error('❌ 资源提取失败:', error);
-        showNotification('资源提取失败: ' + error.message, 2000);
-    }
-}
+// triggerSmartComparisonWithFallback 函数已移动到 src/modules/SmartComparisonManager.js
 
 // ============== COS图片拦截和智能对比系统 ==============
 
-// 初始化COS图片监听器
-function initializeCOSImageListener() {
-    debugLog('初始化COS图片拦截监听器');
-    
-    // 监听来自background.js的COS图片拦截消息
-    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
-        chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-            if (message.type === 'COS_IMAGE_DETECTED') {
-                handleCOSImageDetection(message.data);
-            }
-        });
-        
-        console.log('✅ COS图片拦截监听器已启动');
-    } else {
-        console.warn('⚠️ Chrome runtime不可用，无法监听COS图片');
-    }
-}
+// initializeCOSImageListener 和 handleCOSImageDetection 函数已移动到 src/modules/SmartComparisonManager.js
 
-// 处理COS图片检测 - 简化版
-function handleCOSImageDetection(data) {
-    debugLog('COS图片检测', data);
-    
-    const { url, isOriginal, isModified, imageType, stage } = data;
-    
-    // 只处理请求完成阶段，避免重复处理
-    if (stage !== 'completed') {
-        return;
-    }
-    
-    // 缓存图片信息
-    cosImageCache.set(url, {
-        ...data,
-        timestamp: Date.now()
-    });
-    
-    if (isOriginal) {
-        console.log('📸 捕获到原图:', url);
-        capturedOriginalImage = url;
-        
-        // 如果当前原图未锁定或为空，更新原图引用
-        if (!originalImageLocked || !originalImage) {
-            updateOriginalImageFromCOS(url);
-        }
-        
-        debugLog('原图已捕获', { url, originalImageLocked });
-    }
-    
-    if (isModified) {
-        console.log('🔧 捕获到修改图:', url);
-        capturedModifiedImage = url;
-        
-        debugLog('修改图已捕获', { url });
-        
-        // 如果用户正在对比模式，更新对比
-        if (isComparisonModalOpen) {
-            triggerSmartComparisonWithFallback();
-        }
-    }
-    
-    // 自动触发智能对比（如果需要且开关开启）
-    if (shouldAutoCompare && autoCompareEnabled && capturedOriginalImage) {
-        triggerSmartComparison();
-    } else if (shouldAutoCompare && !autoCompareEnabled) {
-        debugLog('跳过自动智能对比 - 自动对比功能已关闭');
-        shouldAutoCompare = false; // 重置标记
-    }
-}
-
-// 从COS更新原图引用 - 仅显示模式
-async function updateOriginalImageFromCOS(imageUrl) {
-    debugLog('从COS更新原图引用 (仅显示模式)', imageUrl);
-    
-    try {
-        // 仅显示模式：直接创建img元素，无需代理
-        const img = await createImageElementForDisplay(imageUrl);
-        
-        originalImage = img;
-        originalImageLocked = true;
-        debugLog('原图从COS加载成功 (仅显示)', {
-            src: imageUrl,
-            width: img.naturalWidth,
-            height: img.naturalHeight
-        });
-        
-        showNotification('✅ 原图已获取 (显示模式)', 2000);
-        
-    } catch (error) {
-        debugLog('原图从COS加载失败', error);
-        showNotification('❌ 原图加载失败: ' + error.message, 3000);
-    }
-}
+// updateOriginalImageFromCOS 函数已移动到 src/modules/SmartComparisonManager.js
 
 // 使用CORS加载图片
 function loadImageWithCORS(imageUrl) {
@@ -5025,130 +4242,7 @@ function createImageFromDataUrl(dataUrl) {
     });
 }
 
-// 智能对比逻辑 - 简化版
-function triggerSmartComparison() {
-    debugLog('触发智能对比');
-    
-    if (!capturedOriginalImage) {
-        debugLog('无原图，跳过智能对比');
-        showNotification('⏳ 等待原图加载...', 2000);
-        return;
-    }
-    
-    let comparisonPair = null;
-    
-    // 优先使用服务器修改图进行对比
-    if (capturedModifiedImage) {
-        comparisonPair = {
-            image1: { src: capturedOriginalImage, label: '原图' },
-            image2: { src: capturedModifiedImage, label: '修改图' },
-            mode: '原图vs修改图对比'
-        };
-    } 
-    // 如果没有修改图，使用用户上传的图片
-    else if (uploadedImage) {
-        comparisonPair = {
-            image1: { src: capturedOriginalImage, label: '原图' },
-            image2: { src: uploadedImage.src, label: '上传图片' },
-            mode: '原图vs上传图对比'
-        };
-    } 
-    // 都没有则提示等待
-    else {
-        debugLog('等待对比图片');
-        showNotification('⏳ 等待对比图片...', 2000);
-        return;
-    }
-    
-    debugLog('启动智能对比', comparisonPair.mode);
-    showNotification(`🔍 启动${comparisonPair.mode}`, 1000);
-    showSmartComparison(comparisonPair);
-    shouldAutoCompare = false; // 重置自动对比标志
-}
-
-// 显示智能对比弹窗 - 仅显示模式（无跨域问题）
-async function showSmartComparison(comparisonPair) {
-    debugLog('显示智能对比 (仅显示模式)', comparisonPair);
-    
-    try {
-        // 仅显示模式：直接创建img元素，无需blob转换
-        const img1 = await createImageElementForDisplay(comparisonPair.image1.src);
-        const img2 = await createImageElementForDisplay(comparisonPair.image2.src);
-        
-        // 调用现有的对比函数
-        createComparisonModal(img1, img2, img2);
-        
-        debugLog('智能对比弹窗已创建', {
-            image1: comparisonPair.image1.label,
-            image2: comparisonPair.image2.label,
-            mode: comparisonPair.mode
-        });
-        
-    } catch (error) {
-        debugLog('智能对比失败', error);
-        showNotification('❌ 图片对比失败: ' + error.message, 3000);
-    }
-}
-
-// 为显示创建图片元素 - 无需跨域处理
-function createImageElementForDisplay(imageUrl) {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        
-        // 设置较短的超时时间
-        const timeout = setTimeout(() => {
-            img.onload = img.onerror = null;
-            reject(new Error('图片加载超时'));
-        }, 8000);
-        
-        img.onload = function() {
-            clearTimeout(timeout);
-            debugLog('图片加载成功 (仅显示)', {
-                src: imageUrl,
-                width: this.naturalWidth,
-                height: this.naturalHeight
-            });
-            
-            // 创建一个包含必要属性的图片对象
-            const imageObj = {
-                src: this.src,
-                width: this.naturalWidth,
-                height: this.naturalHeight,
-                name: extractFileNameFromUrl(this.src),
-                element: this
-            };
-            
-            resolve(imageObj);
-        };
-        
-        img.onerror = function() {
-            clearTimeout(timeout);
-            reject(new Error('图片加载失败'));
-        };
-        
-        // COS图片也可以正常显示，只是不能进行canvas操作
-        img.src = imageUrl;
-    });
-}
-
-// 在返修模式下更新对比
-function updateComparisonInRevisionMode() {
-    if (!isComparisonModalOpen || !comparisonModal) {
-        return;
-    }
-    
-    debugLog('返修模式：更新对比弹窗');
-    
-    if (capturedOriginalImage && capturedModifiedImage) {
-        // 关闭当前对比弹窗
-        if (comparisonModal.parentNode) {
-            comparisonModal.parentNode.removeChild(comparisonModal);
-        }
-        
-        // 显示新的对比
-        triggerSmartComparison();
-    }
-}
+// triggerSmartComparison, showSmartComparison 和 createImageElementForDisplay 函数已移动到 src/modules/SmartComparisonManager.js
 
 // F2键功能：检查图片尺寸并显示标注界面
 let dimensionCheckModal = null;
@@ -5706,8 +4800,8 @@ function showDimensionCheckModal(imageInfo, isDimensionValid) {
         addClearCacheButton();
 
         debugLog('✅ [MODAL] 状态恢复完成', {
-            taskId: currentPageTaskInfo.taskId,
-            finalStatus: currentPageTaskInfo.status,
+            taskId: modalTaskInfo ? modalTaskInfo.taskId : 'no-task-info',
+            finalStatus: modalTaskInfo ? modalTaskInfo.status : 'unknown',
             notificationShown: true,
             timestamp: new Date().toISOString()
         });
@@ -5746,8 +4840,8 @@ function showDimensionCheckModal(imageInfo, isDimensionValid) {
         }
     } else if (hasValidCache) {
         debugLog('有缓存结果，确保轮询状态已重置', {
-            taskId: currentPageTaskInfo.taskId,
-            cacheStatus: currentPageTaskInfo.status
+            taskId: modalTaskInfo ? modalTaskInfo.taskId : 'no-task-info',
+            cacheStatus: modalTaskInfo ? modalTaskInfo.status : 'unknown'
         });
 
         // 有缓存就确保轮询状态被重置
@@ -5942,7 +5036,15 @@ function enableSubmitButton(submitBtn, status = 'ready') {
 
 // 在模态框中添加缓存指示器
 function addCacheIndicator() {
-    if (!isDimensionCheckModalOpen || !dimensionCheckModal || !currentPageTaskInfo) return;
+    if (!isDimensionCheckModalOpen || !dimensionCheckModal) return;
+
+    // 获取任务信息（简化逻辑，直接使用全局变量）
+    let taskInfo = window.currentPageTaskInfo;
+
+    if (!taskInfo) {
+        debugLog('addCacheIndicator: 没有任务信息，跳过添加缓存指示器');
+        return;
+    }
 
     // 检查是否已存在缓存指示器
     let indicator = dimensionCheckModal.querySelector('#cache-indicator');
@@ -5965,7 +5067,7 @@ function addCacheIndicator() {
         z-index: 1001;
     `;
 
-    const timeAgo = Math.round((Date.now() - currentPageTaskInfo.cachedAt) / 1000);
+    const timeAgo = Math.round((Date.now() - taskInfo.cachedAt) / 1000);
     indicator.innerHTML = `
         <span style="display: flex; align-items: center; gap: 4px;">
             <span>💾</span>
@@ -6201,7 +5303,11 @@ async function submitDimensionCheck(comment) {
                             });
                             debugLog('📊 [POLL] 开始更新进度显示为任务完成', {
                                 taskId,
-                                totalTime: Math.round(pollResult.totalTime / 1000)
+                                totalTime: Math.round(pollResult.totalTime / 1000),
+                                elapsed: Math.round(pollResult.elapsed / 1000),
+                                rawTotalTime: pollResult.totalTime,
+                                rawElapsed: pollResult.elapsed,
+                                pollResult: pollResult
                             });
                             updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n✅ 任务已完成 - 耗时${Math.round(pollResult.totalTime / 1000)}秒`);
                             debugLog('✅ [POLL] 进度显示更新完成', {
@@ -6946,85 +6052,7 @@ function updateDimensionModalProgress(text) {
 
 // pollRunningHubTaskStatus 函数已移动到 src/modules/RunningHubManager.js
 
-async function fetchRunningHubTaskOutputs(apiKey, taskId) {
-    debugLog('开始获取任务输出', { apiKey: apiKey.substring(0, 10) + '...', taskId });
-
-    const url = 'https://www.runninghub.cn/task/openapi/outputs';
-    const headers = { 'Host': 'www.runninghub.cn', 'Content-Type': 'application/json' };
-    const body = JSON.stringify({ apiKey, taskId });
-
-    debugLog('发送输出查询请求', { url, body });
-
-    const resp = await fetch(url, { method: 'POST', headers, body });
-
-    if (!resp.ok) {
-        const errorText = await resp.text();
-        debugLog('输出查询HTTP错误', { status: resp.status, statusText: resp.statusText, errorText });
-        throw new Error(`获取输出失败: HTTP ${resp.status} - ${errorText}`);
-    }
-
-    const result = await resp.json();
-    debugLog('输出查询响应', result);
-
-    // 详细打印输出查询结果
-    console.log(`\n📥 ======== RunningHub 输出查询结果 ========`);
-    console.log(`🕐 查询时间: ${new Date().toLocaleTimeString()}`);
-    console.log(`🆔 任务ID: ${taskId}`);
-    console.log(`📊 响应码: ${result.code}`);
-    console.log(`💬 消息: ${result.msg || '无'}`);
-    console.log(`📋 数据类型: ${typeof result.data}`);
-    console.log(`📊 数据长度: ${Array.isArray(result.data) ? result.data.length : 'N/A'}`);
-    console.log(`🔍 完整响应:`, result);
-
-    if (Array.isArray(result.data) && result.data.length > 0) {
-        console.log(`\n📸 ======== 输出项目详情 ========`);
-        result.data.forEach((item, index) => {
-            console.log(`📷 项目 #${index + 1}:`);
-            console.log(`  🔗 fileUrl: ${item.fileUrl || '无'}`);
-            console.log(`  📝 fileType: ${item.fileType || '无'}`);
-            console.log(`  🔢 nodeId: ${item.nodeId || '无'}`);
-            console.log(`  ⏱️ taskCostTime: ${item.taskCostTime || '无'}秒`);
-            console.log(`  🔍 完整数据:`, item);
-        });
-        console.log(`=====================================`);
-    } else {
-        console.log(`⚠️ 无输出数据或数据为空`);
-    }
-    console.log(`==========================================\n`);
-
-    // 详细记录API返回的结构
-    debugLog('API输出结构分析', {
-        code: result.code,
-        msg: result.msg,
-        hasData: !!result.data,
-        dataType: typeof result.data,
-        dataIsArray: Array.isArray(result.data),
-        dataLength: Array.isArray(result.data) ? result.data.length : 'N/A',
-        firstItem: Array.isArray(result.data) && result.data.length > 0 ? result.data[0] : null
-    });
-
-    return result;
-}
-
-async function cancelRunningHubTask(apiKey, taskId) {
-    window._rhCancelRequested = true;
-    const url = 'https://www.runninghub.cn/task/openapi/cancel';
-    const headers = { 'Host': 'www.runninghub.cn', 'Content-Type': 'application/json' };
-    const body = JSON.stringify({ apiKey, taskId });
-    debugLog('发送取消任务请求', { taskId });
-    const resp = await fetch(url, { method: 'POST', headers, body });
-    if (!resp.ok) {
-        const t = await resp.text().catch(() => '');
-        debugLog('取消任务HTTP错误', { status: resp.status, statusText: resp.statusText, body: t });
-        throw new Error('取消失败: HTTP ' + resp.status);
-    }
-    const data = await resp.json().catch(() => ({}));
-    debugLog('取消任务响应', data);
-    if (data?.code !== 0) {
-        throw new Error(data?.msg || '取消失败');
-    }
-    return data;
-}
+// fetchRunningHubTaskOutputs 和 cancelRunningHubTask 函数已移动到 src/modules/RunningHubManager.js
 
 function renderRunningHubResultsInModal(outputsJson) {
     try {
@@ -7033,6 +6061,14 @@ function renderRunningHubResultsInModal(outputsJson) {
             modalOpen: isDimensionCheckModalOpen,
             modalExists: !!dimensionCheckModal,
             timestamp: new Date().toISOString()
+        });
+
+        // 检查函数依赖是否可用
+        debugLog('🔍 [RENDER] 检查函数依赖', {
+            downloadImageToLocal: typeof downloadImageToLocal,
+            generateResultImageFileName: typeof generateResultImageFileName,
+            extractFileNameFromUrl: typeof extractFileNameFromUrl,
+            showNotification: typeof showNotification
         });
 
         if (!isDimensionCheckModalOpen || !dimensionCheckModal) {
@@ -7058,7 +6094,7 @@ function renderRunningHubResultsInModal(outputsJson) {
             else dimensionCheckModal.appendChild(wrap);
         }
 
-        // 根据API文档，正确解析返回结果
+        // 根据API文档，正确解析返回结果（恢复原有逻辑）
         const outputs = outputsJson?.data || outputsJson?.outputs || outputsJson;
         const items = Array.isArray(outputs) ? outputs : (outputs?.outputs || []);
 
@@ -7120,13 +6156,8 @@ function renderRunningHubResultsInModal(outputsJson) {
                 container.style.cssText = `
                     display: flex;
                     flex-direction: column;
-                    gap: 12px;
-                    margin-bottom: 16px;
-                    padding: 16px;
-                    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-                    border: 1px solid #e2e8f0;
-                    border-radius: 12px;
-                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+                    gap: 8px;
+                    margin-bottom: 12px;
                 `;
 
                 // 图片信息标题
@@ -7138,6 +6169,7 @@ function renderRunningHubResultsInModal(outputsJson) {
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
+                    margin-bottom: 8px;
                 `;
                 infoHeader.innerHTML = `
                     <span>🎨 生成结果 #${index + 1}</span>
@@ -7160,8 +6192,6 @@ function renderRunningHubResultsInModal(outputsJson) {
                     justify-content: center;
                     max-height: 400px;
                     max-width: 100%;
-                    border: 1px solid #e2e8f0;
-                    background: #f9fafb;
                 `;
 
                 const img = document.createElement('img');
@@ -8086,50 +7116,10 @@ async function uploadImageToAnnotationPlatform(imageUrl, fileType, index) {
 let RUNNINGHUB_CONFIG = null;
 
 // 加载Running Hub配置文件
-async function loadRunningHubConfig() {
-    if (RUNNINGHUB_CONFIG) {
-        return RUNNINGHUB_CONFIG; // 如果已加载，直接返回缓存
-    }
-    
-    try {
-        const configUrl = chrome.runtime.getURL('runninghub-config.json');
-        const response = await fetch(configUrl);
-        
-        if (!response.ok) {
-            throw new Error(`配置文件加载失败: ${response.status}`);
-        }
-        
-        RUNNINGHUB_CONFIG = await response.json();
-        debugLog('Running Hub配置加载成功:', RUNNINGHUB_CONFIG);
-        return RUNNINGHUB_CONFIG;
-        
-    } catch (error) {
-        debugLog('配置文件加载失败，使用默认配置:', error);
-        
-        // 如果配置文件加载失败，使用默认配置
-        RUNNINGHUB_CONFIG = {
-            defaultWorkflow: {
-                webappId: "1967790629851922434",
-                nodeInfoList: [
-                    {
-                        nodeId: "189",
-                        fieldName: "image",
-                        fieldValue: "{IMAGE_FILE}",
-                        description: "image"
-                    },
-                    {
-                        nodeId: "191",
-                        fieldName: "prompt",
-                        fieldValue: "{PROMPT}",
-                        description: "prompt"
-                    }
-                ]
-            }
-        };
-        
-        return RUNNINGHUB_CONFIG;
-    }
-}
+// loadRunningHubConfig 和 createWorkflowTask 函数已移动到 src/modules/RunningHubManager.js
 
-// 创建Running Hub AI应用任务
-// createWorkflowTask 函数已移动到 src/modules/RunningHubManager.js
+// 从浏览器缓存获取图片 - 空实现以防止错误
+function getCachedImages() {
+    debugLog('getCachedImages: 功能尚未实现');
+    // TODO: 实现从浏览器缓存获取图片的功能
+}
