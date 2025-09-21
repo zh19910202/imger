@@ -226,7 +226,15 @@ class StateManager {
         this.imageState.clear();
         this.modalState.clear();
         this.systemState.clearPendingTimeouts();
-        debugLog('页面状态已清理');
+        
+        // 清理上传图片状态
+        this.imageState.uploadedImage = null;
+        window.uploadedImage = null;
+        
+        // 清理自动对比标志
+        this.systemState.setShouldAutoCompare(false);
+        
+        debugLog('页面状态已清理（包括上传图片和自动对比状态）');
     }
 }
 
@@ -721,7 +729,15 @@ function clearPageState() {
     manager.getImageState().clear();
     manager.getModalState().clear();
     manager.getSystemState().clearPendingTimeouts();
-    debugLog('页面状态已清理');
+    
+    // 清理上传图片状态
+    manager.getImageState().uploadedImage = null;
+    window.uploadedImage = null;
+    
+    // 清理自动对比标志
+    manager.getSystemState().setShouldAutoCompare(false);
+    
+    debugLog('页面状态已清理（包括上传图片和自动对比状态）');
 }
 
 // 页面跳转检测和状态重置

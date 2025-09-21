@@ -386,7 +386,12 @@ class SmartComparisonManager {
         this.capturedOriginalImage = null;
         this.capturedModifiedImage = null;
         this.shouldAutoCompare = false;
-        debugLog('SmartComparisonManager 缓存已清理');
+        
+        // 清理全局状态
+        window.uploadedImage = null;
+        window.shouldAutoCompare = false;
+        
+        debugLog('SmartComparisonManager 缓存已清理（包括全局上传图片状态）');
     }
 }
 
