@@ -104,9 +104,136 @@ class SmartComparisonManager {
         }
     }
 
-    // 智能图片对比 - 包含回退逻辑 (W键主入口)
-    triggerSmartComparisonWithFallback () {
-        debugLog('启动智能图片对比 (包含回退逻辑)')
+    // 强健原图检测机制 - 不依赖等待时间，直接强化检测能力
+    async ensureOriginalImageAvailable () {
+        debugLog('🔍 启动强健原图检测机制')
+
+        // 1. 检查现有原图
+        if (this.capturedOriginalImage || window.originalImage) {
+            debugLog('✅ 已存在原图，无需检测')
+            return true
+        }
+
+        // 2. 执行智能检测策略
+        debugLog('🚀 执行智能原图检测')
+
+        // 策略1: 直接DOM扫描
+        const selectors = [
+            'div[data-v-92a52416].safe-image img[src]',
+            'div.safe-image img[src]',
+            'img[data-v-92a52416][src]',
+            '.image-item img[src]',
+            'img[src*="cos.ap-guangzhou.myqcloud.com"]'
+        ]
+
+        for (const selector of selectors) {
+            const imgs = document.querySelectorAll(selector)
+            for (const img of imgs) {
+                if (this.isValidOriginalImage(img)) {
+                    debugLog('✅ DOM扫描找到有效原图:', selector)
+                    this.setFoundOriginalImage(img)
+                    return true
+                }
+            }
+        }
+
+        // 策略2: 检测已加载的图片
+        const allImages = document.querySelectorAll('img[src]')
+        for (const img of allImages) {
+            if (img.complete && img.naturalWidth > 0 && this.isValidOriginalImage(img)) {
+                debugLog('✅ 已加载图片检测找到有效原图')
+                this.setFoundOriginalImage(img)
+                return true
+            }
+        }
+
+        // 策略3: 通过图片属性检测
+        for (const img of allImages) {
+            const hasDataV = Array.from(img.attributes).some(attr =>
+                attr.name.startsWith('data-v-')
+            )
+
+            if (hasDataV && this.isValidOriginalImage(img)) {
+                debugLog('✅ 属性检测找到有效原图')
+                this.setFoundOriginalImage(img)
+                return true
+            }
+        }
+
+        // 策略4: 强制调用原有检测
+        if (typeof recordOriginalImages === 'function') {
+            debugLog('🔥 调用原有检测函数')
+            recordOriginalImages()
+
+            // 给一个很短的时间让DOM更新
+            await new Promise(resolve => setTimeout(resolve, 100))
+
+            if (window.originalImage) {
+                debugLog('✅ 原有检测成功')
+                return true
+            }
+        }
+
+        // 策略5: 最终回退 - 选择第一个有效图片
+        for (const img of allImages) {
+            if (this.isValidOriginalImage(img)) {
+                debugLog('🎯 最终回退策略找到图片')
+                this.setFoundOriginalImage(img)
+                return true
+            }
+        }
+
+        debugLog('❌ 所有检测策略都失败了')
+        return false
+    }
+
+    // 检查图片是否有效
+    isValidOriginalImage (img) {
+        if (!img || !img.src) return false
+
+        // 检查图片格式
+        const supportedFormats = /\.(jpe?g|png|webp|gif|bmp|tiff)(\?|$)/i
+        if (!supportedFormats.test(img.src)) return false
+
+        // 排除明显的缩略图
+        const thumbnailPatterns = /(thumb|thumbnail|small|mini|tiny|preview|_s\.|_m\.)/i
+        if (thumbnailPatterns.test(img.src)) return false
+
+        // 检查尺寸（如果可用）
+        const width = img.naturalWidth || img.width || 0
+        const height = img.naturalHeight || img.height || 0
+        if (width > 0 && height > 0 && (width < 50 || height < 50)) return false
+
+        return true
+    }
+
+    // 设置找到的原图
+    setFoundOriginalImage (img) {
+        const imageInfo = {
+            src: img.src,
+            width: img.naturalWidth || img.width || 0,
+            height: img.naturalHeight || img.height || 0,
+            name: this.extractFileNameFromUrl(img.src),
+            element: img
+        }
+
+        // 设置到全局变量
+        window.originalImage = imageInfo
+        window.originalImageLocked = true
+
+        debugLog('✅ 原图已设置', {
+            src: imageInfo.src.substring(0, 50) + '...',
+            size: `${imageInfo.width}x${imageInfo.height}`
+        })
+
+        if (typeof showNotification === 'function') {
+            showNotification(`🎯 原图检测成功: ${imageInfo.width}×${imageInfo.height}`, 2000)
+        }
+    }
+
+    // 智能图片对比 - 包含回退逻辑 (W键主入口) - 强健原图检测
+    async triggerSmartComparisonWithFallback () {
+        debugLog('启动智能图片对比 (强健原图检测)')
 
         console.log('📊 图片对比状态检查:', {
             capturedOriginalImage: this.capturedOriginalImage,
@@ -116,6 +243,17 @@ class SmartComparisonManager {
             shouldAutoCompare: this.shouldAutoCompare,
             cosImageCache: this.cosImageCache.size
         })
+
+        // 强健原图检测机制 - 不依赖等待时间，直接强化检测能力
+        const hasOriginalImage = await this.ensureOriginalImageAvailable()
+
+        if (!hasOriginalImage) {
+            debugLog('所有原图检测策略都失败')
+            if (typeof showNotification === 'function') {
+                showNotification('未能检测到原图，请确认页面已加载完成或按N键重新检测', 3000)
+            }
+            return
+        }
 
         let comparisonPair = null
 
@@ -143,7 +281,7 @@ class SmartComparisonManager {
                 showNotification('📷 原图vs上传图对比', 1000)
             }
         }
-        // 策略3: 现有逻辑 - 原图 vs 上传图片
+        // 策略3: 现有逻辑 - 保障原图 vs 上传图片
         else if (window.originalImage && window.uploadedImage) {
             comparisonPair = {
                 image1: { src: window.originalImage.src, label: '页面原图' },
@@ -170,7 +308,22 @@ class SmartComparisonManager {
                 }
             }
         }
-        // 策略5: 页面图片互相对比（回退）
+        // 策略5: 使用保障机制找到的原图进行对比
+        else if (window.originalImage) {
+            const pageImages = document.querySelectorAll('img')
+            if (pageImages.length >= 2) {
+                comparisonPair = {
+                    image1: { src: window.originalImage.src, label: '保障原图' },
+                    image2: { src: pageImages[1].src, label: '页面图片' },
+                    mode: '保障原图vs页面图片'
+                }
+                debugLog('策略5: 保障原图vs页面图片', comparisonPair)
+                if (typeof showNotification === 'function') {
+                    showNotification('🔒 保障原图vs页面图片对比', 1000)
+                }
+            }
+        }
+        // 策略6: 页面图片互相对比（最终回退）
         else {
             const pageImages = document.querySelectorAll('img')
             if (pageImages.length >= 2) {
@@ -179,7 +332,7 @@ class SmartComparisonManager {
                     image2: { src: pageImages[1].src, label: '页面图片2' },
                     mode: '页面图片对比'
                 }
-                debugLog('策略5: 页面图片对比', comparisonPair)
+                debugLog('策略6: 页面图片对比', comparisonPair)
                 if (typeof showNotification === 'function') {
                     showNotification('🖼️ 页面图片对比', 1000)
                 }
@@ -191,9 +344,9 @@ class SmartComparisonManager {
             this.showSmartComparison(comparisonPair)
             this.shouldAutoCompare = false
         } else {
-            debugLog('无可用图片进行对比')
+            debugLog('所有策略都无法找到可对比的图片')
             if (typeof showNotification === 'function') {
-                showNotification('❌ 无可用图片进行对比', 2000)
+                showNotification('❌ 无可用图片进行对比，请上传图片或等待页面加载', 2000)
             }
         }
     }
