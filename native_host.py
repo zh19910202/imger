@@ -32,6 +32,14 @@ HTTP_SERVER_CONFIG = {
 http_request_queue = queue.Queue()
 pending_requests = {}  # 存储待处理的请求
 request_lock = threading.Lock()
+# 图片数据存储
+image_data_store = {
+    "original_image": None,      # 原图数据
+    "annotated_image": None,     # 标注图数据
+    "instructions": None,        # 标注要求
+    "metadata": {}               # 元数据
+}
+image_data_lock = threading.Lock()  # 图片数据锁
 
 def send_message(message):
     """发送消息到Chrome扩展"""
@@ -217,85 +225,129 @@ class PSRequestHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         """处理POST请求"""
         try:
-            # 检查路径
-            if self.path != '/api/process':
-                self.send_error(404, "Not Found")
-                return
-            
             # 读取请求数据
             content_length = int(self.headers.get('Content-Length', 0))
             if content_length > HTTP_SERVER_CONFIG["max_request_size"]:
                 self.send_error(413, "Request too large")
                 return
-                
+
             post_data = self.rfile.read(content_length)
-            
-            # 解析JSON数据
-            try:
-                request_data = json.loads(post_data.decode('utf-8'))
-            except json.JSONDecodeError:
-                self.send_error(400, "Invalid JSON")
-                return
-            
-            # 生成请求ID
-            request_id = generate_request_id()
-            
-            # 创建响应事件
-            response_event = threading.Event()
-            
-            # 存储请求信息
-            with request_lock:
-                pending_requests[request_id] = {
-                    "timestamp": time.time(),
-                    "response_event": response_event,
-                    "response_data": None
+
+            # 处理图片接收端点
+            if self.path == '/api/images':
+                try:
+                    # 解析JSON数据
+                    request_data = json.loads(post_data.decode('utf-8'))
+
+                    # 验证必需字段
+                    original_image = request_data.get("original_image")
+                    annotated_image = request_data.get("annotated_image")
+
+                    if not original_image or not annotated_image:
+                        self.send_error(400, "Missing required image data")
+                        return
+
+                    # 存储图片数据
+                    with image_data_lock:
+                        image_data_store["original_image"] = original_image
+                        image_data_store["annotated_image"] = annotated_image
+                        image_data_store["instructions"] = request_data.get("instructions", "")
+                        image_data_store["metadata"] = {
+                            "upload_time": time.time(),
+                            "source": request_data.get("source", "unknown"),
+                            "format": request_data.get("format", "base64"),
+                            **request_data.get("metadata", {})
+                        }
+
+                    # 发送成功响应
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json')
+                    self.send_header('Access-Control-Allow-Origin', '*')
+                    self.end_headers()
+
+                    response = {
+                        "success": True,
+                        "message": "Images stored successfully",
+                        "timestamp": time.time()
+                    }
+                    self.wfile.write(json.dumps(response, ensure_ascii=False).encode('utf-8'))
+
+                except json.JSONDecodeError:
+                    self.send_error(400, "Invalid JSON")
+                except Exception as e:
+                    self.send_error(500, f"Failed to store images: {str(e)}")
+
+            # 处理原有的PS处理端点
+            elif self.path == '/api/process':
+                # 解析JSON数据
+                try:
+                    request_data = json.loads(post_data.decode('utf-8'))
+                except json.JSONDecodeError:
+                    self.send_error(400, "Invalid JSON")
+                    return
+
+                # 生成请求ID
+                request_id = generate_request_id()
+
+                # 创建响应事件
+                response_event = threading.Event()
+
+                # 存储请求信息
+                with request_lock:
+                    pending_requests[request_id] = {
+                        "timestamp": time.time(),
+                        "response_event": response_event,
+                        "response_data": None
+                    }
+
+                # 构造发送给Chrome扩展的消息
+                chrome_message = {
+                    "action": "ps_request",
+                    "request_id": request_id,
+                    "text_data": request_data.get("text_data", ""),
+                    "image_data": request_data.get("image_data", ""),
+                    "metadata": request_data.get("metadata", {})
                 }
-            
-            # 构造发送给Chrome扩展的消息
-            chrome_message = {
-                "action": "ps_request",
-                "request_id": request_id,
-                "text_data": request_data.get("text_data", ""),
-                "image_data": request_data.get("image_data", ""),
-                "metadata": request_data.get("metadata", {})
-            }
-            
-            # 放入队列
-            http_request_queue.put(chrome_message)
-            
-            # 等待响应
-            timeout = HTTP_SERVER_CONFIG["timeout"]
-            if response_event.wait(timeout):
-                # 获取响应数据
-                with request_lock:
-                    response_data = pending_requests[request_id]["response_data"]
-                    del pending_requests[request_id]
-                
-                # 发送响应
-                self.send_response(200)
-                self.send_header('Content-Type', 'application/json')
-                self.send_header('Access-Control-Allow-Origin', '*')
-                self.end_headers()
-                self.wfile.write(json.dumps(response_data).encode('utf-8'))
-            else:
-                # 超时处理
-                with request_lock:
-                    if request_id in pending_requests:
+
+                # 放入队列
+                http_request_queue.put(chrome_message)
+
+                # 等待响应
+                timeout = HTTP_SERVER_CONFIG["timeout"]
+                if response_event.wait(timeout):
+                    # 获取响应数据
+                    with request_lock:
+                        response_data = pending_requests[request_id]["response_data"]
                         del pending_requests[request_id]
-                
-                self.send_error(408, "Request timeout")
-                
+
+                    # 发送响应
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json')
+                    self.send_header('Access-Control-Allow-Origin', '*')
+                    self.end_headers()
+                    self.wfile.write(json.dumps(response_data).encode('utf-8'))
+                else:
+                    # 超时处理
+                    with request_lock:
+                        if request_id in pending_requests:
+                            del pending_requests[request_id]
+
+                    self.send_error(408, "Request timeout")
+            else:
+                self.send_error(404, "Not Found")
+
         except Exception as e:
             self.send_error(500, f"Internal server error: {str(e)}")
     
     def do_GET(self):
-        """处理GET请求 - 健康检查"""
+        """处理GET请求 - 健康检查和图片获取"""
+        # 健康检查端点
         if self.path == '/api/health':
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
-            
+
             health_data = {
                 "status": "healthy",
                 "version": "2.0.0",
@@ -303,6 +355,25 @@ class PSRequestHandler(BaseHTTPRequestHandler):
                 "pending_requests": len(pending_requests)
             }
             self.wfile.write(json.dumps(health_data).encode('utf-8'))
+
+        # 获取图片数据端点
+        elif self.path == '/api/img':
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+
+            # 获取存储的图片数据
+            with image_data_lock:
+                img_data = {
+                    "original_image": image_data_store["original_image"],
+                    "instructions": image_data_store["instructions"],
+                    "metadata": image_data_store["metadata"],
+                    "timestamp": time.time()
+                }
+
+            self.wfile.write(json.dumps(img_data, ensure_ascii=False).encode('utf-8'))
+
         else:
             self.send_error(404, "Not Found")
     
