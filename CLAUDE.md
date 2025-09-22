@@ -78,6 +78,13 @@ curl http://localhost:8888/api/health
 3. Use Chrome DevTools Console to monitor debug output via `debugLog()` function
 4. Test keyboard shortcuts and modal interactions directly on QLabel pages
 
+### Git Workflow Guidelines
+- **Local Testing First**: Make changes locally and thoroughly test before committing
+- **Descriptive Commit Messages**: Use clear, concise commit messages following conventional commits format
+- **Atomic Commits**: Each commit should represent a single logical change
+- **Branch Management**: Work on feature branches and merge to main after testing
+- **No WIP Commits**: Avoid committing work-in-progress code to keep history clean
+
 ### RunningHub Configuration
 - Configuration stored in `runninghub-config.json` with webapp and node mapping
 - API key stored in localStorage as `runninghub_api_key`
@@ -97,6 +104,17 @@ curl http://localhost:8888/api/health
 - **Modal System**: Complex modal lifecycle management with cleanup and restoration
 - **Cache Management**: RunningHub results cached with timestamp and URL validation
 - **Event Delegation**: Dynamic content handling with Chinese text support for button detection
+
+### Parallel Original Image Detection Optimization
+The parallel original image detection system has been optimized with the following improvements:
+
+1. **DOM Loading Wait**: Waits for complete DOM loading before executing image detection
+2. **Existing Results Priority**: Prioritizes using existing COS-intercepted or network-monitored original images
+3. **Retry Mechanism**: Implements up to 3 retry attempts on failure to improve success rate
+4. **Timeout Adjustment**: Increased timeout values for each detection method to allow sufficient execution time
+5. **Enhanced Notifications**: Provides clearer feedback during the detection process
+
+These optimizations address the previous issue where "all parallel methods failed" and significantly improve the success rate of original image detection.
 
 ### RunningHub Integration Patterns
 ```javascript
