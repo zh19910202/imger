@@ -1619,96 +1619,166 @@ function extractFileNameFromUrl(url) {
     }
 }
 
-// 并行化原图查找策略 - 多种方法并行执行，采用第一个成功的结果
-async function parallelOriginalImageDetection() {
+// 并行化原图查找策略 - 多种方法并行执行，采用第一个成功的结果（优化版）
+async function parallelOriginalImageDetection(maxRetries = 3) {
     if (originalImageLocked && originalImage) {
         debugLog('原图已锁定，跳过并行获取');
         return;
     }
 
-    debugLog('🏃 启动并行模式原图获取');
+    // 优化1: 先检查是否已有结果(来自COS拦截或网络监听)
+    if (originalImageFromNetwork) {
+        debugLog('🔧 使用网络监听结果作为原图', originalImageFromNetwork.src.substring(0, 50) + '...');
+        originalImage = originalImageFromNetwork;
+        originalImageLocked = true;
+        showNotification(`使用网络监听原图: ${originalImage.width}×${originalImage.height}`, 2000);
+        return;
+    }
+
+    if (imageInterceptedFromCOS) {
+        debugLog('🔧 使用COS拦截结果作为原图', imageInterceptedFromCOS.substring(0, 50) + '...');
+        // 创建Image对象获取实际尺寸
+        const img = new Image();
+        img.onload = () => {
+            originalImage = {
+                src: imageInterceptedFromCOS,
+                width: img.naturalWidth,
+                height: img.naturalHeight,
+                name: extractFileNameFromUrl(imageInterceptedFromCOS),
+                element: img,
+                source: 'COS拦截'
+            };
+            originalImageLocked = true;
+            debugLog('✅ COS拦截原图加载完成', {
+                width: img.naturalWidth,
+                height: img.naturalHeight
+            });
+            showNotification(`使用COS拦截原图: ${img.naturalWidth}×${img.naturalHeight}`, 2000);
+        };
+        img.onerror = () => {
+            debugLog('❌ COS拦截原图加载失败');
+        };
+        img.src = imageInterceptedFromCOS;
+        return;
+    }
+
+    // 优化2: 等待DOM加载完成
+    if (document.readyState !== 'complete') {
+        debugLog('⏳ 等待DOM加载完成...');
+        await new Promise(resolve => {
+            const checkReady = () => {
+                if (document.readyState === 'complete') {
+                    debugLog('✅ DOM加载完成');
+                    resolve();
+                } else {
+                    setTimeout(checkReady, 100);
+                }
+            };
+            checkReady();
+        });
+    }
+
+    debugLog('🏃 启动并行模式原图获取 (优化版)');
     showNotification('正在多渠道并行获取原图...', 1000);
 
-    const detectionPromises = [];
-
-    // 方法1: DOM选择器并行检测（最快）
-    const domPromise = createTimedPromise(
-        'DOM选择器检测',
-        () => findOriginalImageBySelectors(),
-        500 // 500ms超时
-    );
-    detectionPromises.push(domPromise);
-
-    // 方法2: 已加载DOM图片检测（快）
-    const loadedImagesPromise = createTimedPromise(
-        '已加载图片检测',
-        () => findLoadedOriginalImages(),
-        800 // 800ms超时
-    );
-    detectionPromises.push(loadedImagesPromise);
-
-    // 方法3: 网络请求历史检测（中等）
-    const networkPromise = createTimedPromise(
-        '网络请求检测',
-        () => findOriginalImageFromNetwork(),
-        1500 // 1.5s超时
-    );
-    detectionPromises.push(networkPromise);
-
-    // 方法4: COS缓存检测（快）
-    const cosPromise = createTimedPromise(
-        'COS缓存检测',
-        () => findOriginalImageFromCOS(),
-        1000 // 1s超时
-    );
-    detectionPromises.push(cosPromise);
-
-    // 方法5: 延迟DOM重检（备选）
-    const delayedDomPromise = createTimedPromise(
-        '延迟DOM检测',
-        () => new Promise(resolve => {
-            setTimeout(() => {
-                findOriginalImageBySelectors().then(resolve).catch(resolve);
-            }, 1000);
-        }),
-        2000 // 2s超时
-    );
-    detectionPromises.push(delayedDomPromise);
-
-    try {
-        // Promise.allSettled 等待所有方法完成或超时
-        const results = await Promise.allSettled(detectionPromises);
-
-        debugLog('🏁 并行获取完成', {
-            总方法数: results.length,
-            成功数: results.filter(r => r.status === 'fulfilled' && r.value).length,
-            失败数: results.filter(r => r.status === 'rejected').length
+    // 增加重试机制
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        debugLog(`🔄 第${attempt}次尝试并行获取原图`, {
+            maxRetries,
+            currentAttempt: attempt
         });
 
-        // 分析结果，选择最佳原图
-        const bestImage = selectBestOriginalImage(results);
+        const detectionPromises = [];
 
-        if (bestImage) {
-            debugLog('🏆 并行获取成功', {
-                来源: bestImage.source,
-                尺寸: `${bestImage.width}x${bestImage.height}`,
-                URL: bestImage.src.substring(0, 50) + '...'
+        // 方法1: DOM选择器并行检测（最快）
+        const domPromise = createTimedPromise(
+            'DOM选择器检测',
+            () => findOriginalImageBySelectors(),
+            800 // 增加到800ms超时
+        );
+        detectionPromises.push(domPromise);
+
+        // 方法2: 已加载DOM图片检测（快）
+        const loadedImagesPromise = createTimedPromise(
+            '已加载图片检测',
+            () => findLoadedOriginalImages(),
+            1000 // 增加到1000ms超时
+        );
+        detectionPromises.push(loadedImagesPromise);
+
+        // 方法3: 网络请求历史检测（中等）
+        const networkPromise = createTimedPromise(
+            '网络请求检测',
+            () => findOriginalImageFromNetwork(),
+            2000 // 增加到2s超时
+        );
+        detectionPromises.push(networkPromise);
+
+        // 方法4: COS缓存检测（快）
+        const cosPromise = createTimedPromise(
+            'COS缓存检测',
+            () => findOriginalImageFromCOS(),
+            1500 // 增加到1.5s超时
+        );
+        detectionPromises.push(cosPromise);
+
+        // 方法5: 延迟DOM重检（备选）
+        const delayedDomPromise = createTimedPromise(
+            '延迟DOM检测',
+            () => new Promise(resolve => {
+                setTimeout(() => {
+                    findOriginalImageBySelectors().then(resolve).catch(resolve);
+                }, 500); // 减少延迟时间
+            }),
+            2500 // 增加到2.5s超时
+        );
+        detectionPromises.push(delayedDomPromise);
+
+        try {
+            // Promise.allSettled 等待所有方法完成或超时
+            const results = await Promise.allSettled(detectionPromises);
+
+            debugLog(`🏁 第${attempt}次并行获取完成`, {
+                总方法数: results.length,
+                成功数: results.filter(r => r.status === 'fulfilled' && r.value).length,
+                失败数: results.filter(r => r.status === 'rejected').length
             });
 
-            // 更新全局原图
-            originalImage = bestImage;
-            originalImageLocked = true;
+            // 分析结果，选择最佳原图
+            const bestImage = selectBestOriginalImage(results);
 
-            showNotification(`并行获取原图成功 (${bestImage.source}): ${bestImage.width}×${bestImage.height}`, 2000);
-        } else {
-            debugLog('❌ 所有并行方法都失败了');
-            showNotification('未能获取到原图，请稍后再试', 2000);
+            if (bestImage) {
+                debugLog('🏆 并行获取成功', {
+                    来源: bestImage.source,
+                    尺寸: `${bestImage.width}x${bestImage.height}`,
+                    URL: bestImage.src.substring(0, 50) + '...'
+                });
+
+                // 更新全局原图
+                originalImage = bestImage;
+                originalImageLocked = true;
+
+                showNotification(`并行获取原图成功 (${bestImage.source}): ${bestImage.width}×${bestImage.height}`, 2000);
+                return; // 成功后立即返回
+            } else {
+                debugLog(`❌ 第${attempt}次尝试未找到原图`);
+                if (attempt < maxRetries) {
+                    // 在重试前短暂等待
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                }
+            }
+
+        } catch (error) {
+            debugLog(`第${attempt}次并行获取出错`, error.message);
+            if (attempt < maxRetries) {
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
         }
-
-    } catch (error) {
-        debugLog('并行获取出错', error.message);
-        showNotification('获取原图时出错', 2000);
     }
+
+    // 所有重试都失败了
+    debugLog(`❌ 所有${maxRetries}次并行方法都失败了`);
+    showNotification('未能获取到原图，请稍后再试', 2000);
 }
 
 // 创建带超时的Promise
