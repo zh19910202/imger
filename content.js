@@ -8,8 +8,6 @@
 // 全局变量
 let lastHoveredImage = null;
 let selectedImage = null;
-let notificationAudio = null;
-let soundEnabled = true; // 音效开关状态
 let autoCompareEnabled = true; // 自动对比开关状态
 let dimensionTooltip = null; // 尺寸提示框元素
 let originalImage = null; // 存储原图引用用于对比（在单个页面生命周期内不可变更）
@@ -245,9 +243,6 @@ function initializeScript() {
         return;
     }
     
-    // 加载音效设置
-    loadSoundSettings();
-    
     // 加载F1设置
     loadF1Settings();
     
@@ -255,18 +250,12 @@ function initializeScript() {
     loadAutoCompareSettings();
     
     // 初始化音效
-    initializeAudio();
-    
     // 添加键盘事件监听器
     document.addEventListener('keydown', handleKeydown);
     
     // 监听存储变化
     chrome.storage.onChanged.addListener((changes, namespace) => {
         if (namespace === 'sync') {
-            if (changes.soundEnabled) {
-                soundEnabled = changes.soundEnabled.newValue;
-                console.log('音效设置已更新:', soundEnabled);
-            }
             if (changes.f1Interval) {
                 f1IntervalMs = changes.f1Interval.newValue;
                 console.log('F1间隔设置已更新:', f1IntervalMs);
@@ -580,8 +569,6 @@ function handleKeydown(event) {
                 const submitButton = findButtonByText(['提交并继续标注', '提交', 'Submit', '继续标注', 'Continue']);
                 if (submitButton) {
                     event.preventDefault();
-                    // 播放音效
-                    playNotificationSound();
                     clickButton(submitButton, '提交并继续标注');
                 }
             }, 100);
@@ -589,8 +576,6 @@ function handleKeydown(event) {
             const submitButton = findButtonByText(['提交并继续标注', '提交', 'Submit', '继续标注', 'Continue']);
             if (submitButton) {
                 event.preventDefault();
-                // 播放音效
-                playNotificationSound();
                 clickButton(submitButton, '提交并继续标注');
             }
         }
@@ -1188,35 +1173,6 @@ function cleanup() {
     clearRunningHubCache();
 }
 
-// 初始化音效
-function initializeAudio() {
-    try {
-        // 获取扩展中音效文件的URL
-        const audioUrl = chrome.runtime.getURL('notification.mp3');
-        notificationAudio = new Audio(audioUrl);
-        
-        // 设置音效属性
-        notificationAudio.volume = 0.6; // 设置音量为60%
-        notificationAudio.preload = 'auto'; // 预加载音效
-        
-        console.log('音效初始化成功:', audioUrl);
-    } catch (error) {
-        console.error('音效初始化失败:', error);
-    }
-}
-
-// 加载音效设置
-function loadSoundSettings() {
-    try {
-        chrome.storage.sync.get({ soundEnabled: true }, (items) => {
-            soundEnabled = items.soundEnabled;
-            console.log('音效设置已加载:', soundEnabled);
-        });
-    } catch (error) {
-        console.error('加载音效设置失败:', error);
-        soundEnabled = true; // 默认开启
-    }
-}
 
 // 加载F1设置
 function loadF1Settings() {
@@ -1246,27 +1202,6 @@ function loadAutoCompareSettings() {
     }
 }
 
-// 播放通知音效
-function playNotificationSound() {
-    try {
-        // 检查音效是否开启
-        if (!soundEnabled) {
-            console.log('音效已关闭，跳过播放');
-            return;
-        }
-        
-        if (notificationAudio) {
-            // 重置音频到开始位置
-            notificationAudio.currentTime = 0;
-            // 播放音效
-            notificationAudio.play().catch(error => {
-                console.error('播放音效失败:', error);
-            });
-        }
-    } catch (error) {
-        console.error('播放音效时发生错误:', error);
-    }
-}
 
 // 根据文本内容查找链接
 function findLinkByText(textOptions) {
@@ -1621,229 +1556,10 @@ function handleImageUpload(file, inputElement) {
 
 // 记录页面原始图片 - 增强后端图片检测
 function recordOriginalImages() {
-    debugLog('开始记录页面原始图片');
-    
-    // 只保留两种获取方式：
-    // 1. 精确的DOM选择器（最高优先级）
-    const preciseSelectorCandidates = [
-        'div[data-v-92a52416].safe-image img[data-v-92a52416][src]',
-        'div.safe-image img[data-v-92a52416][src]',
-        'img[data-v-92a52416][src].img',
-        'img[data-v-92a52416][src]',
-        'div.safe-image img[src]',
-        '.image-item img[src]'
-    ];
-    
-    // 2. COS原图选择器（只检测JPEG格式的COS图片）
-    const cosImageSelectors = [
-        'img[src*="cos.ap-guangzhou.myqcloud.com"][src*="/target/"][src*=".jpg"]',
-        'img[src*="cos.ap-guangzhou.myqcloud.com"][src*="/target/"][src*=".jpeg"]',
-        'img[src*="cos.ap-guangzhou.myqcloud.com"][src*="dataset"][src*=".jpg"]',
-        'img[src*="cos.ap-guangzhou.myqcloud.com"][src*="dataset"][src*=".jpeg"]',
-        'img[src*="/target/"][src*=".jpg"]',
-        'img[src*="/target/"][src*=".jpeg"]',
-        'img[src*="/target/dataset/"][src*=".jpg"]',
-        'img[src*="/target/dataset/"][src*=".jpeg"]',
-        'img[src*="dataset/"][src*=".jpg"]',
-        'img[src*="dataset/"][src*=".jpeg"]'
-    ];
-    
-    // 合并选择器，精确DOM选择器优先
-    const selectorCandidates = [
-        ...preciseSelectorCandidates,
-        ...cosImageSelectors
-    ];
-    
-    let targetImages = [];
-    let usedSelector = '';
-    
-    // 按优先级尝试每个选择器
-    for (const selector of selectorCandidates) {
-        targetImages = document.querySelectorAll(selector);
-        if (targetImages.length > 0) {
-            usedSelector = selector;
-            debugLog('使用选择器找到原图', {
-                selector: selector,
-                found: targetImages.length
-            });
-            break;
-        }
-    }
-    
-    // 如果所有特定选择器都没找到，使用更宽泛的查找
-    if (targetImages.length === 0) {
-        debugLog('所有特定选择器未找到图片，尝试查找所有带data-v属性的图片');
-        
-        // 查找所有带 data-v- 开头属性的JPEG图片
-        const allImages = document.querySelectorAll('img[src]');
-        const dataVImages = Array.from(allImages).filter(img => {
-            const hasDataV = Array.from(img.attributes).some(attr => 
-                attr.name.startsWith('data-v-')
-            );
-            const isJpeg = isJpegImage(img.src);
-            return hasDataV && isJpeg;
-        });
-        
-        debugLog('找到带data-v属性的JPEG图片', dataVImages.length);
-        targetImages = dataVImages;
-        usedSelector = '带data-v属性的JPEG图片';
-        
-        if (targetImages.length === 0) {
-            debugLog('仍未找到，使用所有JPEG图片作为备选');
-            const jpegImages = Array.from(allImages).filter(img => isJpegImage(img.src));
-            targetImages = jpegImages;
-            usedSelector = '所有JPEG图片';
-            debugLog('找到JPEG图片数量', jpegImages.length);
-        }
-    }
-    
-    debugLog('最终图片候选数量', {
-        count: targetImages.length,
-        selector: usedSelector
-    });
-    
-    if (targetImages.length === 0) {
-        debugLog('页面中无符合条件的图片元素');
-        // 延迟重试，可能图片还在动态加载
-        setTimeout(() => {
-            debugLog('延迟重试检测原图');
-            recordOriginalImages();
-        }, 2000);
-        return;
-    }
-    
-    // 详细检查每个候选图片
-    Array.from(targetImages).forEach((img, index) => {
-        const parentDiv = img.closest('div[data-v-92a52416], div.safe-image, div.image-item');
-        debugLog(`检查候选图片 #${index}`, {
-            src: img.src ? img.src.substring(0, 100) + '...' : '无src',
-            naturalWidth: img.naturalWidth,
-            naturalHeight: img.naturalHeight,
-            width: img.width,
-            height: img.height,
-            complete: img.complete,
-            className: img.className,
-            id: img.id || '无ID',
-            dataset: Object.keys(img.dataset).map(key => `${key}=${img.dataset[key]}`).join(', ') || '无data属性',
-            hasDataV92a52416: img.hasAttribute('data-v-92a52416'),
-            parentDivClasses: parentDiv ? parentDiv.className : '无父容器',
-            parentDivDataAttrs: parentDiv ? Object.keys(parentDiv.dataset).join(', ') : '无父容器data属性'
-        });
-    });
-    
-    let mainImage = null;
-    
-    // 方法1：优先选择最精确选择器找到的已加载JPEG图片
-    const exactSelector = 'div[data-v-92a52416].safe-image img[data-v-92a52416][src]';
-    const exactImages = document.querySelectorAll(exactSelector);
-    if (exactImages.length > 0) {
-        mainImage = Array.from(exactImages).find(img => {
-            const isLoaded = img.complete && img.naturalWidth > 0 && img.naturalHeight > 0;
-            const isJpeg = isJpegImage(img.src);
-            if (isLoaded && isJpeg) {
-                debugLog('找到精确选择器且已加载的JPEG原图', {
-                    src: img.src.substring(0, 50) + '...',
-                    naturalWidth: img.naturalWidth,
-                    naturalHeight: img.naturalHeight,
-                    selector: exactSelector
-                });
-            }
-            return isLoaded && isJpeg;
-        });
-        
-        // 如果没有已加载的JPEG，选择第一个JPEG
-        if (!mainImage) {
-            mainImage = Array.from(exactImages).find(img => isJpegImage(img.src));
-            if (mainImage) {
-                debugLog('选择精确选择器的第一个JPEG图片（可能未完全加载）', {
-                    src: mainImage.src ? mainImage.src.substring(0, 50) + '...' : '无src',
-                    complete: mainImage.complete
-                });
-            } else {
-                debugLog('精确选择器未找到JPEG格式图片');
-            }
-        }
-    }
-    
-    // 方法2：如果精确选择器没找到，从候选图片中选择（只选择JPEG格式）
-    if (!mainImage && targetImages.length > 0) {
-        // 优先选择已加载且在safe-image容器中的JPEG图片
-        mainImage = Array.from(targetImages).find(img => {
-            const isInSafeImage = img.closest('.safe-image') !== null;
-            const isLoaded = img.complete && img.naturalWidth > 0 && img.naturalHeight > 0;
-            const isJpeg = isJpegImage(img.src);
-            return isInSafeImage && isLoaded && isJpeg;
-        });
-        
-        if (mainImage) {
-            debugLog('找到safe-image容器中的已加载JPEG图片');
-        } else {
-            // 选择第一个已加载的JPEG图片
-            mainImage = Array.from(targetImages).find(img => {
-                const isLoaded = img.complete && img.naturalWidth > 0 && img.naturalHeight > 0;
-                const isJpeg = isJpegImage(img.src);
-                return isLoaded && isJpeg;
-            });
-            
-            if (mainImage) {
-                debugLog('找到已加载的候选JPEG图片');
-            } else {
-                // 选择第一个JPEG候选图片
-                mainImage = Array.from(targetImages).find(img => isJpegImage(img.src));
-                if (mainImage) {
-                    debugLog('选择第一个JPEG候选图片（可能未加载）');
-                } else {
-                    debugLog('未找到任何JPEG格式的候选图片');
-                }
-            }
-        }
-    }
-    
-    if (mainImage) {
-        debugLog('最终选定的原图', {
-            src: mainImage.src ? mainImage.src.substring(0, 100) + '...' : '无src',
-            complete: mainImage.complete,
-            naturalWidth: mainImage.naturalWidth,
-            naturalHeight: mainImage.naturalHeight,
-            hasDataV: mainImage.hasAttribute('data-v-92a52416'),
-            className: mainImage.className,
-            parentContainer: mainImage.closest('.safe-image, .image-item') ? '在安全图片容器中' : '不在特定容器中',
-            usedSelector: usedSelector
-        });
-        
-        // 如果图片还没完全加载，等待加载完成
-        if (!mainImage.complete || mainImage.naturalWidth === 0) {
-            debugLog('选中的原图还没完全加载，等待加载完成');
-            
-            const handleLoad = () => {
-                debugLog('原图加载完成，记录原图信息');
-                recordImageAsOriginal(mainImage);
-                mainImage.removeEventListener('load', handleLoad);
-            };
-            
-            const handleError = () => {
-                debugLog('原图加载失败，尝试记录当前状态');
-                recordImageAsOriginal(mainImage);
-                mainImage.removeEventListener('error', handleError);
-            };
-            
-            mainImage.addEventListener('load', handleLoad);
-            mainImage.addEventListener('error', handleError);
-            
-            // 也立即记录当前状态，以防万一
-            recordImageAsOriginal(mainImage);
-        } else {
-            recordImageAsOriginal(mainImage);
-        }
-    } else {
-        debugLog('未找到任何可用的原图');
-        
-        // 延迟重试，可能图片还在动态加载
-        setTimeout(() => {
-            debugLog('延迟3秒后重试检测原图');
-            recordOriginalImages();
-        }, 3000);
-    }
+    debugLog('开始记录页面原始图片（并行模式）');
+
+    // 使用并行化策略替代串行策略
+    parallelOriginalImageDetection();
 }
 
 // 检查图片是否为JPEG格式
@@ -1901,6 +1617,341 @@ function extractFileNameFromUrl(url) {
     } catch (error) {
         return '原图';
     }
+}
+
+// 并行化原图查找策略 - 多种方法并行执行，采用第一个成功的结果
+async function parallelOriginalImageDetection() {
+    if (originalImageLocked && originalImage) {
+        debugLog('原图已锁定，跳过并行获取');
+        return;
+    }
+
+    debugLog('🏃 启动并行模式原图获取');
+    showNotification('正在多渠道并行获取原图...', 1000);
+
+    const detectionPromises = [];
+
+    // 方法1: DOM选择器并行检测（最快）
+    const domPromise = createTimedPromise(
+        'DOM选择器检测',
+        () => findOriginalImageBySelectors(),
+        500 // 500ms超时
+    );
+    detectionPromises.push(domPromise);
+
+    // 方法2: 已加载DOM图片检测（快）
+    const loadedImagesPromise = createTimedPromise(
+        '已加载图片检测',
+        () => findLoadedOriginalImages(),
+        800 // 800ms超时
+    );
+    detectionPromises.push(loadedImagesPromise);
+
+    // 方法3: 网络请求历史检测（中等）
+    const networkPromise = createTimedPromise(
+        '网络请求检测',
+        () => findOriginalImageFromNetwork(),
+        1500 // 1.5s超时
+    );
+    detectionPromises.push(networkPromise);
+
+    // 方法4: COS缓存检测（快）
+    const cosPromise = createTimedPromise(
+        'COS缓存检测',
+        () => findOriginalImageFromCOS(),
+        1000 // 1s超时
+    );
+    detectionPromises.push(cosPromise);
+
+    // 方法5: 延迟DOM重检（备选）
+    const delayedDomPromise = createTimedPromise(
+        '延迟DOM检测',
+        () => new Promise(resolve => {
+            setTimeout(() => {
+                findOriginalImageBySelectors().then(resolve).catch(resolve);
+            }, 1000);
+        }),
+        2000 // 2s超时
+    );
+    detectionPromises.push(delayedDomPromise);
+
+    try {
+        // Promise.allSettled 等待所有方法完成或超时
+        const results = await Promise.allSettled(detectionPromises);
+
+        debugLog('🏁 并行获取完成', {
+            总方法数: results.length,
+            成功数: results.filter(r => r.status === 'fulfilled' && r.value).length,
+            失败数: results.filter(r => r.status === 'rejected').length
+        });
+
+        // 分析结果，选择最佳原图
+        const bestImage = selectBestOriginalImage(results);
+
+        if (bestImage) {
+            debugLog('🏆 并行获取成功', {
+                来源: bestImage.source,
+                尺寸: `${bestImage.width}x${bestImage.height}`,
+                URL: bestImage.src.substring(0, 50) + '...'
+            });
+
+            // 更新全局原图
+            originalImage = bestImage;
+            originalImageLocked = true;
+
+            showNotification(`并行获取原图成功 (${bestImage.source}): ${bestImage.width}×${bestImage.height}`, 2000);
+        } else {
+            debugLog('❌ 所有并行方法都失败了');
+            showNotification('未能获取到原图，请稍后再试', 2000);
+        }
+
+    } catch (error) {
+        debugLog('并行获取出错', error.message);
+        showNotification('获取原图时出错', 2000);
+    }
+}
+
+// 创建带超时的Promise
+function createTimedPromise(name, promiseFactory, timeoutMs) {
+    return new Promise((resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+            debugLog(`⏰ ${name} 超时 (${timeoutMs}ms)`);
+            resolve(null); // 超时返回null而不是reject
+        }, timeoutMs);
+
+        Promise.resolve(promiseFactory())
+            .then(result => {
+                clearTimeout(timeoutId);
+                debugLog(`✅ ${name} 完成`, result ? `${result.width}x${result.height}` : '无结果');
+                resolve(result);
+            })
+            .catch(error => {
+                clearTimeout(timeoutId);
+                debugLog(`❌ ${name} 失败`, error.message);
+                resolve(null); // 失败也返回null，不中断整体流程
+            });
+    });
+}
+
+// 通过DOM选择器查找原图
+async function findOriginalImageBySelectors() {
+    debugLog('开始DOM选择器查找原图');
+
+    // 精确的DOM选择器（最高优先级）
+    const preciseSelectorCandidates = [
+        'div[data-v-92a52416].safe-image img[data-v-92a52416][src]',
+        'div.safe-image img[data-v-92a52416][src]',
+        'img[data-v-92a52416][src].img',
+        'img[data-v-92a52416][src]',
+        'div.safe-image img[src]',
+        '.image-item img[src]'
+    ];
+
+    // COS原图选择器
+    const cosImageSelectors = [
+        'img[src*="cos.ap-guangzhou.myqcloud.com"][src*="/target/"][src*=".jpg"]',
+        'img[src*="cos.ap-guangzhou.myqcloud.com"][src*="/target/"][src*=".jpeg"]',
+        'img[src*="cos.ap-guangzhou.myqcloud.com"][src*="dataset"][src*=".jpg"]',
+        'img[src*="cos.ap-guangzhou.myqcloud.com"][src*="dataset"][src*=".jpeg"]',
+        'img[src*="/target/"][src*=".jpg"]',
+        'img[src*="/target/"][src*=".jpeg"]',
+        'img[src*="/target/dataset/"][src*=".jpg"]',
+        'img[src*="/target/dataset/"][src*=".jpeg"]',
+        'img[src*="dataset/"][src*=".jpg"]',
+        'img[src*="dataset/"][src*=".jpeg"]'
+    ];
+
+    // 合并选择器，精确DOM选择器优先
+    const selectorCandidates = [
+        ...preciseSelectorCandidates,
+        ...cosImageSelectors
+    ];
+
+    // 并行检查所有选择器
+    const selectorPromises = selectorCandidates.map(selector => {
+        return new Promise(resolve => {
+            try {
+                const images = document.querySelectorAll(selector);
+                if (images.length > 0) {
+                    // 找到第一个符合条件的JPEG图片
+                    const jpegImage = Array.from(images).find(img => isJpegImage(img.src) && img.complete);
+                    if (jpegImage) {
+                        resolve({
+                            src: jpegImage.src,
+                            width: jpegImage.naturalWidth,
+                            height: jpegImage.naturalHeight,
+                            name: extractFileNameFromUrl(jpegImage.src),
+                            element: jpegImage,
+                            source: `选择器-${selector}`
+                        });
+                    } else {
+                        resolve(null);
+                    }
+                } else {
+                    resolve(null);
+                }
+            } catch (error) {
+                resolve(null);
+            }
+        });
+    });
+
+    const results = await Promise.allSettled(selectorPromises);
+    const successfulResults = results
+        .filter(result => result.status === 'fulfilled' && result.value)
+        .map(result => result.value);
+
+    if (successfulResults.length > 0) {
+        // 选择尺寸最大的图片
+        const bestImage = successfulResults.reduce((best, current) => {
+            const bestSize = best.width * best.height;
+            const currentSize = current.width * current.height;
+            return currentSize > bestSize ? current : best;
+        });
+
+        debugLog('DOM选择器找到原图', {
+            src: bestImage.src.substring(0, 50) + '...',
+            size: `${bestImage.width}x${bestImage.height}`
+        });
+
+        return bestImage;
+    }
+
+    return null;
+}
+
+// 查找已加载的原图
+async function findLoadedOriginalImages() {
+    debugLog('开始查找已加载的原图');
+
+    const images = document.querySelectorAll('img[src]');
+    const loadedImages = Array.from(images)
+        .filter(img => img.complete && img.naturalWidth > 200 && img.naturalHeight > 200)
+        .filter(img => isJpegImage(img.src))
+        .sort((a, b) => (b.naturalWidth * b.naturalHeight) - (a.naturalWidth * a.naturalHeight));
+
+    if (loadedImages.length > 0) {
+        const img = loadedImages[0];
+        const result = {
+            src: img.src,
+            width: img.naturalWidth,
+            height: img.naturalHeight,
+            name: extractFileNameFromUrl(img.src),
+            element: img,
+            source: '已加载图片'
+        };
+
+        debugLog('找到已加载的原图', {
+            src: result.src.substring(0, 50) + '...',
+            size: `${result.width}x${result.height}`
+        });
+
+        return result;
+    }
+
+    return null;
+}
+
+// 从网络请求历史中查找原图
+async function findOriginalImageFromNetwork() {
+    debugLog('开始从网络请求历史查找原图');
+
+    if (capturedImageRequests.size === 0) return null;
+
+    const candidates = Array.from(capturedImageRequests.values())
+        .filter(req => req.isOriginalCandidate)
+        .sort((a, b) => b.timestamp - a.timestamp); // 按时间排序，最新的优先
+
+    if (candidates.length > 0) {
+        const req = candidates[0];
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => resolve({
+                src: req.url,
+                width: img.naturalWidth,
+                height: img.naturalHeight,
+                name: extractFileNameFromUrl(req.url),
+                element: img,
+                source: '网络请求历史'
+            });
+            img.onerror = () => resolve(null);
+            img.src = req.url;
+        });
+    }
+
+    return null;
+}
+
+// 从COS缓存中查找原图
+async function findOriginalImageFromCOS() {
+    debugLog('开始从COS缓存查找原图');
+
+    if (capturedOriginalImage) {
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => resolve({
+                src: capturedOriginalImage,
+                width: img.naturalWidth,
+                height: img.naturalHeight,
+                name: extractFileNameFromUrl(capturedOriginalImage),
+                element: img,
+                source: 'COS缓存'
+            });
+            img.onerror = () => resolve(null);
+            img.src = capturedOriginalImage;
+        });
+    }
+
+    return null;
+}
+
+// 选择最佳原图
+function selectBestOriginalImage(results) {
+    const successfulResults = results
+        .filter(result => result.status === 'fulfilled' && result.value)
+        .map(result => result.value);
+
+    if (successfulResults.length === 0) return null;
+
+    debugLog('并行结果分析', {
+        成功结果: successfulResults.map(img => ({
+            来源: img.source,
+            尺寸: `${img.width}x${img.height}`,
+            像素总数: img.width * img.height
+        }))
+    });
+
+    // 选择策略：
+    // 1. 优先选择DOM精确检测的结果（最可靠）
+    // 2. 其次选择COS缓存的结果（质量高）
+    // 3. 再次选择像素最多的图片（质量最高）
+    // 4. 最后选择最新的结果（时效性最好）
+
+    const domResult = successfulResults.find(img => img.source.includes('选择器-'));
+    if (domResult) {
+        debugLog('选择DOM检测结果');
+        return domResult;
+    }
+
+    const cosResult = successfulResults.find(img => img.source.includes('COS'));
+    if (cosResult) {
+        debugLog('选择COS缓存结果');
+        return cosResult;
+    }
+
+    // 按像素总数排序
+    const sortedBySize = successfulResults.sort((a, b) =>
+        (b.width * b.height) - (a.width * a.height)
+    );
+
+    debugLog('选择最大尺寸结果', {
+        选中: {
+            来源: sortedBySize[0].source,
+            尺寸: `${sortedBySize[0].width}x${sortedBySize[0].height}`
+        }
+    });
+
+    return sortedBySize[0];
 }
 
 /**
@@ -2050,15 +2101,9 @@ function observeNetworkUploads() {
     
     // 新增：拦截Image对象的src设置
     interceptImageObjectCreation();
-    
+
     // 新增：监听资源加载事件
     observeResourceLoading();
-    
-    // 新增：从浏览器缓存获取图片
-    getCachedImages();
-    
-    // 新增：启动竞速模式原图获取
-    startParallelImageAcquisition();
 }
 
 // 处理网络响应，捕获图片资源 - 增强后端检测
@@ -4900,288 +4945,13 @@ document.addEventListener('keydown', function(event) {
     }
 });
 
-// ============== 竞速模式原图获取系统 ==============
 
-// 竞速模式：多种方法并行执行，采用第一个成功的结果
-async function startParallelImageAcquisition() {
-    if (originalImageLocked && originalImage) {
-        debugLog('原图已锁定，跳过竞速获取');
-        return;
-    }
-    
-    debugLog('🏃 启动竞速模式原图获取');
-    showNotification('正在多渠道获取原图...', 1000);
-    
-    const acquisitionPromises = [];
-    const acquisitionTimeouts = [];
-    
-    // 方法1: DOM快速检测（最快）
-    const domPromise = createTimedPromise(
-        'DOM检测',
-        () => fastDOMImageDetection(),
-        100 // 100ms超时
-    );
-    acquisitionPromises.push(domPromise);
-    
-    // 方法2: 缓存Performance API（快）
-    const performancePromise = createTimedPromise(
-        'Performance API',
-        () => quickPerformanceAPICheck(),
-        300 // 300ms超时
-    );
-    acquisitionPromises.push(performancePromise);
-    
-    // 方法3: 已加载DOM图片（中等）
-    const loadedImagesPromise = createTimedPromise(
-        '已加载图片',
-        () => quickLoadedImagesCheck(),
-        500 // 500ms超时
-    );
-    acquisitionPromises.push(loadedImagesPromise);
-    
-    // 方法4: 网络请求历史（慢）
-    const networkPromise = createTimedPromise(
-        '网络请求',
-        () => quickNetworkHistoryCheck(),
-        1000 // 1s超时
-    );
-    acquisitionPromises.push(networkPromise);
-    
-    // 方法5: 延迟DOM重检（备选）
-    const delayedDomPromise = createTimedPromise(
-        '延迟DOM检测',
-        () => new Promise(resolve => {
-            setTimeout(() => {
-                fastDOMImageDetection().then(resolve).catch(resolve);
-            }, 1000);
-        }),
-        2000 // 2s超时
-    );
-    acquisitionPromises.push(delayedDomPromise);
-    
-    try {
-        // Promise.allSettled 等待所有方法完成或超时
-        const results = await Promise.allSettled(acquisitionPromises);
-        
-        debugLog('🏁 竞速获取完成', {
-            总方法数: results.length,
-            成功数: results.filter(r => r.status === 'fulfilled' && r.value).length,
-            失败数: results.filter(r => r.status === 'rejected').length
-        });
-        
-        // 分析结果，选择最佳原图
-        const bestImage = selectBestImage(results);
-        
-        if (bestImage) {
-            debugLog('🏆 竞速获取成功', {
-                来源: bestImage.source,
-                尺寸: `${bestImage.width}x${bestImage.height}`,
-                URL: bestImage.src.substring(0, 50) + '...'
-            });
-            
-            // 更新全局原图
-            originalImage = bestImage;
-            originalImageLocked = true;
-            
-            showNotification(`竞速获取原图成功 (${bestImage.source}): ${bestImage.width}×${bestImage.height}`, 2000);
-        } else {
-            debugLog('❌ 所有竞速方法都失败了');
-            showNotification('未能获取到原图，请稍后再试', 2000);
-        }
-        
-    } catch (error) {
-        debugLog('竞速获取出错', error.message);
-        showNotification('获取原图时出错', 2000);
-    }
-}
 
-// 创建带超时的Promise
-function createTimedPromise(name, promiseFactory, timeoutMs) {
-    return new Promise((resolve, reject) => {
-        const timeoutId = setTimeout(() => {
-            debugLog(`⏰ ${name} 超时 (${timeoutMs}ms)`);
-            resolve(null); // 超时返回null而不是reject
-        }, timeoutMs);
-        
-        Promise.resolve(promiseFactory())
-            .then(result => {
-                clearTimeout(timeoutId);
-                debugLog(`✅ ${name} 完成`, result ? `${result.width}x${result.height}` : '无结果');
-                resolve(result);
-            })
-            .catch(error => {
-                clearTimeout(timeoutId);
-                debugLog(`❌ ${name} 失败`, error.message);
-                resolve(null); // 失败也返回null，不中断整体流程
-            });
-    });
-}
 
-// 快速DOM检测（优化版）
-// 快速DOM检测（优化版）- 优先检测COS原图
-async function fastDOMImageDetection() {
-    const selectors = [
-        'div[data-v-92a52416].safe-image img[data-v-92a52416][src]',
-        'div.safe-image img[data-v-92a52416][src]',
-        'img[data-v-92a52416][src].img',
-        'img[data-v-92a52416][src]',
-        'div.safe-image img[src]',
-        '.image-item img[src]'
-    ];
-    
-    // 首先专门查找COS原图
-    const allImages = document.querySelectorAll('img[src]');
-    for (const img of allImages) {
-        if (img.complete && img.naturalWidth > 100 && img.naturalHeight > 100) {
-            if (isCOSOriginalImage(img.src)) {
-                return {
-                    src: img.src,
-                    width: img.naturalWidth,
-                    height: img.naturalHeight,
-                    name: extractFileNameFromUrl(img.src),
-                    element: img,
-                    source: 'DOM-COS原图检测'
-                };
-            }
-        }
-    }
-    
-    // 然后使用常规选择器
-    for (const selector of selectors) {
-        const images = document.querySelectorAll(selector);
-        for (const img of images) {
-            if (img.complete && img.naturalWidth > 100 && img.naturalHeight > 100) {
-                return {
-                    src: img.src,
-                    width: img.naturalWidth,
-                    height: img.naturalHeight,
-                    name: extractFileNameFromUrl(img.src),
-                    element: img,
-                    source: 'DOM精确检测'
-                };
-            }
-        }
-    }
-    return null;
-}
 
-// 快速Performance API检查
-async function quickPerformanceAPICheck() {
-    const entries = performance.getEntriesByType('resource');
-    const imageEntries = entries
-        .filter(entry => entry.initiatorType === 'img' || isImageUrl(entry.name))
-        .filter(entry => isOriginalImageCandidate(entry.name))
-        .sort((a, b) => b.transferSize - a.transferSize); // 按文件大小排序
-    
-    if (imageEntries.length > 0) {
-        const entry = imageEntries[0];
-        return new Promise((resolve) => {
-            const img = new Image();
-            img.onload = () => resolve({
-                src: entry.name,
-                width: img.naturalWidth,
-                height: img.naturalHeight,
-                name: extractFileNameFromUrl(entry.name),
-                element: img,
-                source: 'Performance API'
-            });
-            img.onerror = () => resolve(null);
-            img.src = entry.name;
-        });
-    }
-    return null;
-}
 
-// 快速检查已加载的图片
-async function quickLoadedImagesCheck() {
-    const images = document.querySelectorAll('img[src]');
-    const loadedImages = Array.from(images)
-        .filter(img => img.complete && img.naturalWidth > 200 && img.naturalHeight > 200)
-        .filter(img => isOriginalImageCandidate(img.src))
-        .sort((a, b) => (b.naturalWidth * b.naturalHeight) - (a.naturalWidth * a.naturalHeight));
-    
-    if (loadedImages.length > 0) {
-        const img = loadedImages[0];
-        return {
-            src: img.src,
-            width: img.naturalWidth,
-            height: img.naturalHeight,
-            name: extractFileNameFromUrl(img.src),
-            element: img,
-            source: '已加载图片'
-        };
-    }
-    return null;
-}
 
-// 快速网络请求历史检查
-async function quickNetworkHistoryCheck() {
-    if (capturedImageRequests.size === 0) return null;
-    
-    const candidates = Array.from(capturedImageRequests.values())
-        .filter(req => req.isOriginalCandidate)
-        .sort((a, b) => b.timestamp - a.timestamp); // 按时间排序，最新的优先
-    
-    if (candidates.length > 0) {
-        const req = candidates[0];
-        return new Promise((resolve) => {
-            const img = new Image();
-            img.onload = () => resolve({
-                src: req.url,
-                width: img.naturalWidth,
-                height: img.naturalHeight,
-                name: extractFileNameFromUrl(req.url),
-                element: img,
-                source: '网络请求历史'
-            });
-            img.onerror = () => resolve(null);
-            img.src = req.url;
-        });
-    }
-    return null;
-}
 
-// 选择最佳图片
-function selectBestImage(results) {
-    const successfulResults = results
-        .filter(result => result.status === 'fulfilled' && result.value)
-        .map(result => result.value);
-    
-    if (successfulResults.length === 0) return null;
-    
-    debugLog('竞速结果分析', {
-        成功结果: successfulResults.map(img => ({
-            来源: img.source,
-            尺寸: `${img.width}x${img.height}`,
-            像素总数: img.width * img.height
-        }))
-    });
-    
-    // 选择策略：
-    // 1. 优先选择DOM精确检测的结果（最可靠）
-    // 2. 其次选择像素最多的图片（质量最高）
-    // 3. 最后选择最新的结果（时效性最好）
-    
-    const domResult = successfulResults.find(img => img.source.includes('DOM'));
-    if (domResult) {
-        debugLog('选择DOM检测结果');
-        return domResult;
-    }
-    
-    // 按像素总数排序
-    const sortedBySize = successfulResults.sort((a, b) => 
-        (b.width * b.height) - (a.width * a.height)
-    );
-    
-    debugLog('选择最大尺寸结果', {
-        选中: {
-            来源: sortedBySize[0].source,
-            尺寸: `${sortedBySize[0].width}x${sortedBySize[0].height}`
-        }
-    });
-    
-    return sortedBySize[0];
-}
 
 // 简化：P键强制重新检测原图（忽略锁定状态）
 document.addEventListener('keydown', function(event) {

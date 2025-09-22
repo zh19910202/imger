@@ -53,7 +53,6 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "notification.mp3",
         "runninghub-config.json"
       ],
       "matches": [

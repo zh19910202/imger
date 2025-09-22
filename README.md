@@ -30,7 +30,6 @@ Auxis 是一个为腾讯QLabel标注平台设计的Chrome扩展，提供快捷�
 
 ### 🔧 调试和配置
 - 调试面板显示详细状态信息
-- 可配置的音效开关
 - 可配置的自动对比开关
 - 可配置的F1键执行间隔和次数限制
 
@@ -81,7 +80,6 @@ auxis/
 ├── native_host.py                 # Native Host程序
 ├── manifest.json                  # 扩展配置文件
 ├── runninghub-config.json         # RunningHub配置
-├── notification.mp3               # 通知音效
 ├── icon.png                       # 扩展图标
 ├── test-cardkey.html              # 卡密验证测试页面
 └── README.md                      # 项目说明文档
@@ -112,7 +110,7 @@ chmod +x install_native_host.sh
 ### 3. 配置扩展
 1. 点击扩展图标打开设置页面
 2. 根据需要调整各项设置
-3. 确保音效文件和配置文件正确加载
+3. 确保配置文件正确加载
 
 ## 开发指南
 
