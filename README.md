@@ -94,7 +94,11 @@ auxis/
 # Windows
 install_native_host.bat
 
-# macOS/Linux
+# macOS
+chmod +x install_native_host.sh
+./install_native_host.sh
+
+# Linux
 # 需要手动配置Native Host清单文件
 ```
 
