@@ -3,6 +3,7 @@
 // 1. D键 - 快捷下载图片
 // 2. 空格键 - 点击"跳过"按钮
 // 3. S键 - 点击"提交并继续标注"按钮
+// 4. T键 - 测试设备指纹读取并验证卡密 (需要cardkey-validator.js)
 
 // 全局变量
 let lastHoveredImage = null;
@@ -82,6 +83,9 @@ function testDeviceFingerprint() {
             setTimeout(() => {
                 showNotification(`📊 文件大小: ${response.file_size} 字节`, 3000);
             }, 2000);
+            
+            // 验证卡密
+            validateCardKey(response.content);
         } else {
             const errorMsg = `❌ 设备指纹读取失败: ${response ? response.error : '未知错误'}`;
             console.error('设备指纹读取失败:', response);
@@ -89,6 +93,49 @@ function testDeviceFingerprint() {
             showNotification(errorMsg, 5000);
         }
     });
+}
+
+// 验证卡密
+async function validateCardKey(figId) {
+    try {
+        showNotification('正在验证卡密...', 2000);
+        debugLog('开始验证卡密:', figId);
+        
+        // 检查cardKeyValidator是否存在
+        if (typeof cardKeyValidator === 'undefined') {
+            console.error('CardKeyValidator未定义');
+            showNotification('❌ 验证器未加载', 3000);
+            return;
+        }
+        
+        // 调用验证函数
+        const result = await cardKeyValidator.validateCardKey(figId);
+        
+        if (result.KeyStatus) {
+            // 验证成功
+            const successMsg = `✅ 卡密验证成功！${result.Message}`;
+            console.log('卡密验证成功:', result);
+            debugLog(`卡密验证成功: ${JSON.stringify(result, null, 2)}`);
+            showNotification(successMsg, 5000);
+            
+            // 显示剩余天数（如果有的话）
+            if (result.RemainingDays !== undefined) {
+                setTimeout(() => {
+                    showNotification(`📅 剩余天数: ${result.RemainingDays}天`, 3000);
+                }, 1000);
+            }
+        } else {
+            // 验证失败
+            const errorMsg = `❌ 卡密验证失败: ${result.Message}`;
+            console.error('卡密验证失败:', result);
+            debugLog(`卡密验证失败: ${JSON.stringify(result, null, 2)}`);
+            showNotification(errorMsg, 5000);
+        }
+    } catch (error) {
+        console.error('卡密验证过程中发生错误:', error);
+        debugLog(`卡密验证错误: ${error.message}`);
+        showNotification(`❌ 验证过程出错: ${error.message}`, 5000);
+    }
 }
 
 // 通用：隐藏取消按钮
@@ -178,7 +225,7 @@ if (document.readyState === 'loading') {
 function initializeScript() {
     console.log('=== AnnotateFlow Assistant v2.0 已加载 ===');
     console.log('专为腾讯QLabel标注平台设计');
-    console.log('支持功能: D键下载图片, 空格键跳过, S键提交标注, A键上传图片, F键查看历史, W键智能图片对比, Z键调试模式, I键检查文件输入, B键重新检测原图, N键重新检测原图, P键/F2键智能尺寸检查, R键手动检查尺寸是否为8的倍数');
+    console.log('支持功能: D键下载图片, 空格键跳过, S键提交标注, A键上传图片, F键查看历史, W键智能图片对比, Z键调试模式, I键检查文件输入, B键重新检测原图, N键重新检测原图, P键/F2键智能尺寸检查, R键手动检查尺寸是否为8的倍数, T键测试设备指纹并验证卡密');
     console.log('🎯 原图检测: 只支持JPEG格式的COS原图 (.jpg/.jpeg)');
     console.log('Chrome对象:', typeof chrome);
     console.log('Chrome.runtime:', typeof chrome?.runtime);

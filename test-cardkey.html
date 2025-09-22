@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>卡密验证测试页面</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            display: none;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .loading {
+            text-align: center;
+            color: #007bff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>卡密验证测试</h1>
+        <div class="form-group">
+            <label for="figId">设备指纹 (FigId):</label>
+            <input type="text" id="figId" placeholder="请输入设备指纹，例如: ASD21DS" value="ASD21DS">
+        </div>
+        <button id="validateBtn">验证卡密</button>
+        <div id="loading" class="loading" style="display: none;">
+            正在验证中，请稍候...
+        </div>
+        <div id="result" class="result"></div>
+    </div>
+
+    <script src="cardkey-validator.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const validateBtn = document.getElementById('validateBtn');
+            const figIdInput = document.getElementById('figId');
+            const loadingDiv = document.getElementById('loading');
+            const resultDiv = document.getElementById('result');
+            
+            // 创建验证器实例
+            const validator = new CardKeyValidator();
+            
+            validateBtn.addEventListener('click', async function() {
+                const figId = figIdInput.value.trim();
+                
+                if (!figId) {
+                    showResult('请输入设备指纹', 'error');
+                    return;
+                }
+                
+                // 显示加载状态
+                loadingDiv.style.display = 'block';
+                resultDiv.style.display = 'none';
+                validateBtn.disabled = true;
+                
+                try {
+                    // 调用验证函数
+                    const result = await validator.validateCardKey(figId);
+                    
+                    // 显示结果
+                    if (result.KeyStatus) {
+                        let message = `✅ 验证成功: ${result.Message}`;
+                        if (result.RemainingDays !== undefined) {
+                            message += `<br>📅 剩余天数: ${result.RemainingDays}天`;
+                        }
+                        showResult(message, 'success');
+                    } else {
+                        showResult(`❌ 验证失败: ${result.Message}`, 'error');
+                    }
+                } catch (error) {
+                    showResult(`❌ 验证过程中发生错误: ${error.message}`, 'error');
+                } finally {
+                    // 隐藏加载状态
+                    loadingDiv.style.display = 'none';
+                    validateBtn.disabled = false;
+                }
+            });
+            
+            function showResult(message, type) {
+                resultDiv.innerHTML = message;
+                resultDiv.className = `result ${type}`;
+                resultDiv.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>

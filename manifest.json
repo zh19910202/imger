@@ -38,14 +38,29 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://qlabel.tencent.com/*", "http://localhost:*/*", "file://*/*"],
-      "js": ["resource-extractor.js", "content.js"]
+      "matches": [
+        "https://qlabel.tencent.com/*",
+        "http://localhost:*/*",
+        "file://*/*"
+      ],
+      "js": [
+        "resource-extractor.js",
+        "cardkey-validator.js",
+        "content.js"
+      ]
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["notification.mp3", "runninghub-config.json"],
-      "matches": ["https://qlabel.tencent.com/*", "http://localhost:*/*", "file://*/*"]
+      "resources": [
+        "notification.mp3",
+        "runninghub-config.json"
+      ],
+      "matches": [
+        "https://qlabel.tencent.com/*",
+        "http://localhost:*/*",
+        "file://*/*"
+      ]
     }
   ]
 }
