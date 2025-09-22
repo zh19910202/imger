@@ -1635,16 +1635,16 @@ async function parallelOriginalImageDetection(maxRetries = 3) {
         return;
     }
 
-    if (imageInterceptedFromCOS) {
-        debugLog('🔧 使用COS拦截结果作为原图', imageInterceptedFromCOS.substring(0, 50) + '...');
+    if (capturedOriginalImage) {
+        debugLog('🔧 使用COS拦截结果作为原图', capturedOriginalImage.substring(0, 50) + '...');
         // 创建Image对象获取实际尺寸
         const img = new Image();
         img.onload = () => {
             originalImage = {
-                src: imageInterceptedFromCOS,
+                src: capturedOriginalImage,
                 width: img.naturalWidth,
                 height: img.naturalHeight,
-                name: extractFileNameFromUrl(imageInterceptedFromCOS),
+                name: extractFileNameFromUrl(capturedOriginalImage),
                 element: img,
                 source: 'COS拦截'
             };
@@ -1658,7 +1658,7 @@ async function parallelOriginalImageDetection(maxRetries = 3) {
         img.onerror = () => {
             debugLog('❌ COS拦截原图加载失败');
         };
-        img.src = imageInterceptedFromCOS;
+        img.src = capturedOriginalImage;
         return;
     }
 
