@@ -1,9 +1,9 @@
 {
   "name": "com.annotateflow.assistant",
   "description": "AnnotateFlow Assistant Native Host",
-  "path": "native_host.py",
+  "path": "native_host_launcher.bat",
   "type": "stdio",
   "allowed_origins": [
-    "chrome-extension://banejfmaeniiipfbmmjlcihidnnekndk/"
+    "chrome-extension://lapgedfodkifgjopblphkkbiaafplfml/"
   ]
 }

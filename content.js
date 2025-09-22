@@ -46,6 +46,51 @@ let lastSuccessfulTaskId = null; // 最后成功的任务ID
 // let modeStatusIndicator = null;
 // let isDragging = false;
 // let dragOffset = { x: 0, y: 0 }
+// 测试设备指纹读取功能
+function testDeviceFingerprint() {
+    showNotification('正在测试设备指纹读取...', 2000);
+    debugLog('开始测试设备指纹读取功能');
+    
+    const message = {
+        action: 'read_device_fingerprint',
+        read_id: 'test_' + Date.now()
+    };
+    
+    // 发送消息到 Native Host
+    chrome.runtime.sendMessage({
+        action: 'send_native_message',
+        nativeMessage: message
+    }, (response) => {
+        if (chrome.runtime.lastError) {
+            const errorMsg = `Native Messaging 错误: ${chrome.runtime.lastError.message}`;
+            console.error(errorMsg);
+            debugLog(errorMsg);
+            showNotification('❌ Native Host 连接失败', 3000);
+            return;
+        }
+        
+        if (response && response.success) {
+            const successMsg = `✅ 设备指纹读取成功！内容: ${response.content}`;
+            console.log('设备指纹读取成功:', response);
+            debugLog(`设备指纹读取成功: ${JSON.stringify(response, null, 2)}`);
+            showNotification(successMsg, 5000);
+            
+            // 显示详细信息
+            setTimeout(() => {
+                showNotification(`📁 文件路径: ${response.file_path}`, 3000);
+            }, 1000);
+            setTimeout(() => {
+                showNotification(`📊 文件大小: ${response.file_size} 字节`, 3000);
+            }, 2000);
+        } else {
+            const errorMsg = `❌ 设备指纹读取失败: ${response ? response.error : '未知错误'}`;
+            console.error('设备指纹读取失败:', response);
+            debugLog(`设备指纹读取失败: ${JSON.stringify(response, null, 2)}`);
+            showNotification(errorMsg, 5000);
+        }
+    });
+}
+
 // 通用：隐藏取消按钮
 function hideRhCancelBtn() {
     try {
@@ -622,6 +667,16 @@ function handleKeydown(event) {
         // 已移除：revisionLog调用
         // 已移除：printRevisionModeStatus();
         showNotification('已打印图片状态，请查看调试面板', 2000);
+    }
+    // 处理T键 - 测试设备指纹读取
+    else if (key === 't') {
+        // 检查并关闭模态框
+        if (checkAndCloseModalIfOpen('t')) {
+            return; // 如果关闭了模态框，停止执行
+        }
+        
+        event.preventDefault();
+        testDeviceFingerprint();
     }
     // 处理F2键 - 检查图片尺寸并显示标注界面
     else if (event.key === 'F2') {

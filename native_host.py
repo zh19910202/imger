@@ -95,6 +95,96 @@ def check_file_ready(file_path, check_id=None):
             result["check_id"] = check_id
         return result
 
+def read_device_fingerprint(read_id=None):
+    """读取设备指纹文件内容"""
+    try:
+        # 固定的设备指纹文件路径
+        fingerprint_path = r"C:\Users\Administrator\AppData\Local\stai_cache\device_fingerprint.txt"
+        
+        result = {"action": "read_device_fingerprint_result"}
+        if read_id:
+            result["read_id"] = read_id
+            
+        # 检查文件是否存在
+        if not os.path.exists(fingerprint_path):
+            result.update({
+                "success": False,
+                "error": "Device fingerprint file not found",
+                "file_path": fingerprint_path
+            })
+            return result
+        
+        # 检查文件是否可读
+        if not os.access(fingerprint_path, os.R_OK):
+            result.update({
+                "success": False,
+                "error": "Device fingerprint file is not readable",
+                "file_path": fingerprint_path
+            })
+            return result
+        
+        # 读取文件内容 - 支持多种编码格式，优先处理 UTF-16
+        content = None
+        used_encoding = None
+        encodings_to_try = ['utf-16', 'utf-16-le', 'utf-16-be', 'utf-8', 'utf-8-sig', 'gbk', 'gb2312', 'ascii', 'latin1']
+        
+        for encoding in encodings_to_try:
+            try:
+                with open(fingerprint_path, 'r', encoding=encoding) as f:
+                    raw_content = f.read().strip()
+                    # 清理控制字符和空字符
+                    content = ''.join(char for char in raw_content if char.isprintable() and char != '\x00')
+                    used_encoding = encoding
+                break
+            except UnicodeDecodeError:
+                continue
+        
+        # 如果所有编码都失败，尝试以二进制方式读取
+        if content is None:
+            try:
+                with open(fingerprint_path, 'rb') as f:
+                    raw_content = f.read()
+                # 尝试解码为十六进制字符串
+                content = raw_content.hex()
+                result.update({
+                    "success": True,
+                    "content": content,
+                    "file_path": fingerprint_path,
+                    "file_size": os.path.getsize(fingerprint_path),
+                    "encoding": "binary_hex",
+                    "note": "文件以二进制格式读取并转换为十六进制"
+                })
+                return result
+            except Exception as e:
+                result.update({
+                    "success": False,
+                    "error": f"无法读取文件内容: {str(e)}",
+                    "file_path": fingerprint_path
+                })
+                return result
+        
+        # 成功读取文件内容
+        result.update({
+            "success": True,
+            "content": content,
+            "file_path": fingerprint_path,
+            "file_size": os.path.getsize(fingerprint_path),
+            "encoding": used_encoding or "text",
+            "note": f"使用 {used_encoding} 编码读取" if used_encoding else "文本格式读取"
+        })
+        return result
+        
+    except Exception as e:
+        result = {
+            "action": "read_device_fingerprint_result",
+            "success": False,
+            "error": str(e),
+            "file_path": fingerprint_path if 'fingerprint_path' in locals() else "Unknown"
+        }
+        if read_id:
+            result["read_id"] = read_id
+        return result
+
 def open_file_with_default_app(file_path, open_id=None):
     """使用系统默认应用打开文件"""
     try:
@@ -235,7 +325,7 @@ def start_http_server():
         server.serve_forever()
     except Exception as e:
         # HTTP服务器启动失败，但不影响Native Messaging功能
-        pass
+        pass 
 
 def handle_ps_response(message):
     """处理来自Chrome扩展的PS响应"""
@@ -338,6 +428,10 @@ def main():
                     if check_id:
                         result["check_id"] = check_id
                     send_message(result)
+            elif action == 'read_device_fingerprint':
+                read_id = message.get('read_id')
+                result = read_device_fingerprint(read_id)
+                send_message(result)
             else:
                 send_message({
                     "success": False, 

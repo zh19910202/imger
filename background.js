@@ -889,8 +889,81 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         });
       });
     return true; // 保持消息通道开放
+  } else if (request.action === "send_native_message") {
+    // 处理发送到 Native Host 的消息
+    if (LOG_VERBOSE) console.log('转发消息到 Native Host:', request.nativeMessage);
+    
+    if (!nativePort) {
+      // 尝试连接 Native Host
+      initializeNativeMessaging()
+        .then(() => {
+          sendNativeMessage(request.nativeMessage, sendResponse);
+        })
+        .catch((error) => {
+          console.error('Native Host 连接失败:', error);
+          sendResponse({
+            success: false,
+            error: 'Native Host 连接失败: ' + error.message
+          });
+        });
+    } else {
+      sendNativeMessage(request.nativeMessage, sendResponse);
+    }
+    return true; // 保持消息通道开放
   }
 });
+
+// 发送消息到 Native Host 并处理响应
+function sendNativeMessage(message, sendResponse) {
+  if (!nativePort) {
+    sendResponse({
+      success: false,
+      error: 'Native Host 未连接'
+    });
+    return;
+  }
+
+  try {
+    if (LOG_VERBOSE) console.log('发送消息到 Native Host:', message);
+    
+    // 创建响应监听器
+    const responseListener = (response) => {
+      if (LOG_VERBOSE) console.log('收到 Native Host 响应:', response);
+      
+      // 检查是否是我们期待的响应
+      if (response.action === 'read_device_fingerprint_result' && 
+          message.action === 'read_device_fingerprint') {
+        // 移除监听器
+        nativePort.onMessage.removeListener(responseListener);
+        
+        // 发送响应给 content script
+        sendResponse(response);
+      }
+    };
+    
+    // 添加响应监听器
+    nativePort.onMessage.addListener(responseListener);
+    
+    // 发送消息
+    nativePort.postMessage(message);
+    
+    // 设置超时，防止无响应
+    setTimeout(() => {
+      nativePort.onMessage.removeListener(responseListener);
+      sendResponse({
+        success: false,
+        error: 'Native Host 响应超时'
+      });
+    }, 5000); // 5秒超时
+    
+  } catch (error) {
+    console.error('发送 Native Host 消息失败:', error);
+    sendResponse({
+      success: false,
+      error: '发送消息失败: ' + error.message
+    });
+  }
+}
 
 // COS图片代理获取函数 - 修复栈溢出版本
 async function fetchCOSImageProxy(imageUrl) {

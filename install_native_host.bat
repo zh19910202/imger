@@ -19,6 +19,12 @@ if not exist "%CURRENT_DIR%native_host.py" (
     exit /b 1
 )
 
+if not exist "%CURRENT_DIR%native_host_launcher.bat" (
+    echo 错误：native_host_launcher.bat 文件不存在
+    pause
+    exit /b 1
+)
+
 if not exist "%CURRENT_DIR%com.annotateflow.assistant.json" (
     echo 错误：com.annotateflow.assistant.json 文件不存在
     pause
@@ -32,9 +38,10 @@ if not exist "%NATIVE_DIR%" mkdir "%NATIVE_DIR%"
 REM 复制文件到Chrome目录
 copy "%CURRENT_DIR%com.annotateflow.assistant.json" "%NATIVE_DIR%\" >nul
 copy "%CURRENT_DIR%native_host.py" "%NATIVE_DIR%\" >nul
+copy "%CURRENT_DIR%native_host_launcher.bat" "%NATIVE_DIR%\" >nul
 
 REM 更新JSON文件中的路径
-powershell -Command "(Get-Content '%NATIVE_DIR%\com.annotateflow.assistant.json') -replace 'native_host.py', ('%NATIVE_DIR%\native_host.py' -replace '\\', '\\') | Set-Content '%NATIVE_DIR%\com.annotateflow.assistant.json'"
+powershell -Command "(Get-Content '%NATIVE_DIR%\com.annotateflow.assistant.json') -replace 'native_host_launcher.bat', ('%NATIVE_DIR%\native_host_launcher.bat' -replace '\\', '\\') | Set-Content '%NATIVE_DIR%\com.annotateflow.assistant.json'"
 
 REM 注册Native Host到Windows注册表
 echo 正在注册Native Host到注册表...
