@@ -5561,23 +5561,48 @@ function extractInstructionText() {
                         // 检查是否包含指令性文字
                         const instructionKeywords = [
                             '添加', '更换', '修改', '改变', '调整', '设置', '变成', '换成',
+                            '增加', '戴上', '画出', '增强', '模糊', '锐化', '美化', '优化',
                             '背景', '妆容', '发型', '服装', '表情', '姿势', '颜色', '风格',
+                            '眼镜', '帽子', '衣服', '配饰', '灯光', '特效', '滤镜', '边框',
                             'add', 'change', 'modify', 'replace', 'adjust', 'set', 'make',
-                            'background', 'makeup', 'hairstyle', 'clothing', 'expression'
+                            'increase', 'put on', 'draw', 'enhance', 'blur', 'sharpen',
+                            'background', 'makeup', 'hairstyle', 'clothing', 'expression',
+                            'glasses', 'hat', 'accessories', 'light', 'effect', 'filter'
                         ];
 
                         const containsInstruction = instructionKeywords.some(keyword =>
                             text.toLowerCase().includes(keyword.toLowerCase())
                         );
 
-                        if (containsInstruction) {
+                        // 同时检查是否包含典型的指令动词和对象组合
+                        const hasInstructionPattern =
+                            (text.includes('添加') && (text.includes('眼镜') || text.includes('特效') || text.includes('背景'))) ||
+                            (text.includes('增加') && text.includes('效果')) ||
+                            (text.includes('戴上') && text.includes('眼镜')) ||
+                            (text.includes('画出') && text.includes('图案')) ||
+                            text.match(/(添加|增加|画出|添加).*[。！]$/) !== null;
+
+                        if (containsInstruction || hasInstructionPattern || text.length > 20) {
+                            // 如果文本看起来像指令或长度较长，我们接受它
                             instructionText = text;
                             debugLog('找到指令文本', {
                                 selector: selector,
                                 text: text.substring(0, 100) + '...',
-                                element: element
+                                element: element,
+                                containsKeyword: containsInstruction,
+                                hasPattern: hasInstructionPattern,
+                                textLength: text.length
                             });
                             break;
+                        } else {
+                            debugLog('元素包含文本但不匹配指令关键词', {
+                                selector: selector,
+                                text: text.substring(0, 100) + '...',
+                                element: element,
+                                containsKeyword: containsInstruction,
+                                hasPattern: hasInstructionPattern,
+                                textLength: text.length
+                            });
                         }
                     }
                 }
@@ -5601,6 +5626,13 @@ function extractInstructionText() {
                     /^添加.*[。！]$/, // 以"添加"开头的句子
                     /^修改.*[。！]$/, // 以"修改"开头的句子
                     /^换成.*[。！]$/, // 以"换成"开头的句子
+                    /^给.*增加.*[。！]$/, // 以"给"开头，包含"增加"的句子
+                    /^给.*戴上.*[。！]$/, // 以"给"开头，包含"戴上"的句子
+                    /^给.*添加.*[。！]$/, // 以"给"开头，包含"添加"的句子
+                    /^在.*增加.*[。！]$/, // 以"在"开头，包含"增加"的句子
+                    /^在.*添加.*[。！]$/, // 以"在"开头，包含"添加"的句子
+                    /^画出.*[。！]$/, // 以"画出"开头的句子
+                    /^每人.*[。！]$/, // 包含"每人"的句子
                 ];
 
                 if (text.length > 10 && text.length < 300) {
