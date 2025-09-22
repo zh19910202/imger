@@ -224,7 +224,7 @@ function initializeScript() {
     console.log('=== AnnotateFlow Assistant v2.0 已加载 ===');
     console.log('专为腾讯QLabel标注平台设计');
     console.log('支持功能: D键下载图片, 空格键跳过, S键提交标注, A键上传图片, F键查看历史, W键智能图片对比, Z键调试模式, I键检查文件输入, B键重新检测原图, N键重新检测原图, P键/F2键智能尺寸检查, R键手动检查尺寸是否为8的倍数, T键测试设备指纹并验证卡密');
-    console.log('🎯 原图检测: 只支持JPEG格式的COS原图 (.jpg/.jpeg)');
+    console.log('🎯 原图检测: 支持多种格式的COS原图 (.jpg/.jpeg/.png/.webp/.gif/.bmp)');
     console.log('Chrome对象:', typeof chrome);
     console.log('Chrome.runtime:', typeof chrome?.runtime);
     console.log('扩展ID:', chrome?.runtime?.id);
@@ -1562,28 +1562,28 @@ function recordOriginalImages() {
     parallelOriginalImageDetection();
 }
 
-// 检查图片是否为JPEG格式
-function isJpegImage(url) {
+// 检查图片是否为支持的格式（JPEG, PNG, WebP, GIF, BMP）
+function isSupportedImageFormat(url) {
     if (!url) return false;
-    
+
     const lowerUrl = url.toLowerCase();
-    
+
     // 检查文件扩展名
-    const hasJpegExt = /\.(jpe?g)(\?|$)/i.test(url);
-    
-    // 检查URL中是否包含JPEG关键词
-    const hasJpegKeyword = lowerUrl.includes('jpeg') || lowerUrl.includes('jpg');
-    
-    const result = hasJpegExt || hasJpegKeyword;
-    
+    const hasSupportedExt = /\.(jpe?g|png|webp|gif|bmp)(\?|$)/i.test(url);
+
+    // 检查URL中是否包含支持的格式关键词
+    const hasSupportedKeyword = /(jpeg|jpg|png|webp|gif|bmp)/.test(lowerUrl);
+
+    const result = hasSupportedExt || hasSupportedKeyword;
+
     if (!result) {
-        debugLog('非JPEG格式图片', {
+        debugLog('不支持的图片格式', {
             url: url.substring(0, 100) + '...',
-            hasJpegExt,
-            hasJpegKeyword
+            hasSupportedExt,
+            hasSupportedKeyword
         });
     }
-    
+
     return result;
 }
 
@@ -1817,18 +1817,38 @@ async function findOriginalImageBySelectors() {
         '.image-item img[src]'
     ];
 
-    // COS原图选择器
+    // COS原图选择器（支持多种格式）
     const cosImageSelectors = [
         'img[src*="cos.ap-guangzhou.myqcloud.com"][src*="/target/"][src*=".jpg"]',
         'img[src*="cos.ap-guangzhou.myqcloud.com"][src*="/target/"][src*=".jpeg"]',
+        'img[src*="cos.ap-guangzhou.myqcloud.com"][src*="/target/"][src*=".png"]',
+        'img[src*="cos.ap-guangzhou.myqcloud.com"][src*="/target/"][src*=".webp"]',
+        'img[src*="cos.ap-guangzhou.myqcloud.com"][src*="/target/"][src*=".gif"]',
+        'img[src*="cos.ap-guangzhou.myqcloud.com"][src*="/target/"][src*=".bmp"]',
         'img[src*="cos.ap-guangzhou.myqcloud.com"][src*="dataset"][src*=".jpg"]',
         'img[src*="cos.ap-guangzhou.myqcloud.com"][src*="dataset"][src*=".jpeg"]',
+        'img[src*="cos.ap-guangzhou.myqcloud.com"][src*="dataset"][src*=".png"]',
+        'img[src*="cos.ap-guangzhou.myqcloud.com"][src*="dataset"][src*=".webp"]',
+        'img[src*="cos.ap-guangzhou.myqcloud.com"][src*="dataset"][src*=".gif"]',
+        'img[src*="cos.ap-guangzhou.myqcloud.com"][src*="dataset"][src*=".bmp"]',
         'img[src*="/target/"][src*=".jpg"]',
         'img[src*="/target/"][src*=".jpeg"]',
+        'img[src*="/target/"][src*=".png"]',
+        'img[src*="/target/"][src*=".webp"]',
+        'img[src*="/target/"][src*=".gif"]',
+        'img[src*="/target/"][src*=".bmp"]',
         'img[src*="/target/dataset/"][src*=".jpg"]',
         'img[src*="/target/dataset/"][src*=".jpeg"]',
+        'img[src*="/target/dataset/"][src*=".png"]',
+        'img[src*="/target/dataset/"][src*=".webp"]',
+        'img[src*="/target/dataset/"][src*=".gif"]',
+        'img[src*="/target/dataset/"][src*=".bmp"]',
         'img[src*="dataset/"][src*=".jpg"]',
-        'img[src*="dataset/"][src*=".jpeg"]'
+        'img[src*="dataset/"][src*=".jpeg"]',
+        'img[src*="dataset/"][src*=".png"]',
+        'img[src*="dataset/"][src*=".webp"]',
+        'img[src*="dataset/"][src*=".gif"]',
+        'img[src*="dataset/"][src*=".bmp"]'
     ];
 
     // 合并选择器，精确DOM选择器优先
@@ -1843,8 +1863,8 @@ async function findOriginalImageBySelectors() {
             try {
                 const images = document.querySelectorAll(selector);
                 if (images.length > 0) {
-                    // 找到第一个符合条件的JPEG图片
-                    const jpegImage = Array.from(images).find(img => isJpegImage(img.src) && img.complete);
+                    // 找到第一个符合条件的支持格式图片
+                    const jpegImage = Array.from(images).find(img => isSupportedImageFormat(img.src) && img.complete);
                     if (jpegImage) {
                         resolve({
                             src: jpegImage.src,
@@ -1897,7 +1917,7 @@ async function findLoadedOriginalImages() {
     const images = document.querySelectorAll('img[src]');
     const loadedImages = Array.from(images)
         .filter(img => img.complete && img.naturalWidth > 200 && img.naturalHeight > 200)
-        .filter(img => isJpegImage(img.src))
+        .filter(img => isSupportedImageFormat(img.src))
         .sort((a, b) => (b.naturalWidth * b.naturalHeight) - (a.naturalWidth * a.naturalHeight));
 
     if (loadedImages.length > 0) {
@@ -2038,11 +2058,11 @@ function recordImageAsOriginal(img) {
         return;
     }
     
-    // 验证图片格式：只接受JPEG格式的原图
-    if (!img.src || !isJpegImage(img.src)) {
-        debugLog('跳过非JPEG格式的图片', {
+    // 验证图片格式：只接受支持的图片格式（JPEG, PNG, WebP, GIF, BMP）
+    if (!img.src || !isSupportedImageFormat(img.src)) {
+        debugLog('跳过不支持的图片格式', {
             src: img.src ? img.src.substring(0, 100) + '...' : '无src',
-            reason: '不是JPEG格式'
+            reason: '不支持的图片格式'
         });
         return;
     }
@@ -2289,10 +2309,10 @@ function isImageUrl(url) {
     
     const lowerUrl = url.toLowerCase();
     
-    // 图片文件扩展名（只支持JPEG格式的原图）
-    const imageExtensions = ['.jpg', '.jpeg'];
+    // 图片文件扩展名（支持多种格式）
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp'];
     const hasImageExt = imageExtensions.some(ext => lowerUrl.includes(ext));
-    
+
     // 后端API图片路径关键词
     const backendImagePaths = [
         '/api/image', '/api/upload', '/api/file', '/api/media',
@@ -2300,10 +2320,10 @@ function isImageUrl(url) {
         '/attachment/', '/resource/image', '/assets/image',
         '/static/image', '/public/image', '/storage/image'
     ];
-    
-    // 图片相关关键词（只保留JPEG相关）
+
+    // 图片相关关键词（支持多种格式）
     const imageKeywords = [
-        'image', 'img', 'picture', 'photo', 'pic', 'jpeg', 'jpg',
+        'image', 'img', 'picture', 'photo', 'pic', 'jpeg', 'jpg', 'png', 'webp', 'gif', 'bmp',
         'upload', 'media', 'attachment', 'file'
     ];
     
@@ -2760,7 +2780,7 @@ function observeResourceLoading() {
     // 监听所有资源的加载事件
     const observer = new PerformanceObserver((list) => {
         for (const entry of list.getEntries()) {
-            if (entry.initiatorType === 'img' || entry.name.match(/\.(jpg|jpeg)(\?|$)/i)) {
+            if (entry.initiatorType === 'img' || entry.name.match(/\.(jpe?g|png|webp|gif|bmp)(\?|$)/i)) {
                 debugLog('性能API检测到图片资源', {
                     name: entry.name.substring(0, 100) + '...',
                     size: entry.transferSize,
@@ -4929,25 +4949,32 @@ function isCOSOriginalImage(url) {
     
     const hasCOSOriginalPath = cosOriginalPaths.some(path => lowerUrl.includes(path));
     
-    // 检查文件扩展名（COS原图只有JPEG格式）
-    const hasJpegExt = /\.(jpe?g)(\?|$)/i.test(url);
+    // 检查文件扩展名（COS原图支持多种格式）
+    const hasSupportedExt = /\.(jpe?g|png|webp|gif|bmp)(\?|$)/i.test(url);
     
     // 检查URL参数（COS带签名参数）
     const hasSignParams = lowerUrl.includes('q-sign-algorithm') || 
                          lowerUrl.includes('?sign=') ||
                          lowerUrl.includes('&sign=');
     
-    const result = hasCOSOriginalPath && hasJpegExt;
-    
+    const result = hasCOSDomain && hasCOSOriginalPath && hasSupportedExt && hasSignParams;
+
     if (result) {
-        debugLog('识别为COS原图 (JPEG格式)', {
+        debugLog('识别为COS原图 (支持多种格式)', {
             url: url.substring(0, 100) + '...',
             hasCOSOriginalPath,
-            hasJpegExt,
+            hasSupportedExt,
+            hasSignParams
+        });
+    } else if (hasCOSDomain) {
+        debugLog('识别为COS图片但不是原图', {
+            url: url.substring(0, 100) + '...',
+            hasCOSOriginalPath,
+            hasSupportedExt,
             hasSignParams
         });
     }
-    
+
     return result;
 }
 
