@@ -8772,8 +8772,8 @@ async function sendPostRequestToNativeHost() {
 
         console.log('发送的数据:', imageData);
 
-        // 发送POST请求到Native Host的HTTP服务器
-        const response = await fetch('http://localhost:8888/api/images', {
+        // 发送POST请求到Native Host的HTTP服务器（使用新的Chrome数据端点）
+        const response = await fetch('http://localhost:8888/api/chrome-data', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -9059,10 +9059,21 @@ async function getNativeHostImageData(source = null) {
         showNotification('正在获取Native Host图片数据...', 2000);
         debugLog('开始获取Native Host图片数据');
 
-        // 构建URL，可选指定数据源
-        let url = 'http://localhost:8888/api/img';
-        if (source) {
-            url += `?source=${source}`;
+        // 根据source参数构建URL，使用新的API端点
+        let url;
+        if (source === 'external_application') {
+            // 获取外部应用发送的修改图和蒙版图
+            url = 'http://localhost:8888/api/external-data';
+        } else if (source === 'chrome_extension') {
+            // 获取Chrome扩展发送的原图和标注图（理论上Chrome扩展不会调用这个）
+            url = 'http://localhost:8888/api/chrome-data';
+        } else {
+            // 默认使用旧的端点以保持向后兼容
+            let legacyUrl = 'http://localhost:8888/api/img';
+            if (source) {
+                legacyUrl += `?source=${source}`;
+            }
+            url = legacyUrl;
         }
 
         // 向native host发送请求获取图片数据
