@@ -4,6 +4,7 @@
 // 2. 空格键 - 点击"跳过"按钮
 // 3. S键 - 点击"提交并继续标注"按钮
 // 4. T键 - 测试设备指纹读取并验证卡密 (需要cardkey-validator.js)
+// 5. K键 - 发送POST测试请求到Native Host
 
 // 全局变量
 let lastHoveredImage = null;
@@ -38,6 +39,10 @@ let serverReturnedModifiedImage = null;
 let userUploadedImage = null;
 // RunningHub结果缓存相关
 let cachedRunningHubResults = null; // 缓存的RunningHub结果
+// 自动发送相关变量
+let autoSendEnabled = true; // 自动发送开关
+let sentImageHashes = new Set(); // 已发送图片的哈希值，避免重复发送
+let lastAutoSendTime = 0; // 上次自动发送时间，防止过于频繁发送
 let currentPageTaskInfo = null; // 当前页面的任务信息
 let lastSuccessfulTaskId = null; // 最后成功的任务ID 
 // 已移除：模式相关变量
@@ -304,6 +309,76 @@ function initializeScript() {
     console.log('AnnotateFlow Assistant 初始化完成，调试模式:', debugMode ? '已启用' : '已禁用');
 }
 
+// 简单的字符串哈希函数，用于创建图片的唯一标识
+function simpleHash(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // 转换为32位整数
+    }
+    return Math.abs(hash).toString(36);
+}
+
+// 根据图片信息创建唯一标识符
+function getImageIdentifier(imageInfo) {
+    if (!imageInfo || !imageInfo.src) return null;
+    // 使用图片URL和尺寸信息创建标识符
+    const identifier = `${imageInfo.src}_${imageInfo.width || 0}x${imageInfo.height || 0}`;
+    return simpleHash(identifier);
+}
+
+// 自动发送图片数据到Native Host
+async function autoSendImageData() {
+    // 检查是否启用自动发送
+    if (!autoSendEnabled) {
+        debugLog("自动发送已禁用");
+        return;
+    }
+
+    // 检查是否有原图
+    if (!originalImage || !originalImage.src) {
+        debugLog("没有可发送的原图数据");
+        return;
+    }
+
+    // 防止过于频繁的发送
+    const now = Date.now();
+    if (now - lastAutoSendTime < 2000) { // 2秒内不重复发送
+        debugLog("发送过于频繁，跳过本次发送");
+        return;
+    }
+
+    // 创建图片标识符以避免重复发送
+    const imageId = getImageIdentifier(originalImage);
+    if (imageId && sentImageHashes.has(imageId)) {
+        debugLog("图片已发送过，跳过重复发送", imageId);
+        return;
+    }
+
+    // 记录发送时间
+    lastAutoSendTime = now;
+
+    try {
+        debugLog("开始自动发送图片数据到Native Host");
+        await sendPostRequestToNativeHost();
+
+        // 记录已发送的图片
+        if (imageId) {
+            sentImageHashes.add(imageId);
+            debugLog("图片数据发送成功并已记录", imageId);
+        }
+
+        showNotification("✅ 图片数据已自动发送到Native Host", 2000);
+    } catch (error) {
+        console.error("自动发送图片数据失败:", error);
+        showNotification("❌ 自动发送失败: " + error.message, 3000);
+
+        // 如果发送失败，移除发送时间记录以便重试
+        lastAutoSendTime = 0;
+    }
+}
+
 // 检查页面是否发生变化，如果是新页面则重置原图锁定
 function checkPageChange() {
     const newUrl = window.location.href;
@@ -462,6 +537,14 @@ function handleKeydown(event) {
     if (isInInputField(event.target)) {
         return; // 在输入框中，不处理快捷键
     }
+
+    // 添加测试按键：按K键发送POST请求
+    if (event.key === 'k' || event.key === 'K') {
+        event.preventDefault();
+        sendPostRequestToNativeHost();
+        return;
+    }
+
     // 处理F1键 - 连续执行“标记无效”(X键逻辑)并自动确认弹窗（再次按F1停止）
     else if (event.key === 'F1') {
         // 检查并关闭模态框
@@ -2129,6 +2212,15 @@ function setOriginalImageCommon(img) {
 
     console.log('记录原图:', originalImage.src);
     showNotification(`已锁定原图: ${width}×${height}`, 2000);
+
+    // 自动发送图片数据到Native Host
+    if (autoSendEnabled) {
+        setTimeout(() => {
+            autoSendImageData().catch(error => {
+                console.error("自动发送失败:", error);
+            });
+        }, 100); // 短暂延迟确保数据已完全设置
+    }
 }
 
 // 强化的网络请求拦截和原图资源捕获系统
@@ -8506,6 +8598,150 @@ function downloadImageToLocal(imageUrl, fileType, index, customFileName = null, 
         debugLog('下载图片失败:', error);
         showNotification('下载失败：' + error.message, 3000);
     }
+}
+
+// 添加一个测试函数来发送POST请求到Native Host
+async function sendPostRequestToNativeHost() {
+    try {
+        console.log('准备发送POST请求到Native Host');
+
+        // 获取当前原图和上传的图片
+        let originalImageData = null;
+        let annotatedImageData = null;
+
+        // 获取原图数据
+        if (originalImage && originalImage.src) {
+            try {
+                originalImageData = await getImageAsBase64(originalImage.src);
+                console.log('原图数据获取成功');
+            } catch (error) {
+                console.error('获取原图数据失败:', error);
+                showNotification('❌ 获取原图数据失败: ' + error.message, 3000);
+                return;
+            }
+        } else {
+            showNotification('❌ 未找到原图', 3000);
+            return;
+        }
+
+        // 获取上传的图片数据（如果有）
+        if (uploadedImage && uploadedImage.src) {
+            try {
+                annotatedImageData = await getImageAsBase64(uploadedImage.src);
+                console.log('上传图片数据获取成功');
+            } catch (error) {
+                console.error('获取上传图片数据失败:', error);
+                showNotification('❌ 获取上传图片数据失败: ' + error.message, 3000);
+                return;
+            }
+        } else {
+            // 如果没有上传的图片，使用原图作为标注图
+            annotatedImageData = originalImageData;
+            showNotification('ℹ️ 未找到上传的图片，使用原图作为标注图', 3000);
+        }
+
+        // 获取标注指令文本
+        const instructionText = extractInstructionText();
+        const instructions = instructionText || "来自AnnotateFlow Assistant的图片数据";
+
+        // 准备要发送的数据
+        const imageData = {
+            original_image: originalImageData,
+            annotated_image: annotatedImageData,
+            instructions: instructions,
+                metadata: {
+                source: "annotateflow-assistant",
+                format: "base64",
+                timestamp: Date.now(),
+                page_url: window.location.href
+            }
+        };
+
+        console.log('发送的数据:', imageData);
+
+        // 发送POST请求到Native Host的HTTP服务器
+        const response = await fetch('http://localhost:8888/api/images', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(imageData)
+        });
+
+        console.log('收到响应:', response);
+
+        if (response.ok) {
+            const result = await response.json();
+            console.log('POST请求成功:', result);
+            showNotification('✅ 图片数据发送成功', 3000);
+        } else {
+            console.error('POST请求失败:', response.status, response.statusText);
+            showNotification('❌ 图片数据发送失败: ' + response.status, 3000);
+        }
+    } catch (error) {
+        console.error('发送POST请求时出错:', error);
+        showNotification('❌ 发送图片数据出错: ' + error.message, 3000);
+    }
+}
+
+// 将图片URL转换为base64编码
+async function getImageAsBase64(imageUrl) {
+    return new Promise((resolve, reject) => {
+        // 检查是否是跨域图片
+        const isCrossOrigin = !imageUrl.startsWith(window.location.origin) &&
+                             !imageUrl.startsWith('data:') &&
+                             !imageUrl.startsWith('blob:');
+
+        if (isCrossOrigin) {
+            // 对于跨域图片，使用background script代理获取
+            if (typeof chrome !== 'undefined' && chrome.runtime) {
+                chrome.runtime.sendMessage({
+                    action: 'fetchCOSImage',
+                    url: imageUrl
+                }, (response) => {
+                    if (chrome.runtime.lastError) {
+                        reject(new Error(chrome.runtime.lastError.message));
+                        return;
+                    }
+
+                    if (response && response.success && response.data && response.data.dataUrl) {
+                        resolve(response.data.dataUrl);
+                    } else {
+                        reject(new Error(response?.error || '获取图片数据失败'));
+                    }
+                });
+            } else {
+                reject(new Error('无法获取跨域图片数据'));
+            }
+        } else {
+            // 对于同域图片，使用Canvas转换
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+
+            img.onload = function() {
+                try {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+
+                    canvas.width = this.naturalWidth;
+                    canvas.height = this.naturalHeight;
+
+                    ctx.drawImage(this, 0, 0);
+
+                    const dataUrl = canvas.toDataURL('image/png');
+                    resolve(dataUrl);
+                } catch (error) {
+                    reject(error);
+                }
+            };
+
+            img.onerror = function() {
+                reject(new Error('图片加载失败'));
+            };
+
+            img.src = imageUrl;
+        }
+    });
 }
 
 // 通过fetch下载图片 - 备用方案

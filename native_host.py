@@ -37,7 +37,9 @@ image_data_store = {
     "original_image": None,      # 原图数据
     "annotated_image": None,     # 标注图数据
     "instructions": None,        # 标注要求
-    "metadata": {}               # 元数据
+    "metadata": {},              # 元数据
+    "source_type": "unknown",    # 数据来源类型: "chrome_extension" 或 "external_application"
+    "update_timestamp": 0        # 数据更新时间戳
 }
 image_data_lock = threading.Lock()  # 图片数据锁
 
@@ -247,17 +249,27 @@ class PSRequestHandler(BaseHTTPRequestHandler):
                         self.send_error(400, "Missing required image data")
                         return
 
+                    # 获取当前时间戳
+                    current_time = time.time()
+
+                    # 确定数据来源类型
+                    source_type = "external_application"
+                    if request_data.get("source") == "annotateflow-assistant":
+                        source_type = "chrome_extension"
+
                     # 存储图片数据
                     with image_data_lock:
                         image_data_store["original_image"] = original_image
                         image_data_store["annotated_image"] = annotated_image
                         image_data_store["instructions"] = request_data.get("instructions", "")
                         image_data_store["metadata"] = {
-                            "upload_time": time.time(),
+                            "upload_time": current_time,
                             "source": request_data.get("source", "unknown"),
                             "format": request_data.get("format", "base64"),
                             **request_data.get("metadata", {})
                         }
+                        image_data_store["source_type"] = source_type
+                        image_data_store["update_timestamp"] = current_time
 
                     # 发送成功响应
                     self.send_response(200)
@@ -363,13 +375,18 @@ class PSRequestHandler(BaseHTTPRequestHandler):
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
 
+            # 获取当前时间戳
+            current_time = time.time()
+
             # 获取存储的图片数据
             with image_data_lock:
                 img_data = {
                     "original_image": image_data_store["original_image"],
                     "instructions": image_data_store["instructions"],
                     "metadata": image_data_store["metadata"],
-                    "timestamp": time.time()
+                    "source_type": image_data_store["source_type"],
+                    "update_timestamp": image_data_store["update_timestamp"],
+                    "response_timestamp": current_time
                 }
 
             self.wfile.write(json.dumps(img_data, ensure_ascii=False).encode('utf-8'))
