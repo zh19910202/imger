@@ -286,8 +286,117 @@ async function main() {
     }
 }
 
+// 模拟发送原图和标注图到Native Host的示例
+async function sendOriginalAndAnnotatedImages() {
+    console.log('=== 模拟发送原图和标注图到Native Host ===');
+
+    try {
+        // 1. 检查Native Host健康状态
+        console.log('正在检查Native Host状态...');
+        const healthResult = await checkNativeHostHealth();
+        console.log();
+
+        if (!healthResult.success) {
+            console.log('无法连接到Native Host，退出程序');
+            return;
+        }
+
+        // 2. 创建原图数据 (模拟一张产品图片)
+        console.log('正在创建原图数据...');
+        const originalImageSvg = `
+            <svg width="500" height="400" xmlns="http://www.w3.org/2000/svg">
+                <rect width="100%" height="100%" fill="#f5f5f5"/>
+                <rect x="50" y="50" width="400" height="300" fill="#ffffff" stroke="#ddd" stroke-width="2" rx="10"/>
+                <circle cx="250" cy="200" r="80" fill="#4CAF50" opacity="0.7"/>
+                <rect x="150" y="150" width="200" height="100" fill="#2196F3" opacity="0.8" rx="5"/>
+                <text x="250" y="180" text-anchor="middle" font-family="Arial" font-size="20" fill="#333">
+                    Product Image
+                </text>
+                <text x="250" y="210" text-anchor="middle" font-family="Arial" font-size="16" fill="#666">
+                    Original Photo
+                </text>
+                <text x="250" y="240" text-anchor="middle" font-family="Arial" font-size="14" fill="#999">
+                    ${new Date().toLocaleString()}
+                </text>
+            </svg>
+        `;
+        const originalImageBase64 = btoa(originalImageSvg);
+        const originalImageData = `data:image/svg+xml;base64,${originalImageBase64}`;
+
+        // 3. 创建标注图数据 (模拟标注后的图片)
+        console.log('正在创建标注图数据...');
+        const annotatedImageSvg = `
+            <svg width="500" height="400" xmlns="http://www.w3.org/2000/svg">
+                <rect width="100%" height="100%" fill="#f5f5f5"/>
+                <rect x="50" y="50" width="400" height="300" fill="#ffffff" stroke="#ddd" stroke-width="2" rx="10"/>
+                <!-- 标注区域 -->
+                <circle cx="250" cy="200" r="80" fill="#4CAF50" opacity="0.3" stroke="#4CAF50" stroke-width="3"/>
+                <rect x="150" y="150" width="200" height="100" fill="#2196F3" opacity="0.4" rx="5" stroke="#2196F3" stroke-width="3"/>
+                <!-- 标注标记 -->
+                <circle cx="250" cy="200" r="5" fill="#ff0000"/>
+                <text x="260" y="195" font-family="Arial" font-size="14" fill="#ff0000">A</text>
+                <rect x="150" y="150" width="5" height="5" fill="#ff0000"/>
+                <text x="160" y="155" font-family="Arial" font-size="14" fill="#ff0000">B</text>
+                <!-- 说明文字 -->
+                <text x="250" y="370" text-anchor="middle" font-family="Arial" font-size="16" fill="#333">
+                    Annotated Image with Markers
+                </text>
+            </svg>
+        `;
+        const annotatedImageBase64 = btoa(annotatedImageSvg);
+        const annotatedImageData = `data:image/svg+xml;base64,${annotatedImageBase64}`;
+
+        // 4. 发送图片数据到Native Host
+        console.log('正在发送原图和标注图数据到Native Host...');
+        const sendResult = await sendImagesToNativeHost(
+            originalImageData,
+            annotatedImageData,
+            '产品图片标注数据 - 原图和标注图示例',
+            {
+                image_type: 'product_annotation',
+                category: 'example',
+                version: '1.0'
+            }
+        );
+
+        if (sendResult.success) {
+            console.log('\n🎉 原图和标注图发送成功!');
+        } else {
+            console.log('\n💥 原图和标注图发送失败!');
+            console.log('错误信息:', sendResult.error);
+        }
+
+        console.log();
+
+        // 5. 获取存储的图片数据进行验证
+        console.log('正在获取存储在Native Host中的图片数据进行验证...');
+        const getResult = await getStoredImageData('external_application');
+
+        if (getResult.success) {
+            console.log('\n🎉 成功获取图片数据!');
+            console.log('获取到的图片数据包含:');
+            if (getResult.data.modified_image) {
+                console.log('  - 修改图数据: ✓');
+            }
+            if (getResult.data.mask_image) {
+                console.log('  - 蒙版图数据: ✓');
+            }
+            console.log('  - 数据源类型:', getResult.data.source_type);
+        } else {
+            console.log('\n💥 获取图片数据失败!');
+            console.log('错误信息:', getResult.error);
+        }
+
+        console.log('\n=== 模拟发送完成 ===');
+    } catch (error) {
+        console.log('❌ 执行过程中出错:', error.message);
+    }
+}
+
 // 如果在浏览器环境中运行，可以调用main函数
 // main();
+// 或者调用新的示例函数
+// sendOriginalAndAnnotatedImages();
 
 // Node.js环境下的使用示例 (需要安装node-fetch)
 /*
@@ -305,6 +414,8 @@ global.FileReader = class {
 };
 
 main();
+// 或者调用新的示例函数
+// sendOriginalAndAnnotatedImages();
 */
 
 // 导出函数供外部使用
@@ -315,6 +426,7 @@ if (typeof module !== 'undefined' && module.exports) {
         checkNativeHostHealth,
         getStoredImageData,
         createSampleImageAsBase64,
-        createMaskImageAsBase64
+        createMaskImageAsBase64,
+        sendOriginalAndAnnotatedImages
     };
 }
