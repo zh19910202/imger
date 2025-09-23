@@ -114,6 +114,55 @@ def check_file_ready(file_path, check_id=None):
             result["check_id"] = check_id
         return result
 
+def get_cache_info(info_id=None):
+    """获取缓存信息"""
+    try:
+        import json as json_module
+
+        result = {"action": "get_cache_info_result"}
+        if info_id:
+            result["info_id"] = info_id
+
+        # 获取缓存信息
+        cache_info = {
+            "image_data_store": {
+                "chrome_extension": {
+                    "has_original_image": image_data_store["chrome_extension"]["original_image"] is not None,
+                    "has_annotated_image": image_data_store["chrome_extension"]["annotated_image"] is not None,
+                    "instructions": image_data_store["chrome_extension"]["instructions"],
+                    "metadata": image_data_store["chrome_extension"]["metadata"],
+                    "update_timestamp": image_data_store["chrome_extension"]["update_timestamp"]
+                },
+                "external_application": {
+                    "has_modified_image": image_data_store["external_application"]["modified_image"] is not None,
+                    "has_mask_image": image_data_store["external_application"]["mask_image"] is not None,
+                    "instructions": image_data_store["external_application"]["instructions"],
+                    "metadata": image_data_store["external_application"]["metadata"],
+                    "update_timestamp": image_data_store["external_application"]["update_timestamp"]
+                },
+                "current_source": image_data_store.get("current_source", "unknown")
+            },
+            "pending_requests_count": len(pending_requests),
+            "http_server_config": HTTP_SERVER_CONFIG
+        }
+
+        result.update({
+            "success": True,
+            "cache_info": cache_info
+        })
+        return result
+
+    except Exception as e:
+        result = {
+            "action": "get_cache_info_result",
+            "success": False,
+            "error": str(e)
+        }
+        if info_id:
+            result["info_id"] = info_id
+        return result
+
+
 def read_device_fingerprint(read_id=None):
     """读取设备指纹文件内容"""
     try:
@@ -231,7 +280,21 @@ def open_file_with_default_app(file_path, open_id=None):
         return result
 
 class PSRequestHandler(BaseHTTPRequestHandler):
-    """处理来自PS插件的HTTP请求"""
+    """处理来自PS插件和Chrome扩展的HTTP请求
+
+    API端点设计：
+    /api/chrome-data: 用于存放和获取来自谷歌插件的数据
+        POST /api/chrome-data: 谷歌插件调用此接口，用于发送【原图】和【标注图】
+        GET /api/chrome-data: 外部应用调用此接口，用于获取【原图】和【标注图】
+
+    /api/external-data: 用于存放和获取来自外部应用（如PS插件）的数据
+        POST /api/external-data: 外部应用调用此接口，用于发送【修改图】和【蒙版图】
+        GET /api/external-data: 谷歌插件调用此接口，用于获取【修改图】和【蒙版图】
+
+    /api/process: 用于处理PS请求（向后兼容）
+    /api/images: 旧版图片接口（向后兼容）
+    /api/health: 健康检查端点
+    """
     
     def do_POST(self):
         """处理POST请求"""
@@ -244,57 +307,38 @@ class PSRequestHandler(BaseHTTPRequestHandler):
 
             post_data = self.rfile.read(content_length)
 
-            # 处理图片接收端点
-            if self.path == '/api/images':
+            # 处理谷歌插件数据端点 - 存放原图和标注图
+            if self.path == '/api/chrome-data':
                 try:
                     # 解析JSON数据
                     request_data = json.loads(post_data.decode('utf-8'))
 
-                    # 验证必需字段
+                    # 验证必需字段 - 谷歌插件发送原图和标注图
                     original_image = request_data.get("original_image")
                     annotated_image = request_data.get("annotated_image")
 
                     if not original_image or not annotated_image:
-                        self.send_error(400, "Missing required image data")
+                        self.send_error(400, "Missing required image data: original_image and annotated_image")
                         return
 
                     # 获取当前时间戳
                     current_time = time.time()
 
-                    # 确定数据来源类型
-                    source_type = "external_application"
-                    if request_data.get("source") == "annotateflow-assistant":
-                        source_type = "chrome_extension"
-
-                    # 存储图片数据 - 按来源隔离存储
+                    # 存储Chrome扩展数据：原图 + 标注图
                     with image_data_lock:
-                        if source_type == "chrome_extension":
-                            # Chrome扩展数据：原图 + 标注图
-                            image_data_store["chrome_extension"]["original_image"] = original_image
-                            image_data_store["chrome_extension"]["annotated_image"] = annotated_image
-                            image_data_store["chrome_extension"]["instructions"] = request_data.get("instructions", "")
-                            image_data_store["chrome_extension"]["metadata"] = {
-                                "upload_time": current_time,
-                                "source": request_data.get("source", "unknown"),
-                                "format": request_data.get("format", "base64"),
-                                **request_data.get("metadata", {})
-                            }
-                            image_data_store["chrome_extension"]["update_timestamp"] = current_time
-                        else:
-                            # 外部应用数据：修改图 + 蒙版图
-                            image_data_store["external_application"]["modified_image"] = original_image
-                            image_data_store["external_application"]["mask_image"] = annotated_image
-                            image_data_store["external_application"]["instructions"] = request_data.get("instructions", "")
-                            image_data_store["external_application"]["metadata"] = {
-                                "upload_time": current_time,
-                                "source": request_data.get("source", "unknown"),
-                                "format": request_data.get("format", "base64"),
-                                **request_data.get("metadata", {})
-                            }
-                            image_data_store["external_application"]["update_timestamp"] = current_time
+                        image_data_store["chrome_extension"]["original_image"] = original_image
+                        image_data_store["chrome_extension"]["annotated_image"] = annotated_image
+                        image_data_store["chrome_extension"]["instructions"] = request_data.get("instructions", "")
+                        image_data_store["chrome_extension"]["metadata"] = {
+                            "upload_time": current_time,
+                            "source": "chrome_extension",
+                            "format": request_data.get("format", "base64"),
+                            **request_data.get("metadata", {})
+                        }
+                        image_data_store["chrome_extension"]["update_timestamp"] = current_time
 
                         # 更新当前活跃数据源
-                        image_data_store["current_source"] = source_type
+                        image_data_store["current_source"] = "chrome_extension"
 
                     # 发送成功响应
                     self.send_response(200)
@@ -304,17 +348,70 @@ class PSRequestHandler(BaseHTTPRequestHandler):
 
                     response = {
                         "success": True,
-                        "message": "Images stored successfully",
-                        "timestamp": time.time()
+                        "message": "Chrome extension data stored successfully",
+                        "timestamp": time.time(),
+                        "data_type": "chrome_extension"
                     }
                     self.wfile.write(json.dumps(response, ensure_ascii=False).encode('utf-8'))
 
                 except json.JSONDecodeError:
                     self.send_error(400, "Invalid JSON")
                 except Exception as e:
-                    self.send_error(500, f"Failed to store images: {str(e)}")
+                    self.send_error(500, f"Failed to store chrome data: {str(e)}")
 
-            # 处理原有的PS处理端点
+            # 处理外部应用数据端点 - 存放修改图和蒙版图
+            elif self.path == '/api/external-data':
+                try:
+                    # 解析JSON数据
+                    request_data = json.loads(post_data.decode('utf-8'))
+
+                    # 验证必需字段 - 外部应用发送修改图和蒙版图
+                    modified_image = request_data.get("modified_image")
+                    mask_image = request_data.get("mask_image")
+
+                    if not modified_image or not mask_image:
+                        self.send_error(400, "Missing required image data: modified_image and mask_image")
+                        return
+
+                    # 获取当前时间戳
+                    current_time = time.time()
+
+                    # 存储外部应用数据：修改图 + 蒙版图
+                    with image_data_lock:
+                        image_data_store["external_application"]["modified_image"] = modified_image
+                        image_data_store["external_application"]["mask_image"] = mask_image
+                        image_data_store["external_application"]["instructions"] = request_data.get("instructions", "")
+                        image_data_store["external_application"]["metadata"] = {
+                            "upload_time": current_time,
+                            "source": "external_application",
+                            "format": request_data.get("format", "base64"),
+                            **request_data.get("metadata", {})
+                        }
+                        image_data_store["external_application"]["update_timestamp"] = current_time
+
+                        # 更新当前活跃数据源
+                        image_data_store["current_source"] = "external_application"
+
+                    # 发送成功响应
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json')
+                    self.send_header('Access-Control-Allow-Origin', '*')
+                    self.end_headers()
+
+                    response = {
+                        "success": True,
+                        "message": "External application data stored successfully",
+                        "timestamp": time.time(),
+                        "data_type": "external_application"
+                    }
+                    self.wfile.write(json.dumps(response, ensure_ascii=False).encode('utf-8'))
+
+                except json.JSONDecodeError:
+                    self.send_error(400, "Invalid JSON")
+                except Exception as e:
+                    self.send_error(500, f"Failed to store external data: {str(e)}")
+
+            # 处理原有的PS处理端点（保持向后兼容）
             elif self.path == '/api/process':
                 # 解析JSON数据
                 try:
@@ -370,6 +467,76 @@ class PSRequestHandler(BaseHTTPRequestHandler):
                             del pending_requests[request_id]
 
                     self.send_error(408, "Request timeout")
+
+            # 处理旧的/images端点（保持向后兼容）
+            elif self.path == '/api/images':
+                try:
+                    # 解析JSON数据
+                    request_data = json.loads(post_data.decode('utf-8'))
+
+                    # 验证必需字段
+                    original_image = request_data.get("original_image")
+                    annotated_image = request_data.get("annotated_image")
+
+                    if not original_image or not annotated_image:
+                        self.send_error(400, "Missing required image data")
+                        return
+
+                    # 获取当前时间戳
+                    current_time = time.time()
+
+                    # 确定数据来源类型（保持旧逻辑向后兼容）
+                    source_type = "external_application"
+                    if request_data.get("source") == "annotateflow-assistant":
+                        source_type = "chrome_extension"
+
+                    # 存储图片数据 - 按来源隔离存储
+                    with image_data_lock:
+                        if source_type == "chrome_extension":
+                            # Chrome扩展数据：原图 + 标注图
+                            image_data_store["chrome_extension"]["original_image"] = original_image
+                            image_data_store["chrome_extension"]["annotated_image"] = annotated_image
+                            image_data_store["chrome_extension"]["instructions"] = request_data.get("instructions", "")
+                            image_data_store["chrome_extension"]["metadata"] = {
+                                "upload_time": current_time,
+                                "source": request_data.get("source", "unknown"),
+                                "format": request_data.get("format", "base64"),
+                                **request_data.get("metadata", {})
+                            }
+                            image_data_store["chrome_extension"]["update_timestamp"] = current_time
+                        else:
+                            # 外部应用数据：修改图 + 蒙版图
+                            image_data_store["external_application"]["modified_image"] = original_image
+                            image_data_store["external_application"]["mask_image"] = annotated_image
+                            image_data_store["external_application"]["instructions"] = request_data.get("instructions", "")
+                            image_data_store["external_application"]["metadata"] = {
+                                "upload_time": current_time,
+                                "source": request_data.get("source", "unknown"),
+                                "format": request_data.get("format", "base64"),
+                                **request_data.get("metadata", {})
+                            }
+                            image_data_store["external_application"]["update_timestamp"] = current_time
+
+                        # 更新当前活跃数据源
+                        image_data_store["current_source"] = source_type
+
+                    # 发送成功响应
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json')
+                    self.send_header('Access-Control-Allow-Origin', '*')
+                    self.end_headers()
+
+                    response = {
+                        "success": True,
+                        "message": "Images stored successfully (legacy endpoint)",
+                        "timestamp": time.time()
+                    }
+                    self.wfile.write(json.dumps(response, ensure_ascii=False).encode('utf-8'))
+
+                except json.JSONDecodeError:
+                    self.send_error(400, "Invalid JSON")
+                except Exception as e:
+                    self.send_error(500, f"Failed to store images: {str(e)}")
             else:
                 self.send_error(404, "Not Found")
 
@@ -393,8 +560,8 @@ class PSRequestHandler(BaseHTTPRequestHandler):
             }
             self.wfile.write(json.dumps(health_data).encode('utf-8'))
 
-        # 获取图片数据端点
-        elif self.path == '/api/img':
+        # 谷歌插件获取数据端点 - 外部应用获取【原图】和【标注图】
+        elif self.path == '/api/chrome-data':
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Access-Control-Allow-Origin', '*')
@@ -403,31 +570,99 @@ class PSRequestHandler(BaseHTTPRequestHandler):
             # 获取当前时间戳
             current_time = time.time()
 
-            # 获取存储的图片数据 - 根据当前活跃数据源返回对应数据
+            # 外部应用调用此接口，获取Chrome扩展发送的原图和标注图
             with image_data_lock:
-                current_source = image_data_store["current_source"]
-                if current_source in image_data_store:
-                    source_data = image_data_store[current_source]
+                chrome_data = image_data_store["chrome_extension"]
+                img_data = {
+                    # 包含Chrome扩展的所有字段
+                    **chrome_data,
+                    "source_type": "chrome_extension",
+                    "requester_type": "external_application",
+                    "response_timestamp": current_time
+                }
+            self.wfile.write(json.dumps(img_data, ensure_ascii=False).encode('utf-8'))
+
+        # 外部应用获取数据端点 - 谷歌插件获取【修改图】和【蒙版图】
+        elif self.path == '/api/external-data':
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+
+            # 获取当前时间戳
+            current_time = time.time()
+
+            # Chrome扩展调用此接口，获取外部应用发送的修改图和蒙版图
+            with image_data_lock:
+                external_data = image_data_store["external_application"]
+                img_data = {
+                    # 包含外部应用的所有字段
+                    **external_data,
+                    "source_type": "external_application",
+                    "requester_type": "chrome_extension",
+                    "response_timestamp": current_time
+                }
+            self.wfile.write(json.dumps(img_data, ensure_ascii=False).encode('utf-8'))
+
+        # 获取图片数据端点 - 支持定向数据获取（保持向后兼容）
+        elif self.path.startswith('/api/img'):
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            # 获取当前时间戳
+            current_time = time.time()
+
+            # 解析查询参数来确定请求来源
+            from urllib.parse import urlparse, parse_qs
+            parsed_url = urlparse(self.path)
+            query_params = parse_qs(parsed_url.query)
+
+            # 确定请求者身份和目标数据源
+            target_source = None
+            requester_type = "unknown"
+
+            # 检查是否有明确指定的数据源请求
+            if 'source' in query_params:
+                source_param = query_params['source'][0]
+                if source_param in ['chrome_extension', 'external_application']:
+                    target_source = source_param
+                    requester_type = "direct_request"
+            else:
+                # 根据请求特征推断请求者身份
+                user_agent = self.headers.get('User-Agent', '').lower()
+                origin = self.headers.get('Origin', '').lower()
+
+                # 外部应用通常是Python requests或其他工具
+                if 'python-requests' in user_agent or 'python' in user_agent:
+                    # 外部应用请求，应该返回Chrome插件的数据
+                    target_source = "chrome_extension"
+                    requester_type = "external_app"
+                else:
+                    # Chrome插件请求，应该返回外部应用的数据
+                    target_source = "external_application"
+                    requester_type = "chrome_extension"
+
+            # 获取存储的图片数据
+            with image_data_lock:
+                if target_source and target_source in image_data_store:
+                    source_data = image_data_store[target_source]
                     img_data = {
                         # 包含该数据源的所有字段
                         **source_data,
-                        "source_type": current_source,
+                        "source_type": target_source,
+                        "requester_type": requester_type,
                         "response_timestamp": current_time
                     }
                 else:
-                    # 如果没有活跃数据源，返回空数据
+                    # 返回所有数据源的概览（用于调试）
                     img_data = {
-                        "original_image": None,
-                        "annotated_image": None,
-                        "modified_image": None,
-                        "mask_image": None,
-                        "instructions": None,
-                        "metadata": {},
-                        "source_type": "unknown",
-                        "update_timestamp": 0,
+                        "chrome_extension": image_data_store["chrome_extension"],
+                        "external_application": image_data_store["external_application"],
+                        "current_source": image_data_store["current_source"],
+                        "requester_type": requester_type,
                         "response_timestamp": current_time
                     }
-
             self.wfile.write(json.dumps(img_data, ensure_ascii=False).encode('utf-8'))
 
         else:
@@ -448,11 +683,47 @@ class PSRequestHandler(BaseHTTPRequestHandler):
 def start_http_server():
     """启动HTTP服务器"""
     try:
-        server = HTTPServer((HTTP_SERVER_CONFIG["host"], HTTP_SERVER_CONFIG["port"]), PSRequestHandler)
+        host = HTTP_SERVER_CONFIG["host"]
+        port = HTTP_SERVER_CONFIG["port"]
+        print(f"Attempting to start HTTP server on {host}:{port}", file=sys.stderr)
+        server = HTTPServer((host, port), PSRequestHandler)
+        print(f"HTTP server created successfully on {host}:{port}", file=sys.stderr)
+        print(f"Server address info: {server.server_address}", file=sys.stderr)
+        print(f"Request handler: {PSRequestHandler}", file=sys.stderr)
+        print("About to call serve_forever()", file=sys.stderr)
+        # 添加一个简单的响应来确认服务器启动
+        print("HTTP server is now running and listening for connections", file=sys.stderr)
+        # 启动服务器之前刷新stderr缓冲区
+        sys.stderr.flush()
         server.serve_forever()
+        print("serve_forever() returned", file=sys.stderr)
+    except OSError as e:
+        # 特别处理端口占用等OS错误
+        print(f"OS Error starting HTTP server: {e} (errno: {e.errno})", file=sys.stderr)
+        if "Address already in use" in str(e) or e.errno == 48:
+            print(f"Port {HTTP_SERVER_CONFIG['port']} is already in use. Trying to find another port...", file=sys.stderr)
+            # 尝试使用其他端口
+            for port in range(8889, 8899):
+                try:
+                    server = HTTPServer((HTTP_SERVER_CONFIG["host"], port), PSRequestHandler)
+                    print(f"HTTP server started successfully on {HTTP_SERVER_CONFIG['host']}:{port}", file=sys.stderr)
+                    server.serve_forever()
+                    break
+                except OSError:
+                    continue
+            else:
+                print("Failed to start HTTP server on any alternative port", file=sys.stderr)
+        else:
+            print(f"Failed to start HTTP server due to OS error: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
     except Exception as e:
         # HTTP服务器启动失败，但不影响Native Messaging功能
-        pass 
+        print(f"Exception starting HTTP server: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        print("Full traceback:", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr) 
 
 def handle_ps_response(message):
     """处理来自Chrome扩展的PS响应"""
@@ -490,84 +761,119 @@ def cleanup_expired_requests():
 
 def main():
     """主函数 - 增强版支持HTTP服务器"""
+    import sys  # 在函数开始处导入
+    print("Native Host main function started", file=sys.stderr)
     try:
         # 启动HTTP服务器线程
-        http_thread = threading.Thread(target=start_http_server, daemon=True)
+        print("Starting HTTP server thread", file=sys.stderr)
+        http_thread = threading.Thread(target=start_http_server, daemon=False)  # 改为非守护线程
         http_thread.start()
-        
+        print("HTTP server thread started", file=sys.stderr)
+        print(f"HTTP thread is alive: {http_thread.is_alive()}", file=sys.stderr)
+
         # 启动清理线程
         def cleanup_thread():
             while True:
                 time.sleep(10)  # 每10秒清理一次
                 cleanup_expired_requests()
-        
+
         cleanup_thread = threading.Thread(target=cleanup_thread, daemon=True)
         cleanup_thread.start()
-        
-        # 主循环 - 处理Native Messaging
-        while True:
-            # 检查HTTP请求队列
+        print("Cleanup thread started", file=sys.stderr)
+        print(f"Cleanup thread is alive: {cleanup_thread.is_alive()}", file=sys.stderr)
+
+        # 为了让HTTP服务器持续运行，我们需要保持主线程活跃
+        # 除非是作为Chrome扩展的Native Host运行，否则保持服务器运行
+        import select
+
+        # 如果没有stdin或者不是交互模式，则运行HTTP服务器
+        if not sys.stdin.isatty():
+            print("Running as Chrome Native Host, processing messages", file=sys.stderr)
+            # 主循环 - 处理Native Messaging
+            print("Entering main loop", file=sys.stderr)
+            loop_count = 0
+            while True:
+                loop_count += 1
+                if loop_count % 10 == 0:  # Print every 10 iterations to avoid spam
+                    print(f"Main loop iteration {loop_count}", file=sys.stderr)
+                # 检查HTTP请求队列
+                try:
+                    while not http_request_queue.empty():
+                        print("Processing HTTP request queue", file=sys.stderr)
+                        http_message = http_request_queue.get_nowait()
+                        send_message(http_message)
+                except queue.Empty:
+                    pass
+
+                # 处理Chrome扩展消息
+                print("About to read message from Chrome extension", file=sys.stderr)
+                message = read_message()
+                print(f"Message read: {message is not None}", file=sys.stderr)
+                if not message:
+                    print("No message received, breaking loop", file=sys.stderr)
+                    break
+
+                action = message.get('action')
+
+                # 处理PS响应
+                if action == 'ps_response':
+                    handle_ps_response(message)
+                # 原有的文件操作功能
+                elif action == 'open_file':
+                    file_path = message.get('file_path')
+                    open_id = message.get('open_id')
+                    if file_path and os.path.exists(file_path):
+                        result = open_file_with_default_app(file_path, open_id)
+                        send_message(result)
+                    else:
+                        result = {
+                            "success": False,
+                            "error": f"File not found: {file_path}"
+                        }
+                        if open_id:
+                            result["open_id"] = open_id
+                        send_message(result)
+                elif action == 'check_file':
+                    file_path = message.get('file_path')
+                    check_id = message.get('check_id')
+                    if file_path:
+                        result = check_file_ready(file_path, check_id)
+                        send_message(result)
+                    else:
+                        result = {
+                            "action": "check_file_result",
+                            "exists": False,
+                            "readable": False,
+                            "error": "No file path provided"
+                        }
+                        if check_id:
+                            result["check_id"] = check_id
+                        send_message(result)
+                elif action == 'read_device_fingerprint':
+                    read_id = message.get('read_id')
+                    result = read_device_fingerprint(read_id)
+                    send_message(result)
+                elif action == 'get_cache_info':
+                    info_id = message.get('info_id')
+                    result = get_cache_info(info_id)
+                    send_message(result)
+                else:
+                    send_message({
+                        "success": False,
+                        "error": "Unknown action"
+                    })
+        else:
+            print("Running in standalone mode, keeping HTTP server alive", file=sys.stderr)
+            # 在独立模式下，保持主线程运行以维持HTTP服务器
             try:
-                while not http_request_queue.empty():
-                    http_message = http_request_queue.get_nowait()
-                    send_message(http_message)
-            except queue.Empty:
-                pass
-            
-            # 处理Chrome扩展消息
-            message = read_message()
-            if not message:
-                break
-                
-            action = message.get('action')
-            
-            # 处理PS响应
-            if action == 'ps_response':
-                handle_ps_response(message)
-            # 原有的文件操作功能
-            elif action == 'open_file':
-                file_path = message.get('file_path')
-                open_id = message.get('open_id')
-                if file_path and os.path.exists(file_path):
-                    result = open_file_with_default_app(file_path, open_id)
-                    send_message(result)
-                else:
-                    result = {
-                        "success": False, 
-                        "error": f"File not found: {file_path}"
-                    }
-                    if open_id:
-                        result["open_id"] = open_id
-                    send_message(result)
-            elif action == 'check_file':
-                file_path = message.get('file_path')
-                check_id = message.get('check_id')
-                if file_path:
-                    result = check_file_ready(file_path, check_id)
-                    send_message(result)
-                else:
-                    result = {
-                        "action": "check_file_result",
-                        "exists": False, 
-                        "readable": False,
-                        "error": "No file path provided"
-                    }
-                    if check_id:
-                        result["check_id"] = check_id
-                    send_message(result)
-            elif action == 'read_device_fingerprint':
-                read_id = message.get('read_id')
-                result = read_device_fingerprint(read_id)
-                send_message(result)
-            else:
-                send_message({
-                    "success": False, 
-                    "error": "Unknown action"
-                })
-                
+                while http_thread.is_alive():
+                    time.sleep(1)
+            except KeyboardInterrupt:
+                print("Shutting down HTTP server", file=sys.stderr)
+
     except Exception as e:
         send_message({
-            "success": False, 
+            "success": False,
             "error": f"Native host error: {str(e)}"
         })
 
