@@ -290,7 +290,7 @@ if (document.readyState === 'loading') {
 function initializeScript() {
     console.log('=== AnnotateFlow Assistant v2.0 已加载 ===');
     console.log('专为腾讯QLabel标注平台设计');
-    console.log('支持功能: D键下载图片, 空格键跳过, S键提交标注, A键上传图片, F键查看历史, W键智能图片对比, Z键调试模式, I键检查文件输入, B键重新检测原图, N键重新检测原图, P键/F2键智能尺寸检查, R键手动检查尺寸是否为8的倍数, T键测试设备指纹并验证卡密, J键上传PS修改图, Shift+J键上传蒙版图, Ctrl+J键同时上传两张图');
+    console.log('支持功能: D键下载图片, 空格键跳过, S键提交标注, A键上传图片, F键查看历史, W键智能图片对比, Z键调试模式, I键检查文件输入, B键重新检测原图, N键重新检测原图, P键/F2键智能尺寸检查, R键手动检查尺寸是否为8的倍数, T键测试设备指纹并验证卡密, J键同时上传修改图和蒙版图');
     console.log('🎯 原图检测: 支持多种格式的COS原图 (.jpg/.jpeg/.png/.webp/.gif/.bmp)');
     console.log('Chrome对象:', typeof chrome);
     console.log('Chrome.runtime:', typeof chrome?.runtime);
@@ -753,7 +753,7 @@ function handleKeydown(event) {
         }
     }
     // 处理J键 - 上传Native Host图片数据到标注平台
-    // 按J键上传PS修改图，按Shift+J键上传蒙版图，按Ctrl+J键同时上传两张图
+    // J键默认同时上传修改图和蒙版图
     else if (key === 'j') {
         // 检查并关闭模态框
         if (checkAndCloseModalIfOpen('j')) {
@@ -761,20 +761,8 @@ function handleKeydown(event) {
         }
 
         event.preventDefault();
-
-        // 检查是否按下了Ctrl键来同时上传两张图
-        if (event.ctrlKey) {
-            // Ctrl+J 同时上传修改图和蒙版图
-            uploadNativeHostImageToAnnotationPlatform('all');
-        }
-        // 检查是否按下了Shift键来指定上传目标
-        else if (event.shiftKey) {
-            // Shift+J 上传蒙版图
-            uploadNativeHostImageToAnnotationPlatform('mask');
-        } else {
-            // J键默认上传PS修改图
-            uploadNativeHostImageToAnnotationPlatform('ps');
-        }
+        // J键默认同时上传修改图和蒙版图
+        uploadNativeHostImageToAnnotationPlatform();
     } 
     
     // 处理X键 - 点击"标记无效"按钮
@@ -8994,8 +8982,8 @@ async function getNativeHostImageData(source = null) {
     }
 }
 
-// 上传Native Host图片数据到标注平台（支持上传修改图、蒙版图或两者）
-async function uploadNativeHostImageToAnnotationPlatform(uploadTarget = null) {
+// 上传Native Host图片数据到标注平台（默认同时上传修改图和蒙版图）
+async function uploadNativeHostImageToAnnotationPlatform() {
     try {
         // 获取native host中的图片数据，指定数据源为external_application以获取PS插件上传的数据
         const imageData = await getNativeHostImageData('external_application');
@@ -9005,70 +8993,28 @@ async function uploadNativeHostImageToAnnotationPlatform(uploadTarget = null) {
 
         showNotification('正在处理图片数据...', 1000);
 
-        // 自动识别上传目标，如果未指定
-        if (!uploadTarget) {
-            // 如果同时有修改图和蒙版图，需要用户选择或者上传两者
-            if (imageData.modified_image && imageData.mask_image) {
-                // 默认先上传修改图
-                uploadTarget = 'ps';
-            } else if (imageData.modified_image) {
-                uploadTarget = 'ps';
-            } else if (imageData.mask_image) {
-                uploadTarget = 'mask';
-            } else {
-                showNotification('❌ 未找到可用的图片数据', 3000);
-                return;
-            }
+        // 默认同时上传修改图和蒙版图（如果存在）
+        let uploadCount = 0;
+
+        // 优先上传PS修改图
+        if (imageData.modified_image) {
+            await uploadSingleImage(imageData.modified_image, 'ps_modified_image.png', 'PS修改图', 'ps');
+            uploadCount++;
+            // 等待一段时间再上传下一个
+            await new Promise(resolve => setTimeout(resolve, 2000));
         }
 
-        // 特殊处理：如果指定了'all'，则上传所有可用的图片
-        if (uploadTarget === 'all') {
-            // 顺序上传修改图和蒙版图
-            let uploadCount = 0;
-            if (imageData.modified_image) {
-                await uploadSingleImage(imageData.modified_image, 'ps_modified_image.png', 'PS修改图', 'ps');
-                uploadCount++;
-                // 等待一段时间再上传下一个
-                await new Promise(resolve => setTimeout(resolve, 2000));
-            }
-            if (imageData.mask_image) {
-                await uploadSingleImage(imageData.mask_image, 'mask_image.png', '蒙版图', 'mask');
-                uploadCount++;
-            }
-
-            if (uploadCount > 0) {
-                showNotification(`✅ 成功上传${uploadCount}张图片！`, 3000);
-            } else {
-                showNotification('❌ 未找到可上传的图片', 3000);
-            }
-            return;
+        // 然后上传蒙版图
+        if (imageData.mask_image) {
+            await uploadSingleImage(imageData.mask_image, 'mask_image.png', '蒙版图', 'mask');
+            uploadCount++;
         }
 
-        // 上传单张图片
-        let base64Data, fileName, imageType;
-        if (uploadTarget === 'mask' && imageData.mask_image) {
-            // 上传蒙版图
-            base64Data = imageData.mask_image;
-            fileName = 'mask_image.png';
-            imageType = '蒙版图';
-        } else if (uploadTarget === 'ps' && imageData.modified_image) {
-            // 上传PS修改图
-            base64Data = imageData.modified_image;
-            fileName = 'ps_modified_image.png';
-            imageType = 'PS修改图';
-        } else if (uploadTarget === 'ps' && !imageData.modified_image) {
-            showNotification('❌ 未找到PS修改图数据', 3000);
-            return;
-        } else if (uploadTarget === 'mask' && !imageData.mask_image) {
-            showNotification('❌ 未找到蒙版图数据', 3000);
-            return;
+        if (uploadCount > 0) {
+            showNotification(`✅ 成功上传${uploadCount}张图片！`, 3000);
         } else {
-            showNotification('❌ 未找到可用的图片数据', 3000);
-            return;
+            showNotification('❌ 未找到可上传的图片', 3000);
         }
-
-        // 执行单张图片上传
-        await uploadSingleImage(base64Data, fileName, imageType, uploadTarget);
 
     } catch (error) {
         console.error('上传Native Host图片失败:', error);
