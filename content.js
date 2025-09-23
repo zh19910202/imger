@@ -290,7 +290,7 @@ if (document.readyState === 'loading') {
 function initializeScript() {
     console.log('=== AnnotateFlow Assistant v2.0 已加载 ===');
     console.log('专为腾讯QLabel标注平台设计');
-    console.log('支持功能: D键下载图片, 空格键跳过, S键提交标注, A键上传图片, F键查看历史, W键智能图片对比, Z键调试模式, I键检查文件输入, B键重新检测原图, N键重新检测原图, P键/F2键智能尺寸检查, R键手动检查尺寸是否为8的倍数, T键测试设备指纹并验证卡密');
+    console.log('支持功能: D键下载图片, 空格键跳过, S键提交标注, A键上传图片, F键查看历史, W键智能图片对比, Z键调试模式, I键检查文件输入, B键重新检测原图, N键重新检测原图, P键/F2键智能尺寸检查, R键手动检查尺寸是否为8的倍数, T键测试设备指纹并验证卡密, J键上传PS修改图, Shift+J键上传蒙版图');
     console.log('🎯 原图检测: 支持多种格式的COS原图 (.jpg/.jpeg/.png/.webp/.gif/.bmp)');
     console.log('Chrome对象:', typeof chrome);
     console.log('Chrome.runtime:', typeof chrome?.runtime);
@@ -607,13 +607,7 @@ function handleKeydown(event) {
         return;
     }
 
-    // 添加测试按键：按L键发送2张模拟图片到Native Host
-    if (event.key === 'l' || event.key === 'L') {
-        event.preventDefault();
-        sendTwoSampleImagesToNativeHost();
-        return;
-    }
-
+    
     // 处理F1键 - 连续执行“标记无效”(X键逻辑)并自动确认弹窗（再次按F1停止）
     else if (event.key === 'F1') {
         // 检查并关闭模态框
@@ -759,6 +753,7 @@ function handleKeydown(event) {
         }
     }
     // 处理J键 - 上传Native Host图片数据到标注平台
+    // 按J键上传PS修改图，按Shift+J键上传蒙版图
     else if (key === 'j') {
         // 检查并关闭模态框
         if (checkAndCloseModalIfOpen('j')) {
@@ -766,7 +761,15 @@ function handleKeydown(event) {
         }
 
         event.preventDefault();
-        uploadNativeHostImageToAnnotationPlatform();
+
+        // 检查是否按下了Shift键来指定上传目标
+        if (event.shiftKey) {
+            // Shift+J 上传蒙版图
+            uploadNativeHostImageToAnnotationPlatform('mask');
+        } else {
+            // J键默认上传PS修改图
+            uploadNativeHostImageToAnnotationPlatform('ps');
+        }
     } 
     
     // 处理X键 - 点击"标记无效"按钮
@@ -8734,27 +8737,11 @@ async function sendPostRequestToNativeHost() {
             return;
         }
 
-        // 获取上传的图片数据（如果有）
-        // if (uploadedImage && uploadedImage.src) {
-        //     try {
-        //         annotatedImageData = await getImageAsBase64(uploadedImage.src);
-        //         console.log('上传图片数据获取成功');
-        //     } catch (error) {
-        //         console.error('获取上传图片数据失败:', error);
-        //         showNotification('❌ 获取上传图片数据失败: ' + error.message, 3000);
-        //         return;
-        //     }
-        // } else {
-        //     // 如果没有上传的图片，使用原图作为标注图
-        //     annotatedImageData = originalImageData;
-        //     showNotification('ℹ️ 未找到上传的图片，使用原图作为标注图', 3000);
-        // }
-
         annotatedImageData = originalImageData;
 
         // 获取标注指令文本
         const instructionText = extractInstructionText();
-        const instructions = instructionText || "来自AnnotateFlow Assistant的图片数据";
+        const instructions = instructionText || "未正确匹配指令，人工核对";
 
         // 准备要发送的数据
         const imageData = {
@@ -8795,110 +8782,7 @@ async function sendPostRequestToNativeHost() {
     }
 }
 
-// 模拟发送2张图片到Native Host
-// async function sendTwoSampleImagesToNativeHost() {
-//     try {
-//         console.log('准备发送2张模拟图片到Native Host');
-//         showNotification('开始发送2张模拟图片到Native Host...', 2000);
 
-//         // 创建第一张模拟图片
-//         const sampleImage1 = createSampleImageAsBase64();
-
-//         // 创建第二张模拟图片（稍作修改）
-//         const svgData2 = `
-//             <svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
-//                 <rect width="100%" height="100%" fill="#e3f2fd"/>
-//                 <rect x="50" y="50" width="300" height="200" fill="#2196F3" rx="10"/>
-//                 <circle cx="200" cy="150" r="60" fill="#FFC107"/>
-//                 <text x="200" y="140" text-anchor="middle" font-family="Arial" font-size="20" fill="#333">
-//                     Sample Image 2
-//                 </text>
-//                 <text x="200" y="170" text-anchor="middle" font-family="Arial" font-size="14" fill="#333">
-//                     ${new Date().toLocaleTimeString()}
-//                 </text>
-//             </svg>
-//         `;
-//         const svgBase64_2 = btoa(svgData2);
-//         const sampleImage2 = `data:image/svg+xml;base64,${svgBase64_2}`;
-
-//         // 发送第一张图片
-//         const imageData1 = {
-//             original_image: sampleImage1,
-//             annotated_image: sampleImage1,
-//             instructions: "第一张模拟图片数据",
-//             metadata: {
-//                 source: "annotateflow-assistant",
-//                 format: "base64",
-//                 timestamp: Date.now(),
-//                 page_url: window.location.href + "#1"
-//             }
-//         };
-
-//         console.log('发送第一张图片数据:', imageData1);
-//         showNotification('正在发送第一张图片...', 1500);
-
-//         const response1 = await fetch('http://localhost:8888/api/images', {
-//             method: 'POST',
-//             headers: {
-//                 'Content-Type': 'application/json'
-//             },
-//             body: JSON.stringify(imageData1)
-//         });
-
-//         if (response1.ok) {
-//             const result1 = await response1.json();
-//             console.log('第一张图片发送成功:', result1);
-//             showNotification('✅ 第一张图片发送成功', 1500);
-//         } else {
-//             console.error('第一张图片发送失败:', response1.status, response1.statusText);
-//             showNotification('❌ 第一张图片发送失败: ' + response1.status, 3000);
-//             return;
-//         }
-
-//         // 等待一小段时间再发送第二张图片
-//         await new Promise(resolve => setTimeout(resolve, 1000));
-
-//         // 发送第二张图片
-//         const imageData2 = {
-//             original_image: sampleImage2,
-//             annotated_image: sampleImage2,
-//             instructions: "第二张模拟图片数据",
-//             metadata: {
-//                 source: "annotateflow-assistant",
-//                 format: "base64",
-//                 timestamp: Date.now(),
-//                 page_url: window.location.href + "#2"
-//             }
-//         };
-
-//         console.log('发送第二张图片数据:', imageData2);
-//         showNotification('正在发送第二张图片...', 1500);
-
-//         const response2 = await fetch('http://localhost:8888/api/images', {
-//             method: 'POST',
-//             headers: {
-//                 'Content-Type': 'application/json'
-//             },
-//             body: JSON.stringify(imageData2)
-//         });
-
-//         if (response2.ok) {
-//             const result2 = await response2.json();
-//             console.log('第二张图片发送成功:', result2);
-//             showNotification('✅ 第二张图片发送成功', 3000);
-//         } else {
-//             console.error('第二张图片发送失败:', response2.status, response2.statusText);
-//             showNotification('❌ 第二张图片发送失败: ' + response2.status, 3000);
-//             return;
-//         }
-
-//         showNotification('✅ 2张模拟图片已成功发送到Native Host', 3000);
-
-//     } catch (error) {
-//         console.error('发送模拟图片时出错:', error);
-//         showNotification('❌ 发送模拟图片出错: ' + error.message, 3000);
-//     }
-// }
 
 // 将图片URL转换为base64编码
 async function getImageAsBase64(imageUrl) {
@@ -9105,7 +8989,7 @@ async function getNativeHostImageData(source = null) {
     }
 }
 
-// 上传Native Host图片数据到标注平台（支持指定上传位置）
+// 上传Native Host图片数据到标注平台（自动识别图片类型并点击相应上传按钮）
 async function uploadNativeHostImageToAnnotationPlatform(uploadTarget = null) {
     try {
         // 获取native host中的图片数据，指定数据源为external_application以获取PS插件上传的数据
@@ -9116,24 +9000,37 @@ async function uploadNativeHostImageToAnnotationPlatform(uploadTarget = null) {
 
         showNotification('正在处理图片数据...', 1000);
 
+        // 自动识别图片类型，如果未指定上传目标
+        if (!uploadTarget) {
+            // 优先级：如果同时有修改图和蒙版图，默认上传修改图
+            if (imageData.modified_image) {
+                uploadTarget = 'ps';
+            } else if (imageData.mask_image) {
+                uploadTarget = 'mask';
+            } else {
+                showNotification('❌ 未找到可用的图片数据', 3000);
+                return;
+            }
+        }
+
         // 根据上传目标选择合适的图片
-        let base64Data, fileName;
+        let base64Data, fileName, imageType;
         if (uploadTarget === 'mask' && imageData.mask_image) {
             // 上传蒙版图
             base64Data = imageData.mask_image;
             fileName = 'mask_image.png';
-        } else if (uploadTarget === 'ps' && imageData.modified_image) {
+            imageType = '蒙版图';
+        } else if ((uploadTarget === 'ps' || !uploadTarget) && imageData.modified_image) {
             // 上传PS修改图
             base64Data = imageData.modified_image;
             fileName = 'ps_modified_image.png';
-        } else if (imageData.modified_image) {
-            // 默认上传PS修改图
-            base64Data = imageData.modified_image;
-            fileName = 'ps_modified_image.png';
-        } else if (imageData.mask_image) {
-            // 如果没有修改图，则上传蒙版图
-            base64Data = imageData.mask_image;
-            fileName = 'mask_image.png';
+            imageType = 'PS修改图';
+        } else if (uploadTarget === 'ps' && !imageData.modified_image) {
+            showNotification('❌ 未找到PS修改图数据', 3000);
+            return;
+        } else if (uploadTarget === 'mask' && !imageData.mask_image) {
+            showNotification('❌ 未找到蒙版图数据', 3000);
+            return;
         } else {
             showNotification('❌ 未找到可用的图片数据', 3000);
             return;
@@ -9152,34 +9049,42 @@ async function uploadNativeHostImageToAnnotationPlatform(uploadTarget = null) {
         // 创建File对象
         const file = new File([blob], fileName, { type: mimeString });
 
-        // 如果指定了上传目标，则查找对应的上传按钮
-        if (uploadTarget) {
-            debugLog('查找指定上传位置按钮', { target: uploadTarget });
-            // 根据上传目标查找对应的按钮
-            let uploadButtonText = [];
-            if (uploadTarget === 'ps') {
-                uploadButtonText = ['PS后图片上传', 'PS后上传', 'PS上传', '后处理图片上传'];
-            } else if (uploadTarget === 'mask') {
-                uploadButtonText = ['蒙版图上传', '蒙版上传', 'Mask上传', '遮罩图上传'];
-            } else {
-                // 默认上传按钮文本
-                uploadButtonText = ['上传图片', '上传', 'Upload', '选择图片', '选择文件'];
-            }
+        // 根据图片类型查找并点击对应的上传按钮
+        debugLog('查找指定上传位置按钮', { target: uploadTarget, imageType });
 
-            const uploadButton = findButtonByText(uploadButtonText);
+        // 根据上传目标查找对应的按钮
+        let uploadButtonText = [];
+        if (uploadTarget === 'ps') {
+            uploadButtonText = ['PS后图片上传', 'PS后上传', 'PS上传', '后处理图片上传', '处理后图片上传'];
+        } else if (uploadTarget === 'mask') {
+            uploadButtonText = ['蒙版图上传', '蒙版上传', 'Mask上传', '遮罩图上传', '蒙版'];
+        }
+
+        let uploadButton = null;
+        let foundButtonText = '';
+
+        // 按优先级查找按钮
+        for (const buttonText of uploadButtonText) {
+            uploadButton = findButtonByText([buttonText]);
             if (uploadButton) {
-                debugLog('找到指定上传按钮，点击触发上传', { target: uploadTarget });
-                uploadButton.click();
-                // 等待文件输入框出现
+                foundButtonText = buttonText;
+                break;
+            }
+        }
+
+        if (uploadButton) {
+            debugLog('找到指定上传按钮，点击触发上传', { target: uploadTarget, buttonText: foundButtonText });
+            showNotification(`正在上传${imageType}...`, 1500);
+            uploadButton.click();
+            // 等待文件输入框出现
+            await new Promise(resolve => setTimeout(resolve, 1500));
+        } else {
+            showNotification(`⚠️ 未找到${imageType}上传按钮，尝试使用通用上传`, 3000);
+            // 如果没找到指定按钮，尝试触发默认A键功能
+            const defaultUploadButton = findButtonByText(['上传图片', '上传', 'Upload', '选择图片', '选择文件']);
+            if (defaultUploadButton) {
+                defaultUploadButton.click();
                 await new Promise(resolve => setTimeout(resolve, 1500));
-            } else {
-                showNotification(`❌ 未找到${uploadTarget}上传按钮，使用默认上传`, 3000);
-                // 如果没找到指定按钮，尝试触发默认A键功能
-                const defaultUploadButton = findButtonByText(['上传图片', '上传', 'Upload', '选择图片', '选择文件']);
-                if (defaultUploadButton) {
-                    defaultUploadButton.click();
-                    await new Promise(resolve => setTimeout(resolve, 1500));
-                }
             }
         }
 
@@ -9199,9 +9104,9 @@ async function uploadNativeHostImageToAnnotationPlatform(uploadTarget = null) {
             debugLog('未找到文件输入框，尝试触发A键功能');
             showNotification('正在触发上传功能...', 1000);
             // 模拟A键按下
-            const uploadButton = findButtonByText(['上传图片', '上传', 'Upload', '选择图片', '选择文件']);
-            if (uploadButton) {
-                uploadButton.click();
+            const defaultUploadButton = findButtonByText(['上传图片', '上传', 'Upload', '选择图片', '选择文件']);
+            if (defaultUploadButton) {
+                defaultUploadButton.click();
                 // 等待文件输入框出现
                 await new Promise(resolve => setTimeout(resolve, 1500));
                 const newFileInputs = document.querySelectorAll('input[type="file"]');
@@ -9221,8 +9126,8 @@ async function uploadNativeHostImageToAnnotationPlatform(uploadTarget = null) {
             const event = new Event('change', { bubbles: true });
             fileInput.dispatchEvent(event);
 
-            debugLog('文件上传成功', { fileName, fileSize: file.size, target: uploadTarget || 'default' });
-            showNotification(`✅ 图片上传成功！${uploadTarget ? `(${uploadTarget})` : ''}`, 2000);
+            debugLog('文件上传成功', { fileName, fileSize: file.size, target: uploadTarget, imageType });
+            showNotification(`✅ ${imageType}上传成功！`, 2000);
         } else {
             showNotification('❌ 未找到上传位置', 3000);
         }
