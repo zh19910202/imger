@@ -32,14 +32,23 @@ HTTP_SERVER_CONFIG = {
 http_request_queue = queue.Queue()
 pending_requests = {}  # 存储待处理的请求
 request_lock = threading.Lock()
-# 图片数据存储
+# 图片数据存储 - 按来源隔离
 image_data_store = {
-    "original_image": None,      # 原图数据
-    "annotated_image": None,     # 标注图数据
-    "instructions": None,        # 标注要求
-    "metadata": {},              # 元数据
-    "source_type": "unknown",    # 数据来源类型: "chrome_extension" 或 "external_application"
-    "update_timestamp": 0        # 数据更新时间戳
+    "chrome_extension": {
+        "original_image": None,      # 原图数据
+        "annotated_image": None,     # 标注图数据
+        "instructions": None,        # 标注要求
+        "metadata": {},              # 元数据
+        "update_timestamp": 0        # 数据更新时间戳
+    },
+    "external_application": {
+        "modified_image": None,      # 修改图数据（来自PS插件）
+        "mask_image": None,          # 蒙版图数据（来自PS插件）
+        "instructions": None,        # 蒙版说明
+        "metadata": {},              # 元数据
+        "update_timestamp": 0        # 数据更新时间戳
+    },
+    "current_source": "unknown"      # 当前活跃数据源
 }
 image_data_lock = threading.Lock()  # 图片数据锁
 
@@ -257,19 +266,35 @@ class PSRequestHandler(BaseHTTPRequestHandler):
                     if request_data.get("source") == "annotateflow-assistant":
                         source_type = "chrome_extension"
 
-                    # 存储图片数据
+                    # 存储图片数据 - 按来源隔离存储
                     with image_data_lock:
-                        image_data_store["original_image"] = original_image
-                        image_data_store["annotated_image"] = annotated_image
-                        image_data_store["instructions"] = request_data.get("instructions", "")
-                        image_data_store["metadata"] = {
-                            "upload_time": current_time,
-                            "source": request_data.get("source", "unknown"),
-                            "format": request_data.get("format", "base64"),
-                            **request_data.get("metadata", {})
-                        }
-                        image_data_store["source_type"] = source_type
-                        image_data_store["update_timestamp"] = current_time
+                        if source_type == "chrome_extension":
+                            # Chrome扩展数据：原图 + 标注图
+                            image_data_store["chrome_extension"]["original_image"] = original_image
+                            image_data_store["chrome_extension"]["annotated_image"] = annotated_image
+                            image_data_store["chrome_extension"]["instructions"] = request_data.get("instructions", "")
+                            image_data_store["chrome_extension"]["metadata"] = {
+                                "upload_time": current_time,
+                                "source": request_data.get("source", "unknown"),
+                                "format": request_data.get("format", "base64"),
+                                **request_data.get("metadata", {})
+                            }
+                            image_data_store["chrome_extension"]["update_timestamp"] = current_time
+                        else:
+                            # 外部应用数据：修改图 + 蒙版图
+                            image_data_store["external_application"]["modified_image"] = original_image
+                            image_data_store["external_application"]["mask_image"] = annotated_image
+                            image_data_store["external_application"]["instructions"] = request_data.get("instructions", "")
+                            image_data_store["external_application"]["metadata"] = {
+                                "upload_time": current_time,
+                                "source": request_data.get("source", "unknown"),
+                                "format": request_data.get("format", "base64"),
+                                **request_data.get("metadata", {})
+                            }
+                            image_data_store["external_application"]["update_timestamp"] = current_time
+
+                        # 更新当前活跃数据源
+                        image_data_store["current_source"] = source_type
 
                     # 发送成功响应
                     self.send_response(200)
@@ -378,16 +403,30 @@ class PSRequestHandler(BaseHTTPRequestHandler):
             # 获取当前时间戳
             current_time = time.time()
 
-            # 获取存储的图片数据
+            # 获取存储的图片数据 - 根据当前活跃数据源返回对应数据
             with image_data_lock:
-                img_data = {
-                    "original_image": image_data_store["original_image"],
-                    "instructions": image_data_store["instructions"],
-                    "metadata": image_data_store["metadata"],
-                    "source_type": image_data_store["source_type"],
-                    "update_timestamp": image_data_store["update_timestamp"],
-                    "response_timestamp": current_time
-                }
+                current_source = image_data_store["current_source"]
+                if current_source in image_data_store:
+                    source_data = image_data_store[current_source]
+                    img_data = {
+                        # 包含该数据源的所有字段
+                        **source_data,
+                        "source_type": current_source,
+                        "response_timestamp": current_time
+                    }
+                else:
+                    # 如果没有活跃数据源，返回空数据
+                    img_data = {
+                        "original_image": None,
+                        "annotated_image": None,
+                        "modified_image": None,
+                        "mask_image": None,
+                        "instructions": None,
+                        "metadata": {},
+                        "source_type": "unknown",
+                        "update_timestamp": 0,
+                        "response_timestamp": current_time
+                    }
 
             self.wfile.write(json.dumps(img_data, ensure_ascii=False).encode('utf-8'))
 
