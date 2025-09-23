@@ -1,7 +1,7 @@
 {
   "name": "com.annotateflow.assistant",
   "description": "AnnotateFlow Assistant Native Host",
-  "path": "native_host_launcher.sh",
+  "path": "/Users/snow/Library/Application Support/Google/Chrome/NativeMessagingHosts/native_host_launcher.sh",
   "type": "stdio",
   "allowed_origins": [
     "chrome-extension://agdnhdhboimhmlpanomeeiaoiphjpono/"

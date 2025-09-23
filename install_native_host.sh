@@ -36,8 +36,8 @@ cp "$CURRENT_DIR/com.annotateflow.assistant.json" "$NATIVE_DIR/"
 cp "$CURRENT_DIR/native_host.py" "$NATIVE_DIR/"
 cp "$CURRENT_DIR/native_host_launcher.sh" "$NATIVE_DIR/"
 
-# 更新JSON文件中的路径
-sed -i '' "s|native_host_launcher.bat|native_host_launcher.sh|g" "$NATIVE_DIR/com.annotateflow.assistant.json"
+# 更新JSON文件中的路径为绝对路径
+sed -i '' "s|native_host_launcher.sh|${NATIVE_DIR}/native_host_launcher.sh|g" "$NATIVE_DIR/com.annotateflow.assistant.json"
 
 echo "Native Host 安装完成！"
 echo "文件已复制到：$NATIVE_DIR"

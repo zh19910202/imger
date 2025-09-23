@@ -40,8 +40,8 @@ copy "%CURRENT_DIR%com.annotateflow.assistant.json" "%NATIVE_DIR%\" >nul
 copy "%CURRENT_DIR%native_host.py" "%NATIVE_DIR%\" >nul
 copy "%CURRENT_DIR%native_host_launcher.bat" "%NATIVE_DIR%\" >nul
 
-REM 更新JSON文件中的路径
-powershell -Command "(Get-Content '%NATIVE_DIR%\com.annotateflow.assistant.json') -replace 'native_host_launcher.bat', ('%NATIVE_DIR%\native_host_launcher.bat' -replace '\\', '\\') | Set-Content '%NATIVE_DIR%\com.annotateflow.assistant.json'"
+REM 更新JSON文件中的路径为绝对路径
+powershell -Command "(Get-Content '%NATIVE_DIR%\com.annotateflow.assistant.json') -replace 'native_host_launcher.sh', ('%NATIVE_DIR%\native_host_launcher.bat' -replace '\\', '\\') | Set-Content '%NATIVE_DIR%\com.annotateflow.assistant.json'"
 
 REM 注册Native Host到Windows注册表
 echo 正在注册Native Host到注册表...
