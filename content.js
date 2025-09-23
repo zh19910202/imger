@@ -9099,28 +9099,32 @@ async function getNativeHostImageData(source = null) {
 // 上传Native Host图片数据到标注平台（支持指定上传位置）
 async function uploadNativeHostImageToAnnotationPlatform(uploadTarget = null) {
     try {
-        // 获取native host中的图片数据，并指定数据源为chrome_extension
-        const imageData = await getNativeHostImageData('chrome_extension');
+        // 获取native host中的图片数据，指定数据源为external_application以获取PS插件上传的数据
+        const imageData = await getNativeHostImageData('external_application');
         if (!imageData) {
             return;
         }
 
         showNotification('正在处理图片数据...', 1000);
 
-        // 根据数据源选择合适的图片
+        // 根据上传目标选择合适的图片
         let base64Data, fileName;
-        if (imageData.source_type === "external_application" && imageData.modified_image) {
+        if (uploadTarget === 'mask' && imageData.mask_image) {
+            // 上传蒙版图
+            base64Data = imageData.mask_image;
+            fileName = 'mask_image.png';
+        } else if (uploadTarget === 'ps' && imageData.modified_image) {
+            // 上传PS修改图
             base64Data = imageData.modified_image;
             fileName = 'ps_modified_image.png';
-        } else if (imageData.source_type === "chrome_extension" && imageData.original_image) {
-            base64Data = imageData.original_image;
-            fileName = 'original_image.png';
         } else if (imageData.modified_image) {
+            // 默认上传PS修改图
             base64Data = imageData.modified_image;
-            fileName = 'modified_image.png';
-        } else if (imageData.original_image) {
-            base64Data = imageData.original_image;
-            fileName = 'original_image.png';
+            fileName = 'ps_modified_image.png';
+        } else if (imageData.mask_image) {
+            // 如果没有修改图，则上传蒙版图
+            base64Data = imageData.mask_image;
+            fileName = 'mask_image.png';
         } else {
             showNotification('❌ 未找到可用的图片数据', 3000);
             return;
