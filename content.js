@@ -8717,8 +8717,6 @@ async function sendPostRequestToNativeHost() {
         console.log('准备发送POST请求到Native Host');
         // 获取当前原图和上传的图片
         let originalImageData = null;
-        let annotatedImageData = null;
-
         // 获取原图数据
         if (originalImage && originalImage.src) {
             try {
@@ -8730,9 +8728,10 @@ async function sendPostRequestToNativeHost() {
                 return;
             }
         } else {
-            // 如果没有原图，使用模拟图片数据
-            originalImageData = createSampleImageAsBase64();
-            showNotification('ℹ️ 未找到原图，使用模拟图片数据', 3000);
+            // 如果没有原图，直接返回而不发送数据
+            console.log('未找到原图，取消发送请求');
+            showNotification('ℹ️ 未找到原图，取消发送请求', 3000);
+            return;
         }
 
         // 获取上传的图片数据（如果有）
