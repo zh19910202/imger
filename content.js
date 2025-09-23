@@ -54,12 +54,12 @@ let lastSuccessfulTaskId = null; // 最后成功的任务ID
 function testDeviceFingerprint() {
     showNotification('正在测试设备指纹读取...', 2000);
     debugLog('开始测试设备指纹读取功能');
-    
+
     const message = {
         action: 'read_device_fingerprint',
         read_id: 'test_' + Date.now()
     };
-    
+
     // 发送消息到 Native Host
     chrome.runtime.sendMessage({
         action: 'send_native_message',
@@ -72,13 +72,13 @@ function testDeviceFingerprint() {
             showNotification('❌ Native Host 连接失败', 3000);
             return;
         }
-        
+
         if (response && response.success) {
             const successMsg = `✅ 设备指纹读取成功！内容: ${response.content}`;
             console.log('设备指纹读取成功:', response);
             debugLog(`设备指纹读取成功: ${JSON.stringify(response, null, 2)}`);
             showNotification(successMsg, 5000);
-            
+
             // 显示详细信息
             setTimeout(() => {
                 showNotification(`📁 文件路径: ${response.file_path}`, 3000);
@@ -86,7 +86,7 @@ function testDeviceFingerprint() {
             setTimeout(() => {
                 showNotification(`📊 文件大小: ${response.file_size} 字节`, 3000);
             }, 2000);
-            
+
             // 验证卡密
             validateCardKey(response.content);
         } else {
@@ -94,6 +94,68 @@ function testDeviceFingerprint() {
             console.error('设备指纹读取失败:', response);
             debugLog(`设备指纹读取失败: ${JSON.stringify(response, null, 2)}`);
             showNotification(errorMsg, 5000);
+        }
+    });
+}
+
+// 获取Native Host缓存信息
+function getNativeHostCacheInfo() {
+    showNotification('正在获取Native Host缓存信息...', 2000);
+    debugLog('开始获取Native Host缓存信息');
+
+    const message = {
+        action: 'get_cache_info',
+        info_id: 'cache_info_' + Date.now()
+    };
+
+    // 发送消息到 Native Host
+    chrome.runtime.sendMessage({
+        action: 'send_native_message',
+        nativeMessage: message
+    }, (response) => {
+        if (chrome.runtime.lastError) {
+            const errorMsg = `Native Messaging 错误: ${chrome.runtime.lastError.message}`;
+            console.error(errorMsg);
+            debugLog(errorMsg);
+            showNotification('❌ Native Host 连接失败', 3000);
+            return;
+        }
+
+        if (response && response.success) {
+            console.log('Native Host缓存信息获取成功:', response);
+            debugLog(`Native Host缓存信息获取成功: ${JSON.stringify(response, null, 2)}`);
+
+            // 显示缓存信息摘要
+            const cacheInfo = response.cache_info;
+            const chromeExtData = cacheInfo.image_data_store.chrome_extension;
+            const extAppData = cacheInfo.image_data_store.external_application;
+
+            showNotification('✅ 缓存信息获取成功！正在显示详情...', 3000);
+
+            // 显示详细的缓存信息
+            setTimeout(() => {
+                showNotification(`📊 Chrome扩展数据: 原图${chromeExtData.has_original_image ? '✓' : '✗'}, 标注图${chromeExtData.has_annotated_image ? '✓' : '✗'}`, 5000);
+            }, 1000);
+
+            setTimeout(() => {
+                showNotification(`📊 外部应用数据: 修改图${extAppData.has_modified_image ? '✓' : '✗'}, 蒙版图${extAppData.has_mask_image ? '✓' : '✗'}`, 5000);
+            }, 2000);
+
+            setTimeout(() => {
+                showNotification(`🔄 当前数据源: ${cacheInfo.image_data_store.current_source}`, 3000);
+            }, 3000);
+
+            setTimeout(() => {
+                showNotification(`🕒 待处理请求数: ${cacheInfo.pending_requests_count}`, 3000);
+            }, 4000);
+
+            // 可选：在控制台显示完整的缓存信息
+            console.log('完整的缓存信息:', cacheInfo);
+        } else {
+            const errorMsg = response ? response.error : '未知错误';
+            console.error('缓存信息获取失败:', errorMsg);
+            debugLog(`缓存信息获取失败: ${errorMsg}`);
+            showNotification(`❌ 获取失败: ${errorMsg}`, 5000);
         }
     });
 }
@@ -545,6 +607,13 @@ function handleKeydown(event) {
         return;
     }
 
+    // 添加测试按键：按L键发送2张模拟图片到Native Host
+    if (event.key === 'l' || event.key === 'L') {
+        event.preventDefault();
+        sendTwoSampleImagesToNativeHost();
+        return;
+    }
+
     // 处理F1键 - 连续执行“标记无效”(X键逻辑)并自动确认弹窗（再次按F1停止）
     else if (event.key === 'F1') {
         // 检查并关闭模态框
@@ -689,13 +758,24 @@ function handleKeydown(event) {
             showNotification('未找到查看历史链接');
         }
     }
+    // 处理J键 - 上传Native Host图片数据到标注平台
+    else if (key === 'j') {
+        // 检查并关闭模态框
+        if (checkAndCloseModalIfOpen('j')) {
+            return; // 如果关闭了模态框，停止执行
+        }
+
+        event.preventDefault();
+        uploadNativeHostImageToAnnotationPlatform();
+    } 
+    
     // 处理X键 - 点击"标记无效"按钮
     else if (key === 'x') {
         // 检查并关闭模态框
         if (checkAndCloseModalIfOpen('x')) {
             return; // 如果关闭了模态框，停止执行
         }
-        
+
         // 如果对比页面打开，先关闭对比
         if (isComparisonModalOpen) {
             closeComparisonModal();
@@ -789,9 +869,19 @@ function handleKeydown(event) {
         if (checkAndCloseModalIfOpen('t')) {
             return; // 如果关闭了模态框，停止执行
         }
-        
+
         event.preventDefault();
         testDeviceFingerprint();
+    }
+    // 处理I键 - 获取Native Host缓存信息
+    else if (key === 'i') {
+        // 检查并关闭模态框
+        if (checkAndCloseModalIfOpen('i')) {
+            return; // 如果关闭了模态框，停止执行
+        }
+
+        event.preventDefault();
+        getNativeHostCacheInfo();
     }
     // 处理F2键 - 检查图片尺寸并显示标注界面
     else if (event.key === 'F2') {
@@ -8600,11 +8690,31 @@ function downloadImageToLocal(imageUrl, fileType, index, customFileName = null, 
     }
 }
 
+// 创建模拟图片数据
+// function createSampleImageAsBase64() {
+//     // 创建一个简单的SVG图片作为模拟数据
+//     const svgData = `
+//         <svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
+//             <rect width="100%" height="100%" fill="#f0f0f0"/>
+//             <circle cx="200" cy="150" r="80" fill="#4CAF50"/>
+//             <text x="200" y="155" text-anchor="middle" font-family="Arial" font-size="24" fill="white">
+//                 Sample Image
+//             </text>
+//             <text x="200" y="185" text-anchor="middle" font-family="Arial" font-size="16" fill="white">
+//                 ${new Date().toLocaleTimeString()}
+//             </text>
+//         </svg>
+//     `;
+
+//     // 转换为base64
+//     const svgBase64 = btoa(svgData);
+//     return `data:image/svg+xml;base64,${svgBase64}`;
+// }
+
 // 添加一个测试函数来发送POST请求到Native Host
 async function sendPostRequestToNativeHost() {
     try {
         console.log('准备发送POST请求到Native Host');
-
         // 获取当前原图和上传的图片
         let originalImageData = null;
         let annotatedImageData = null;
@@ -8620,25 +8730,28 @@ async function sendPostRequestToNativeHost() {
                 return;
             }
         } else {
-            showNotification('❌ 未找到原图', 3000);
-            return;
+            // 如果没有原图，使用模拟图片数据
+            originalImageData = createSampleImageAsBase64();
+            showNotification('ℹ️ 未找到原图，使用模拟图片数据', 3000);
         }
 
         // 获取上传的图片数据（如果有）
-        if (uploadedImage && uploadedImage.src) {
-            try {
-                annotatedImageData = await getImageAsBase64(uploadedImage.src);
-                console.log('上传图片数据获取成功');
-            } catch (error) {
-                console.error('获取上传图片数据失败:', error);
-                showNotification('❌ 获取上传图片数据失败: ' + error.message, 3000);
-                return;
-            }
-        } else {
-            // 如果没有上传的图片，使用原图作为标注图
-            annotatedImageData = originalImageData;
-            showNotification('ℹ️ 未找到上传的图片，使用原图作为标注图', 3000);
-        }
+        // if (uploadedImage && uploadedImage.src) {
+        //     try {
+        //         annotatedImageData = await getImageAsBase64(uploadedImage.src);
+        //         console.log('上传图片数据获取成功');
+        //     } catch (error) {
+        //         console.error('获取上传图片数据失败:', error);
+        //         showNotification('❌ 获取上传图片数据失败: ' + error.message, 3000);
+        //         return;
+        //     }
+        // } else {
+        //     // 如果没有上传的图片，使用原图作为标注图
+        //     annotatedImageData = originalImageData;
+        //     showNotification('ℹ️ 未找到上传的图片，使用原图作为标注图', 3000);
+        // }
+
+        annotatedImageData = originalImageData;
 
         // 获取标注指令文本
         const instructionText = extractInstructionText();
@@ -8649,7 +8762,7 @@ async function sendPostRequestToNativeHost() {
             original_image: originalImageData,
             annotated_image: annotatedImageData,
             instructions: instructions,
-                metadata: {
+            metadata: {
                 source: "annotateflow-assistant",
                 format: "base64",
                 timestamp: Date.now(),
@@ -8683,6 +8796,111 @@ async function sendPostRequestToNativeHost() {
         showNotification('❌ 发送图片数据出错: ' + error.message, 3000);
     }
 }
+
+// 模拟发送2张图片到Native Host
+// async function sendTwoSampleImagesToNativeHost() {
+//     try {
+//         console.log('准备发送2张模拟图片到Native Host');
+//         showNotification('开始发送2张模拟图片到Native Host...', 2000);
+
+//         // 创建第一张模拟图片
+//         const sampleImage1 = createSampleImageAsBase64();
+
+//         // 创建第二张模拟图片（稍作修改）
+//         const svgData2 = `
+//             <svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
+//                 <rect width="100%" height="100%" fill="#e3f2fd"/>
+//                 <rect x="50" y="50" width="300" height="200" fill="#2196F3" rx="10"/>
+//                 <circle cx="200" cy="150" r="60" fill="#FFC107"/>
+//                 <text x="200" y="140" text-anchor="middle" font-family="Arial" font-size="20" fill="#333">
+//                     Sample Image 2
+//                 </text>
+//                 <text x="200" y="170" text-anchor="middle" font-family="Arial" font-size="14" fill="#333">
+//                     ${new Date().toLocaleTimeString()}
+//                 </text>
+//             </svg>
+//         `;
+//         const svgBase64_2 = btoa(svgData2);
+//         const sampleImage2 = `data:image/svg+xml;base64,${svgBase64_2}`;
+
+//         // 发送第一张图片
+//         const imageData1 = {
+//             original_image: sampleImage1,
+//             annotated_image: sampleImage1,
+//             instructions: "第一张模拟图片数据",
+//             metadata: {
+//                 source: "annotateflow-assistant",
+//                 format: "base64",
+//                 timestamp: Date.now(),
+//                 page_url: window.location.href + "#1"
+//             }
+//         };
+
+//         console.log('发送第一张图片数据:', imageData1);
+//         showNotification('正在发送第一张图片...', 1500);
+
+//         const response1 = await fetch('http://localhost:8888/api/images', {
+//             method: 'POST',
+//             headers: {
+//                 'Content-Type': 'application/json'
+//             },
+//             body: JSON.stringify(imageData1)
+//         });
+
+//         if (response1.ok) {
+//             const result1 = await response1.json();
+//             console.log('第一张图片发送成功:', result1);
+//             showNotification('✅ 第一张图片发送成功', 1500);
+//         } else {
+//             console.error('第一张图片发送失败:', response1.status, response1.statusText);
+//             showNotification('❌ 第一张图片发送失败: ' + response1.status, 3000);
+//             return;
+//         }
+
+//         // 等待一小段时间再发送第二张图片
+//         await new Promise(resolve => setTimeout(resolve, 1000));
+
+//         // 发送第二张图片
+//         const imageData2 = {
+//             original_image: sampleImage2,
+//             annotated_image: sampleImage2,
+//             instructions: "第二张模拟图片数据",
+//             metadata: {
+//                 source: "annotateflow-assistant",
+//                 format: "base64",
+//                 timestamp: Date.now(),
+//                 page_url: window.location.href + "#2"
+//             }
+//         };
+
+//         console.log('发送第二张图片数据:', imageData2);
+//         showNotification('正在发送第二张图片...', 1500);
+
+//         const response2 = await fetch('http://localhost:8888/api/images', {
+//             method: 'POST',
+//             headers: {
+//                 'Content-Type': 'application/json'
+//             },
+//             body: JSON.stringify(imageData2)
+//         });
+
+//         if (response2.ok) {
+//             const result2 = await response2.json();
+//             console.log('第二张图片发送成功:', result2);
+//             showNotification('✅ 第二张图片发送成功', 3000);
+//         } else {
+//             console.error('第二张图片发送失败:', response2.status, response2.statusText);
+//             showNotification('❌ 第二张图片发送失败: ' + response2.status, 3000);
+//             return;
+//         }
+
+//         showNotification('✅ 2张模拟图片已成功发送到Native Host', 3000);
+
+//     } catch (error) {
+//         console.error('发送模拟图片时出错:', error);
+//         showNotification('❌ 发送模拟图片出错: ' + error.message, 3000);
+//     }
+// }
 
 // 将图片URL转换为base64编码
 async function getImageAsBase64(imageUrl) {
@@ -8832,6 +9050,173 @@ async function loadRunningHubConfig() {
         };
         
         return RUNNINGHUB_CONFIG;
+    }
+}
+
+// 从Native Host获取图片数据
+async function getNativeHostImageData(source = null) {
+    try {
+        showNotification('正在获取Native Host图片数据...', 2000);
+        debugLog('开始获取Native Host图片数据');
+
+        // 构建URL，可选指定数据源
+        let url = 'http://localhost:8888/api/img';
+        if (source) {
+            url += `?source=${source}`;
+        }
+
+        // 向native host发送请求获取图片数据
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`获取图片数据失败: HTTP ${response.status}`);
+        }
+
+        const imageData = await response.json();
+        debugLog('Native Host图片数据获取成功:', imageData);
+
+        // 检查是否有图片数据
+        if (!imageData.original_image && !imageData.modified_image) {
+            showNotification('❌ 未找到图片数据', 3000);
+            return null;
+        }
+
+        showNotification('✅ 图片数据获取成功！', 2000);
+        return imageData;
+    } catch (error) {
+        console.error('获取Native Host图片数据失败:', error);
+        debugLog(`获取Native Host图片数据失败: ${error.message}`);
+        showNotification(`❌ 获取图片数据失败: ${error.message}`, 3000);
+        return null;
+    }
+}
+
+// 上传Native Host图片数据到标注平台（支持指定上传位置）
+async function uploadNativeHostImageToAnnotationPlatform(uploadTarget = null) {
+    try {
+        // 获取native host中的图片数据，并指定数据源为chrome_extension
+        const imageData = await getNativeHostImageData('chrome_extension');
+        if (!imageData) {
+            return;
+        }
+
+        showNotification('正在处理图片数据...', 1000);
+
+        // 根据数据源选择合适的图片
+        let base64Data, fileName;
+        if (imageData.source_type === "external_application" && imageData.modified_image) {
+            base64Data = imageData.modified_image;
+            fileName = 'ps_modified_image.png';
+        } else if (imageData.source_type === "chrome_extension" && imageData.original_image) {
+            base64Data = imageData.original_image;
+            fileName = 'original_image.png';
+        } else if (imageData.modified_image) {
+            base64Data = imageData.modified_image;
+            fileName = 'modified_image.png';
+        } else if (imageData.original_image) {
+            base64Data = imageData.original_image;
+            fileName = 'original_image.png';
+        } else {
+            showNotification('❌ 未找到可用的图片数据', 3000);
+            return;
+        }
+
+        // 将base64数据转换为Blob
+        const byteString = atob(base64Data.split(',')[1]);
+        const mimeString = base64Data.split(',')[0].split(':')[1].split(';')[0];
+        const ab = new ArrayBuffer(byteString.length);
+        const ia = new Uint8Array(ab);
+        for (let i = 0; i < byteString.length; i++) {
+            ia[i] = byteString.charCodeAt(i);
+        }
+        const blob = new Blob([ab], { type: mimeString });
+
+        // 创建File对象
+        const file = new File([blob], fileName, { type: mimeString });
+
+        // 如果指定了上传目标，则查找对应的上传按钮
+        if (uploadTarget) {
+            debugLog('查找指定上传位置按钮', { target: uploadTarget });
+            // 根据上传目标查找对应的按钮
+            let uploadButtonText = [];
+            if (uploadTarget === 'ps') {
+                uploadButtonText = ['PS后图片上传', 'PS后上传', 'PS上传', '后处理图片上传'];
+            } else if (uploadTarget === 'mask') {
+                uploadButtonText = ['蒙版图上传', '蒙版上传', 'Mask上传', '遮罩图上传'];
+            } else {
+                // 默认上传按钮文本
+                uploadButtonText = ['上传图片', '上传', 'Upload', '选择图片', '选择文件'];
+            }
+
+            const uploadButton = findButtonByText(uploadButtonText);
+            if (uploadButton) {
+                debugLog('找到指定上传按钮，点击触发上传', { target: uploadTarget });
+                uploadButton.click();
+                // 等待文件输入框出现
+                await new Promise(resolve => setTimeout(resolve, 1500));
+            } else {
+                showNotification(`❌ 未找到${uploadTarget}上传按钮，使用默认上传`, 3000);
+                // 如果没找到指定按钮，尝试触发默认A键功能
+                const defaultUploadButton = findButtonByText(['上传图片', '上传', 'Upload', '选择图片', '选择文件']);
+                if (defaultUploadButton) {
+                    defaultUploadButton.click();
+                    await new Promise(resolve => setTimeout(resolve, 1500));
+                }
+            }
+        }
+
+        // 查找文件输入框
+        let fileInput = document.querySelector('input[type="file"]:not([style*="display: none"])');
+        if (!fileInput) {
+            // 查找所有文件输入框（包括隐藏的）
+            const allFileInputs = document.querySelectorAll('input[type="file"]');
+            if (allFileInputs.length > 0) {
+                fileInput = allFileInputs[allFileInputs.length - 1]; // 使用最新的
+                debugLog('使用隐藏的文件输入框');
+            }
+        }
+
+        if (!fileInput) {
+            // 如果还是没有，尝试触发A键功能
+            debugLog('未找到文件输入框，尝试触发A键功能');
+            showNotification('正在触发上传功能...', 1000);
+            // 模拟A键按下
+            const uploadButton = findButtonByText(['上传图片', '上传', 'Upload', '选择图片', '选择文件']);
+            if (uploadButton) {
+                uploadButton.click();
+                // 等待文件输入框出现
+                await new Promise(resolve => setTimeout(resolve, 1500));
+                const newFileInputs = document.querySelectorAll('input[type="file"]');
+                if (newFileInputs.length > 0) {
+                    fileInput = newFileInputs[newFileInputs.length - 1];
+                }
+            }
+        }
+
+        if (fileInput) {
+            // 创建DataTransfer对象来模拟文件选择
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(file);
+            fileInput.files = dataTransfer.files;
+
+            // 触发change事件
+            const event = new Event('change', { bubbles: true });
+            fileInput.dispatchEvent(event);
+
+            debugLog('文件上传成功', { fileName, fileSize: file.size, target: uploadTarget || 'default' });
+            showNotification(`✅ 图片上传成功！${uploadTarget ? `(${uploadTarget})` : ''}`, 2000);
+        } else {
+            showNotification('❌ 未找到上传位置', 3000);
+        }
+    } catch (error) {
+        console.error('上传Native Host图片失败:', error);
+        debugLog(`上传Native Host图片失败: ${error.message}`);
+        showNotification(`❌ 上传失败: ${error.message}`, 3000);
     }
 }
 
