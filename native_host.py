@@ -36,8 +36,7 @@ request_lock = threading.Lock()
 image_data_store = {
     "chrome_extension": {
         "original_image": None,      # 原图数据
-        "annotated_image": None,     # 标注图数据
-        "instructions": None,        # 标注要求
+        "instructions": None,        # 修改要求
         "metadata": {},              # 元数据
         "update_timestamp": 0        # 数据更新时间戳
     },
@@ -128,7 +127,6 @@ def get_cache_info(info_id=None):
             "image_data_store": {
                 "chrome_extension": {
                     "has_original_image": image_data_store["chrome_extension"]["original_image"] is not None,
-                    "has_annotated_image": image_data_store["chrome_extension"]["annotated_image"] is not None,
                     "instructions": image_data_store["chrome_extension"]["instructions"],
                     "metadata": image_data_store["chrome_extension"]["metadata"],
                     "update_timestamp": image_data_store["chrome_extension"]["update_timestamp"]
@@ -284,8 +282,8 @@ class PSRequestHandler(BaseHTTPRequestHandler):
 
     API端点设计：
     /api/chrome-data: 用于存放和获取来自谷歌插件的数据
-        POST /api/chrome-data: 谷歌插件调用此接口，用于发送【原图】和【标注图】
-        GET /api/chrome-data: 外部应用调用此接口，用于获取【原图】和【标注图】
+        POST /api/chrome-data: 谷歌插件调用此接口，用于发送【原图】和【修改要求】
+        GET /api/chrome-data: 外部应用调用此接口，用于获取【原图】和【修改要求】
 
     /api/external-data: 用于存放和获取来自外部应用（如PS插件）的数据
         POST /api/external-data: 外部应用调用此接口，用于发送【修改图】和【蒙版图】
@@ -307,28 +305,27 @@ class PSRequestHandler(BaseHTTPRequestHandler):
 
             post_data = self.rfile.read(content_length)
 
-            # 处理谷歌插件数据端点 - 存放原图和标注图
+            # 处理谷歌插件数据端点 - 存放原图和修改要求
             if self.path == '/api/chrome-data':
                 try:
                     # 解析JSON数据
                     request_data = json.loads(post_data.decode('utf-8'))
 
-                    # 验证必需字段 - 谷歌插件发送原图和标注图
+                    # 验证必需字段 - 谷歌插件发送原图和修改要求
                     original_image = request_data.get("original_image")
-                    annotated_image = request_data.get("annotated_image")
+                    instructions = request_data.get("instructions")
 
-                    if not original_image or not annotated_image:
-                        self.send_error(400, "Missing required image data: original_image and annotated_image")
+                    if not original_image:
+                        self.send_error(400, "Missing required image data: original_image")
                         return
 
                     # 获取当前时间戳
                     current_time = time.time()
 
-                    # 存储Chrome扩展数据：原图 + 标注图
+                    # 存储Chrome扩展数据：原图 + 修改要求
                     with image_data_lock:
                         image_data_store["chrome_extension"]["original_image"] = original_image
-                        image_data_store["chrome_extension"]["annotated_image"] = annotated_image
-                        image_data_store["chrome_extension"]["instructions"] = request_data.get("instructions", "")
+                        image_data_store["chrome_extension"]["instructions"] = instructions
                         image_data_store["chrome_extension"]["metadata"] = {
                             "upload_time": current_time,
                             "source": "chrome_extension",
@@ -560,7 +557,7 @@ class PSRequestHandler(BaseHTTPRequestHandler):
             }
             self.wfile.write(json.dumps(health_data).encode('utf-8'))
 
-        # 谷歌插件获取数据端点 - 外部应用获取【原图】和【标注图】
+        # 谷歌插件获取数据端点 - 外部应用获取【原图】和【修改要求】
         elif self.path == '/api/chrome-data':
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
@@ -570,7 +567,7 @@ class PSRequestHandler(BaseHTTPRequestHandler):
             # 获取当前时间戳
             current_time = time.time()
 
-            # 外部应用调用此接口，获取Chrome扩展发送的原图和标注图
+            # 外部应用调用此接口，获取Chrome扩展发送的原图和修改要求
             with image_data_lock:
                 chrome_data = image_data_store["chrome_extension"]
                 img_data = {

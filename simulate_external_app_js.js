@@ -6,8 +6,8 @@
  *
  * 新的API端点设计：
  * /api/chrome-data: 用于存放和获取来自谷歌插件的数据
- *   POST /api/chrome-data: 谷歌插件调用此接口，用于发送【原图】和【标注图】
- *   GET /api/chrome-data: 外部应用调用此接口，用于获取【原图】和【标注图】
+ *   POST /api/chrome-data: 谷歌插件调用此接口，用于发送【原图】和【修改要求】
+ *   GET /api/chrome-data: 外部应用调用此接口，用于获取【原图】和【修改要求】
  *
  * /api/external-data: 用于存放和获取来自外部应用（如PS插件）的数据
  *   POST /api/external-data: 外部应用调用此接口，用于发送【修改图】和【蒙版图】

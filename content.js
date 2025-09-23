@@ -8760,7 +8760,6 @@ async function sendPostRequestToNativeHost() {
         // 准备要发送的数据
         const imageData = {
             original_image: originalImageData,
-            annotated_image: annotatedImageData,
             instructions: instructions,
             metadata: {
                 source: "annotateflow-assistant",
