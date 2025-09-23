@@ -3,27 +3,35 @@
  *
  * 该示例演示了如何使用JavaScript通过HTTP请求与Native Host进行交互
  * Native Host运行在 localhost:8888 上，支持多种API端点
+ *
+ * 新的API端点设计：
+ * /api/chrome-data: 用于存放和获取来自谷歌插件的数据
+ *   POST /api/chrome-data: 谷歌插件调用此接口，用于发送【原图】和【标注图】
+ *   GET /api/chrome-data: 外部应用调用此接口，用于获取【原图】和【标注图】
+ *
+ * /api/external-data: 用于存放和获取来自外部应用（如PS插件）的数据
+ *   POST /api/external-data: 外部应用调用此接口，用于发送【修改图】和【蒙版图】
+ *   GET /api/external-data: 谷歌插件调用此接口，用于获取【修改图】和【蒙版图】
  */
 
 // Native Host配置
 const NATIVE_HOST_URL = 'http://localhost:8888';
 
 /**
- * 发送图片数据到Native Host
- * @param {string} originalImageData - 原图数据 (base64编码)
- * @param {string} annotatedImageData - 标注图/蒙版图数据 (base64编码)
+ * 发送修改图和蒙版图数据到Native Host（外部应用使用）
+ * @param {string} modifiedImageData - 修改图数据 (base64编码)
+ * @param {string} maskImageData - 蒙版图数据 (base64编码)
  * @param {string} instructions - 图片说明
  * @param {Object} metadata - 元数据
  * @returns {Promise<Object>} 响应结果
  */
-async function sendImagesToNativeHost(originalImageData, annotatedImageData, instructions = '', metadata = {}) {
+async function sendExternalImagesToNativeHost(modifiedImageData, maskImageData, instructions = '', metadata = {}) {
     try {
         // 准备要发送的数据
         const imageData = {
-            original_image: originalImageData,    // 修改图数据
-            annotated_image: annotatedImageData,  // 蒙版图数据
+            modified_image: modifiedImageData,    // 修改图数据
+            mask_image: maskImageData,            // 蒙版图数据
             instructions: instructions,
-            source: 'external-application',       // 标识数据来源
             format: 'base64',
             metadata: {
                 source: 'external-application',
@@ -34,8 +42,8 @@ async function sendImagesToNativeHost(originalImageData, annotatedImageData, ins
             }
         };
 
-        // 发送POST请求到Native Host的HTTP服务器
-        const response = await fetch(`${NATIVE_HOST_URL}/api/images`, {
+        // 发送POST请求到Native Host的HTTP服务器（使用新的外部应用端点）
+        const response = await fetch(`${NATIVE_HOST_URL}/api/external-data`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -43,7 +51,7 @@ async function sendImagesToNativeHost(originalImageData, annotatedImageData, ins
             body: JSON.stringify(imageData)
         });
 
-        console.log(`发送请求到: ${NATIVE_HOST_URL}/api/images`);
+        console.log(`发送请求到: ${NATIVE_HOST_URL}/api/external-data`);
         console.log(`请求数据大小: ${JSON.stringify(imageData).length} 字符`);
 
         if (response.ok) {
@@ -83,42 +91,21 @@ function fileToBase64(file) {
 }
 
 /**
- * 发送图片文件到Native Host
- * @param {File|Blob} imageFile - 原图文件对象
- * @param {File|Blob} maskFile - 蒙版文件对象 (可选)
+ * 发送图片文件到Native Host（外部应用使用新API）
+ * @param {File|Blob} modifiedFile - 修改图文件对象
+ * @param {File|Blob} maskFile - 蒙版文件对象
  * @param {string} instructions - 图片说明
  * @param {Object} metadata - 元数据
  * @returns {Promise<Object>} 响应结果
  */
-async function sendImageFileToNativeHost(imageFile, maskFile = null, instructions = '来自外部应用程序的图片文件', metadata = {}) {
+async function sendExternalImageFileToNativeHost(modifiedFile, maskFile, instructions = '来自外部应用程序的图片文件', metadata = {}) {
     try {
         // 将图片文件转换为base64
         console.log('正在读取图片文件...');
-        const originalImageData = await fileToBase64(imageFile);
+        const modifiedImageData = await fileToBase64(modifiedFile);
+        const maskImageData = await fileToBase64(maskFile);
 
-        // 如果提供了蒙版文件，则转换为base64，否则使用模拟数据
-        let maskImageData;
-        if (maskFile) {
-            maskImageData = await fileToBase64(maskFile);
-        } else {
-            // 创建一个简单的SVG作为模拟蒙版数据
-            const maskSvgData = `
-                <svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
-                    <rect width="100%" height="100%" fill="#000000"/>
-                    <circle cx="200" cy="150" r="80" fill="#FFFFFF"/>
-                    <text x="200" y="155" text-anchor="middle" font-family="Arial" font-size="24" fill="#000000">
-                        Mask Image
-                    </text>
-                    <text x="200" y="185" text-anchor="middle" font-family="Arial" font-size="16" fill="#000000">
-                        From External App
-                    </text>
-                </svg>
-            `;
-            const maskBase64 = btoa(maskSvgData);
-            maskImageData = `data:image/svg+xml;base64,${maskBase64}`;
-        }
-
-        return await sendImagesToNativeHost(originalImageData, maskImageData, instructions, metadata);
+        return await sendExternalImagesToNativeHost(modifiedImageData, maskImageData, instructions, metadata);
     } catch (error) {
         console.log(`❌ 读取图片文件时出错: ${error.message}`);
         return { success: false, error: `读取图片文件时出错: ${error.message}` };
@@ -199,27 +186,22 @@ async function checkNativeHostHealth() {
 }
 
 /**
- * 获取存储在Native Host中的图片数据
- * @param {string} source - 数据源 ('chrome_extension' 或 'external_application')
+ * 获取Chrome扩展存储的原图和标注图数据（外部应用使用）
  * @returns {Promise<Object>} 图片数据
  */
-async function getStoredImageData(source = null) {
+async function getChromeDataFromNativeHost() {
     try {
-        // 构建URL，可选指定数据源
-        let url = `${NATIVE_HOST_URL}/api/img`;
-        if (source) {
-            url += `?source=${source}`;
-        }
+        // 使用新的API端点获取Chrome扩展数据
+        const response = await fetch(`${NATIVE_HOST_URL}/api/chrome-data`);
 
-        const response = await fetch(url);
         if (response.ok) {
             const imageData = await response.json();
-            console.log('✅ 成功获取图片数据');
+            console.log('✅ 成功获取Chrome扩展图片数据');
             console.log('图片数据:', imageData);
             return { success: true, data: imageData };
         } else {
             const errorText = await response.text();
-            console.log(`❌ 获取图片数据失败: HTTP ${response.status}`);
+            console.log(`❌ 获取Chrome扩展图片数据失败: HTTP ${response.status}`);
             console.log(`响应内容: ${errorText}`);
             return { success: false, error: `HTTP ${response.status}: ${errorText}` };
         }
@@ -228,17 +210,17 @@ async function getStoredImageData(source = null) {
             console.log('❌ 连接失败: 无法连接到Native Host');
             return { success: false, error: '连接失败: 无法连接到Native Host' };
         } else {
-            console.log(`❌ 获取图片数据时出错: ${error.message}`);
+            console.log(`❌ 获取Chrome扩展图片数据时出错: ${error.message}`);
             return { success: false, error: `获取时出错: ${error.message}` };
         }
     }
 }
 
 /**
- * 主函数 - 演示示例用法
+ * 主函数 - 演示外部应用使用新API的示例用法
  */
 async function main() {
-    console.log('=== 使用JavaScript模拟外部程序发送图片到Native Host ===');
+    console.log('=== 使用JavaScript模拟外部应用通过新API与Native Host交互 ===');
     console.log(`Native Host地址: ${NATIVE_HOST_URL}`);
     console.log();
 
@@ -252,36 +234,43 @@ async function main() {
         return;
     }
 
-    // 2. 发送模拟图片数据
+    // 2. 发送修改图和蒙版图数据到Native Host
     console.log('正在创建模拟图片数据...');
-    const originalImage = createSampleImageAsBase64();
+    const modifiedImage = createSampleImageAsBase64();
     const maskImage = createMaskImageAsBase64();
 
-    console.log('正在发送模拟图片数据到Native Host...');
-    const sendResult = await sendImagesToNativeHost(
-        originalImage,
+    console.log('正在发送修改图和蒙版图数据到Native Host...');
+    const sendResult = await sendExternalImagesToNativeHost(
+        modifiedImage,
         maskImage,
-        '来自JavaScript外部应用程序的图片数据',
+        '来自JavaScript外部应用程序的修改图和蒙版图数据',
         { custom_field: 'custom_value' }
     );
 
     if (sendResult.success) {
-        console.log('\n🎉 模拟发送完成!');
+        console.log('\n🎉 修改图和蒙版图发送成功!');
     } else {
-        console.log('\n💥 模拟发送失败!');
+        console.log('\n💥 修改图和蒙版图发送失败!');
         console.log('错误信息:', sendResult.error);
     }
 
     console.log();
 
-    // 3. 获取存储的图片数据
-    console.log('正在获取存储在Native Host中的图片数据...');
-    const getResult = await getStoredImageData('external_application');
+    // 3. 获取Chrome扩展存储的原图和标注图数据
+    console.log('正在获取Chrome扩展存储的原图和标注图数据...');
+    const getResult = await getChromeDataFromNativeHost();
 
     if (getResult.success) {
-        console.log('\n🎉 成功获取图片数据!');
+        console.log('\n🎉 成功获取Chrome扩展图片数据!');
+        console.log('数据类型:', getResult.data.source_type);
+        if (getResult.data.original_image) {
+            console.log('  - 包含原图数据: ✓');
+        }
+        if (getResult.data.annotated_image) {
+            console.log('  - 包含标注图数据: ✓');
+        }
     } else {
-        console.log('\n💥 获取图片数据失败!');
+        console.log('\n💥 获取Chrome扩展图片数据失败!');
         console.log('错误信息:', getResult.error);
     }
 }
@@ -421,10 +410,10 @@ main();
 // 导出函数供外部使用
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
-        sendImagesToNativeHost,
-        sendImageFileToNativeHost,
+        sendExternalImagesToNativeHost,
+        sendExternalImageFileToNativeHost,
         checkNativeHostHealth,
-        getStoredImageData,
+        getChromeDataFromNativeHost,
         createSampleImageAsBase64,
         createMaskImageAsBase64,
         sendOriginalAndAnnotatedImages
