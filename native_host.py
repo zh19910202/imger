@@ -43,7 +43,6 @@ image_data_store = {
     "external_application": {
         "modified_image": None,      # 修改图数据（来自PS插件）
         "mask_image": None,          # 蒙版图数据（来自PS插件）
-        "instructions": None,        # 蒙版说明
         "metadata": {},              # 元数据
         "update_timestamp": 0        # 数据更新时间戳
     },
@@ -134,7 +133,6 @@ def get_cache_info(info_id=None):
                 "external_application": {
                     "has_modified_image": image_data_store["external_application"]["modified_image"] is not None,
                     "has_mask_image": image_data_store["external_application"]["mask_image"] is not None,
-                    "instructions": image_data_store["external_application"]["instructions"],
                     "metadata": image_data_store["external_application"]["metadata"],
                     "update_timestamp": image_data_store["external_application"]["update_timestamp"]
                 },
@@ -377,7 +375,6 @@ class PSRequestHandler(BaseHTTPRequestHandler):
                     with image_data_lock:
                         image_data_store["external_application"]["modified_image"] = modified_image
                         image_data_store["external_application"]["mask_image"] = mask_image
-                        image_data_store["external_application"]["instructions"] = request_data.get("instructions", "")
                         image_data_store["external_application"]["metadata"] = {
                             "upload_time": current_time,
                             "source": "external_application",
