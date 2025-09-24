@@ -52,7 +52,7 @@ let lastSuccessfulTaskId = null; // 最后成功的任务ID
 // let dragOffset = { x: 0, y: 0 }
 // 测试设备指纹读取功能
 function testDeviceFingerprint() {
-    showNotification('正在测试设备指纹读取...', 2000);
+    showNotification('正在测试设备指纹...', 1500);
     debugLog('开始测试设备指纹读取功能');
 
     const message = {
@@ -66,34 +66,22 @@ function testDeviceFingerprint() {
         nativeMessage: message
     }, (response) => {
         if (chrome.runtime.lastError) {
-            const errorMsg = `Native Messaging 错误: ${chrome.runtime.lastError.message}`;
-            console.error(errorMsg);
-            debugLog(errorMsg);
-            showNotification('❌ Native Host 连接失败', 3000);
+            console.error('Native Messaging 错误:', chrome.runtime.lastError.message);
+            debugLog('Native Messaging 错误: ' + chrome.runtime.lastError.message);
+            showNotification('❌ 设备指纹验证失败', 2000);
             return;
         }
 
         if (response && response.success) {
-            const successMsg = `✅ 设备指纹读取成功！内容: ${response.content}`;
-            console.log('设备指纹读取成功:', response);
-            debugLog(`设备指纹读取成功: ${JSON.stringify(response, null, 2)}`);
-            showNotification(successMsg, 5000);
-
-            // 显示详细信息
-            setTimeout(() => {
-                showNotification(`📁 文件路径: ${response.file_path}`, 3000);
-            }, 1000);
-            setTimeout(() => {
-                showNotification(`📊 文件大小: ${response.file_size} 字节`, 3000);
-            }, 2000);
-
+            console.log('设备指纹读取成功');
+            debugLog('设备指纹读取成功');
+            showNotification('✅ 设备指纹验证成功', 2000);
             // 验证卡密
             validateCardKey(response.content);
         } else {
-            const errorMsg = `❌ 设备指纹读取失败: ${response ? response.error : '未知错误'}`;
             console.error('设备指纹读取失败:', response);
-            debugLog(`设备指纹读取失败: ${JSON.stringify(response, null, 2)}`);
-            showNotification(errorMsg, 5000);
+            debugLog('设备指纹读取失败: ' + (response ? response.error : '未知错误'));
+            showNotification('❌ 设备指纹验证失败', 2000);
         }
     });
 }
