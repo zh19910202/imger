@@ -307,7 +307,13 @@ function initializeScript() {
     
     // 初始化COS图片拦截监听
     initializeCOSImageListener();
-    
+
+    // 插件启动时自动测试设备指纹
+    setTimeout(() => {
+        debugLog('插件启动时自动测试设备指纹');
+        testDeviceFingerprint();
+    }, 2000); // 延迟2秒执行，确保插件完全初始化
+
     console.log('AnnotateFlow Assistant 初始化完成，调试模式:', debugMode ? '已启用' : '已禁用');
 }
 
