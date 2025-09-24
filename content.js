@@ -391,9 +391,10 @@ function getImageIdentifier(imageInfo) {
 }
 
 // 自动发送图片数据到Native Host
-async function autoSendImageData() {
-    // 检查是否启用自动发送
-    if (!autoSendEnabled) {
+async function autoSendImageData(forceSend = false) {
+    // 检查是否应该发送
+    // 如果自动发送禁用且不是强制发送，则不发送
+    if (!autoSendEnabled && !forceSend) {
         debugLog("自动发送已禁用");
         return;
     }
@@ -404,72 +405,114 @@ async function autoSendImageData() {
         return;
     }
 
-    // 防止过于频繁的发送
-    const now = Date.now();
-    if (now - lastAutoSendTime < 2000) { // 2秒内不重复发送
-        debugLog("发送过于频繁，跳过本次发送");
-        return;
-    }
-
-    // 创建图片标识符以避免重复发送
-    const imageId = getImageIdentifier(originalImage);
-    if (imageId && sentImageHashes.has(imageId)) {
-        debugLog("图片已发送过，跳过重复发送", imageId);
-        return;
-    }
-
-    // 记录发送时间
-    lastAutoSendTime = now;
-
+    // 等待原图加载完成的机制
     try {
-        debugLog("开始自动发送图片数据到Native Host");
-        await sendPostRequestToNativeHost();
+        debugLog("自动发送图片数据到Native Host", {
+            mode: forceSend ? "强制发送" : "自动发送",
+            hasOriginalImage: !!originalImage,
+            originalImageLocked: !!originalImageLocked
+        });
 
-        // 记录已发送的图片
-        if (imageId) {
-            sentImageHashes.add(imageId);
-            debugLog("图片数据发送成功并已记录", imageId);
+        // 对于自动模式，等待原图加载完成
+        if (!forceSend) {
+            // 等待原图锁定（处理完成）
+            if (!originalImageLocked) {
+                debugLog("原图未锁定，等待处理完成...");
+
+                // 等待原图锁定，最多等待5秒
+                let waitTime = 0;
+                while (!originalImageLocked && waitTime < 5000) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    waitTime += 100;
+                }
+
+                if (!originalImageLocked) {
+                    debugLog("原图加载超时，取消发送");
+                    showNotification("⚠️ 原图加载超时，取消自动发送", 2000);
+                    return;
+                }
+
+                debugLog("原图已锁定，继续发送");
+            }
+
+            // 确保图片完全加载完成（额外等待200ms）
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            // 频率限制
+            const now = Date.now();
+            if (now - lastAutoSendTime < 1000) {
+                debugLog("发送过于频繁，跳过本次发送");
+                return;
+            }
+
+            // 创建图片标识符以避免重复发送
+            const imageId = getImageIdentifier(originalImage);
+            if (imageId && sentImageHashes.has(imageId)) {
+                debugLog("图片已发送过，跳过重复发送", imageId);
+                return;
+            }
+
+            lastAutoSendTime = now;
         }
 
-        showNotification("✅ 图片数据已自动发送到Native Host", 2000);
+        // 直接调用与K键相同的发送函数
+        await sendPostRequestToNativeHost();
+
+        // 记录已发送的图片（仅在自动模式下）
+        if (!forceSend) {
+            const imageId = getImageIdentifier(originalImage);
+            if (imageId) {
+                sentImageHashes.add(imageId);
+                debugLog("图片数据发送成功并已记录", imageId);
+            }
+        }
+
+        debugLog("自动发送完成");
     } catch (error) {
         console.error("自动发送图片数据失败:", error);
         showNotification("❌ 自动发送失败: " + error.message, 3000);
 
-        // 如果发送失败，移除发送时间记录以便重试
-        lastAutoSendTime = 0;
+        // 自动模式下失败时重置时间记录和哈希记录以便重试
+        if (!forceSend) {
+            lastAutoSendTime = 0;
+            // 移除哈希记录以便重试
+            const imageId = getImageIdentifier(originalImage);
+            if (imageId && sentImageHashes.has(imageId)) {
+                sentImageHashes.delete(imageId);
+            }
+        }
     }
 }
 
 // 检查页面是否发生变化，如果是新页面则重置原图锁定
 function checkPageChange() {
     const newUrl = window.location.href;
-    
+
     if (currentPageUrl && currentPageUrl !== newUrl) {
         debugLog('检测到页面跳转，重置原图锁定状态', {
             oldUrl: currentPageUrl.substring(0, 100) + '...',
             newUrl: newUrl.substring(0, 100) + '...'
         });
-        
+
         // 重置原图相关状态
         originalImageLocked = false;
         originalImage = null;
         shouldAutoCompare = false; // 重置自动对比标记
-        
+
         // 取消所有待执行的对比任务
         debugLog('取消待执行的对比任务', { count: pendingComparisonTimeouts.length });
         pendingComparisonTimeouts.forEach(timeoutId => {
             clearTimeout(timeoutId);
         });
         pendingComparisonTimeouts = [];
-        
+
         // 关闭已存在的对比弹窗
         if (comparisonModal && comparisonModal.parentNode) {
             debugLog('关闭已存在的对比弹窗');
             comparisonModal.parentNode.removeChild(comparisonModal);
             comparisonModal = null;
         }
-        
+
         // 清空上传的对比图，避免内存泄漏和页面间的状态污染
         uploadedImage = null;
         isComparisonModalOpen = false;
@@ -479,18 +522,20 @@ function checkPageChange() {
         cachedRunningHubResults = null;
         currentPageTaskInfo = null;
         lastSuccessfulTaskId = null;
-        
+
         debugLog('页面跳转重置状态', {
             'originalImageLocked': originalImageLocked,
             'originalImage': originalImage ? '有' : '无',
             'uploadedImage': '已清空',
             'canceledTimeouts': pendingComparisonTimeouts.length
         });
-        
+
         showNotification('页面切换，正在重新检测原图...', 2000);
-        
+
         // 立即开始检测原图
-        recordOriginalImages();
+        setTimeout(() => {
+            recordOriginalImages();
+        }, 100);
         
         // 延迟多次重试检测原图，因为新页面内容可能需要时间加载
         const retryIntervals = [500, 1000, 2000, 3000, 5000];
@@ -1801,6 +1846,8 @@ async function parallelOriginalImageDetection(maxRetries = 3) {
         originalImage = originalImageFromNetwork;
         originalImageLocked = true;
         showNotification(`使用网络监听原图: ${originalImage.width}×${originalImage.height}`, 2000);
+
+
         return;
     }
 
@@ -1823,6 +1870,16 @@ async function parallelOriginalImageDetection(maxRetries = 3) {
                 height: img.naturalHeight
             });
             showNotification(`使用COS拦截原图: ${img.naturalWidth}×${img.naturalHeight}`, 2000);
+
+            // 如果启用了自动发送，则触发自动发送
+            if (autoSendEnabled) {
+                setTimeout(() => {
+                    autoSendImageData(true).catch(error => {
+                        console.error("自动发送失败:", error);
+                    });
+                }, 300);
+            }
+
         };
         img.onerror = () => {
             debugLog('❌ COS拦截原图加载失败');
@@ -1928,6 +1985,7 @@ async function parallelOriginalImageDetection(maxRetries = 3) {
                 originalImageLocked = true;
 
                 showNotification(`并行获取原图成功 (${bestImage.source}): ${bestImage.width}×${bestImage.height}`, 2000);
+
                 return; // 成功后立即返回
             } else {
                 debugLog(`❌ 第${attempt}次尝试未找到原图`);
@@ -2186,31 +2244,48 @@ function selectBestOriginalImage(results) {
     // 3. 再次选择像素最多的图片（质量最高）
     // 4. 最后选择最新的结果（时效性最好）
 
+    let bestImage = null;
+
     const domResult = successfulResults.find(img => img.source.includes('选择器-'));
     if (domResult) {
         debugLog('选择DOM检测结果');
-        return domResult;
-    }
+        bestImage = domResult;
+    } else {
+        const cosResult = successfulResults.find(img => img.source.includes('COS'));
+        if (cosResult) {
+            debugLog('选择COS缓存结果');
+            bestImage = cosResult;
+        } else {
+            // 按像素总数排序
+            const sortedBySize = successfulResults.sort((a, b) =>
+                (b.width * b.height) - (a.width * a.height)
+            );
 
-    const cosResult = successfulResults.find(img => img.source.includes('COS'));
-    if (cosResult) {
-        debugLog('选择COS缓存结果');
-        return cosResult;
-    }
+            debugLog('选择最大尺寸结果', {
+                选中: {
+                    来源: sortedBySize[0].source,
+                    尺寸: `${sortedBySize[0].width}x${sortedBySize[0].height}`
+                }
+            });
 
-    // 按像素总数排序
-    const sortedBySize = successfulResults.sort((a, b) =>
-        (b.width * b.height) - (a.width * a.height)
-    );
-
-    debugLog('选择最大尺寸结果', {
-        选中: {
-            来源: sortedBySize[0].source,
-            尺寸: `${sortedBySize[0].width}x${sortedBySize[0].height}`
+            bestImage = sortedBySize[0];
         }
-    });
+    }
 
-    return sortedBySize[0];
+    // 如果找到了最佳原图，检查是否应该触发自动发送
+    if (bestImage && autoSendEnabled) {
+        // 检查是否已经有原图锁定，避免重复处理
+        if (!originalImageLocked) {
+            setTimeout(() => {
+                // 使用forceSend=true来绕过内部重复检查，因为我们已经在外部确保了唯一性
+                autoSendImageData(true).catch(error => {
+                    console.error("自动发送失败:", error);
+                });
+            }, 300); // 给一些时间确保状态完全设置
+        }
+    }
+
+    return bestImage;
 }
 
 /**
@@ -2298,15 +2373,6 @@ function setOriginalImageCommon(img) {
 
     console.log('记录原图:', originalImage.src);
     showNotification(`已锁定原图: ${width}×${height}`, 2000);
-
-    // 自动发送图片数据到Native Host
-    if (autoSendEnabled) {
-        setTimeout(() => {
-            autoSendImageData().catch(error => {
-                console.error("自动发送失败:", error);
-            });
-        }, 100); // 短暂延迟确保数据已完全设置
-    }
 }
 
 // 强化的网络请求拦截和原图资源捕获系统
