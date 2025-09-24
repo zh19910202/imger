@@ -9075,10 +9075,16 @@ async function uploadNativeHostImageToAnnotationPlatform() {
         for (let i = 0; i < imagesToUpload.length; i++) {
             const image = imagesToUpload[i];
             try {
+                // 显示开始上传通知
+                showNotification(`📤 正在上传${image.imageType}...`, 1500);
                 debugLog('开始上传图片', { index: i+1, total: imagesToUpload.length, imageType: image.imageType, target: image.uploadTarget });
+
                 await uploadSingleImage(image.data, image.fileName, image.imageType, image.uploadTarget);
                 successfulUploads++;
                 debugLog('图片上传完成', { imageType: image.imageType });
+
+                // 显示上传成功通知
+                showNotification(`✅ ${image.imageType}上传成功！`, 2000);
 
                 // 如果不是最后一张图片，等待更长时间再上传下一张，确保上传操作完全完成
                 if (i < imagesToUpload.length - 1) {
