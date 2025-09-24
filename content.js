@@ -9246,21 +9246,41 @@ async function uploadSingleImage(base64Data, fileName, imageType, uploadTarget) 
             }
         }
 
+        // 等待页面内容更新完成
+        debugLog('等待页面内容更新完成');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
         // 直接查找文件输入框进行上传，不需要点击"上传图片"按钮触发文件选择窗口
         // 因为我们已经有了图片数据，可以直接通过文件输入框上传
 
-        // 查找文件输入框
-        let fileInput = document.querySelector('input[type="file"]:not([style*="display: none"])');
+        // 查找当前标签页下的文件输入框，而不是全局查找
+        debugLog('查找当前标签页下的文件输入框');
+        let fileInput = null;
+
+        // 尝试更精确地查找当前标签页下的文件输入框
+        // 方法1: 查找可见的文件输入框
+        fileInput = document.querySelector('input[type="file"]:not([style*="display: none"]):not([style*="visibility: hidden"])');
+
+        // 方法2: 如果没找到，尝试查找所有文件输入框并根据其位置判断
         if (!fileInput) {
-            // 查找所有文件输入框（包括隐藏的）
             const allFileInputs = document.querySelectorAll('input[type="file"]');
+            debugLog('找到文件输入框数量', { count: allFileInputs.length });
+
             if (allFileInputs.length > 0) {
-                fileInput = allFileInputs[allFileInputs.length - 1]; // 使用最新的
-                debugLog('使用隐藏的文件输入框');
+                // 如果只有一个文件输入框，使用它
+                if (allFileInputs.length === 1) {
+                    fileInput = allFileInputs[0];
+                    debugLog('使用唯一的文件输入框');
+                } else {
+                    // 如果有多个文件输入框，尝试找到最近添加的或根据位置判断
+                    // 这里我们使用最后一个，假设它是最新出现的
+                    fileInput = allFileInputs[allFileInputs.length - 1];
+                    debugLog('使用最后一个文件输入框');
+                }
             }
         }
 
-        // 如果没有找到文件输入框，尝试触发A键功能来显示文件输入框
+        // 方法3: 如果仍然没有找到，尝试触发A键功能来显示文件输入框
         if (!fileInput) {
             debugLog('未找到文件输入框，尝试触发A键功能显示文件输入框');
             showNotification('正在触发上传功能...', 1000);
@@ -9271,7 +9291,10 @@ async function uploadSingleImage(base64Data, fileName, imageType, uploadTarget) 
                 // 增加等待时间确保文件输入框出现
                 debugLog('等待文件输入框出现');
                 await new Promise(resolve => setTimeout(resolve, 2000));
+
+                // 再次查找文件输入框
                 const newFileInputs = document.querySelectorAll('input[type="file"]');
+                debugLog('触发A键后找到文件输入框数量', { count: newFileInputs.length });
                 if (newFileInputs.length > 0) {
                     fileInput = newFileInputs[newFileInputs.length - 1];
                 }
