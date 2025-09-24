@@ -9078,12 +9078,15 @@ async function uploadNativeHostImageToAnnotationPlatform() {
         for (let i = 0; i < imagesToUpload.length; i++) {
             const image = imagesToUpload[i];
             try {
+                debugLog('开始上传图片', { index: i+1, total: imagesToUpload.length, imageType: image.imageType, target: image.uploadTarget });
                 await uploadSingleImage(image.data, image.fileName, image.imageType, image.uploadTarget);
                 successfulUploads++;
+                debugLog('图片上传完成', { imageType: image.imageType });
 
-                // 如果不是最后一张图片，等待一段时间再上传下一张
+                // 如果不是最后一张图片，等待更长时间再上传下一张，确保上传操作完全完成
                 if (i < imagesToUpload.length - 1) {
-                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    debugLog('等待下一张图片上传');
+                    await new Promise(resolve => setTimeout(resolve, 3000));
                 }
             } catch (error) {
                 console.error(`${image.imageType}上传失败:`, error);
@@ -9121,9 +9124,12 @@ async function switchToUploadTab(tabType) {
         let tabButton = null;
         const tabElements = document.querySelectorAll('span.t-tabs__nav-item-text-wrapper');
 
+        debugLog('找到标签页元素数量', { count: tabElements.length });
+
         if (tabType === 'ps') {
             // 查找PS后图片上传标签页
             for (const element of tabElements) {
+                debugLog('检查标签页元素', { textContent: element.textContent });
                 if (element.textContent && element.textContent.trim() === 'PS后图片上传') {
                     tabButton = element;
                     debugLog('找到PS后图片上传标签页');
@@ -9133,6 +9139,7 @@ async function switchToUploadTab(tabType) {
         } else if (tabType === 'mask') {
             // 查找蒙版图片上传标签页
             for (const element of tabElements) {
+                debugLog('检查标签页元素', { textContent: element.textContent });
                 if (element.textContent && element.textContent.trim() === '蒙版图片上传') {
                     tabButton = element;
                     debugLog('找到蒙版图片上传标签页');
@@ -9148,8 +9155,8 @@ async function switchToUploadTab(tabType) {
             clickableElement.click();
             debugLog('已点击标签页按钮进行切换', { tabType });
 
-            // 等待标签页切换完成
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // 增加等待时间确保标签页切换完成
+            await new Promise(resolve => setTimeout(resolve, 1500));
         } else {
             // 如果没有找到标签页按钮，尝试使用文本查找方法
             debugLog('未通过CSS选择器找到标签页按钮，尝试文本查找方法', { tabType });
@@ -9177,18 +9184,22 @@ async function switchToUploadTab(tabType) {
                 fallbackTabButton.click();
                 debugLog('已点击标签页按钮进行切换', { tabType, method: 'fallback' });
 
-                // 等待标签页切换完成
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                // 增加等待时间确保标签页切换完成
+                await new Promise(resolve => setTimeout(resolve, 1500));
             } else {
                 // 如果没有找到标签页按钮
                 debugLog('未找到标签页按钮', { tabType });
                 showNotification(`⚠️ 未找到${tabType === 'ps' ? 'PS后图片' : '蒙版图片'}上传标签页`, 2000);
+                // 即使没有找到标签页也等待一下，防止后续操作出现问题
+                await new Promise(resolve => setTimeout(resolve, 1000));
             }
         }
 
     } catch (error) {
         console.error('切换标签页失败:', error);
         debugLog(`切换标签页失败: ${error.message}`);
+        // 发生错误时也等待一下，防止后续操作出现问题
+        await new Promise(resolve => setTimeout(resolve, 1000));
         throw error;
     }
 }
@@ -9218,8 +9229,9 @@ async function uploadSingleImage(base64Data, fileName, imageType, uploadTarget) 
             await switchToUploadTab('mask');
         }
 
-        // 等待标签页切换完成
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        // 增加更长的等待时间确保标签页切换完全完成
+        debugLog('等待标签页切换完全完成');
+        await new Promise(resolve => setTimeout(resolve, 2000));
 
         // 查找文件输入框
         let fileInput = document.querySelector('input[type="file"]:not([style*="display: none"])');
@@ -9240,8 +9252,9 @@ async function uploadSingleImage(base64Data, fileName, imageType, uploadTarget) 
             const defaultUploadButton = findButtonByText(['上传图片', '上传', 'Upload', '选择图片', '选择文件']);
             if (defaultUploadButton) {
                 defaultUploadButton.click();
-                // 等待文件输入框出现
-                await new Promise(resolve => setTimeout(resolve, 1500));
+                // 增加等待时间确保文件输入框出现
+                debugLog('等待文件输入框出现');
+                await new Promise(resolve => setTimeout(resolve, 2000));
                 const newFileInputs = document.querySelectorAll('input[type="file"]');
                 if (newFileInputs.length > 0) {
                     fileInput = newFileInputs[newFileInputs.length - 1];
