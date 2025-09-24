@@ -52,41 +52,6 @@ let lastSuccessfulTaskId = null; // 最后成功的任务ID
 // let modeStatusIndicator = null;
 // let isDragging = false;
 // let dragOffset = { x: 0, y: 0 }
-// 重新启用热键功能（开发和测试时使用）
-function enableHotkeys() {
-    if (!deviceVerified) {
-        deviceVerified = true;
-        // 重新添加键盘事件监听器
-        if (keydownListener) {
-            document.addEventListener('keydown', keydownListener);
-            debugLog('已重新启用键盘事件监听器');
-            showNotification('✅ 热键功能已重新启用', 2000);
-        }
-    }
-}
-
-// 将函数暴露到全局对象上，以便在控制台中调用
-if (typeof window !== 'undefined') {
-    window.enableHotkeys = enableHotkeys;
-}
-
-// 手动触发设备验证失败（开发和测试时使用）
-function simulateDeviceVerificationFailure() {
-    if (deviceVerified) {
-        deviceVerified = false;
-        // 禁用键盘事件监听器
-        if (keydownListener) {
-            document.removeEventListener('keydown', keydownListener);
-            debugLog('已禁用键盘事件监听器（模拟）');
-            showNotification('❌ 设备验证失败（模拟），所有热键已禁用', 3000);
-        }
-    }
-}
-
-// 将函数暴露到全局对象上，以便在控制台中调用
-if (typeof window !== 'undefined') {
-    window.simulateDeviceVerificationFailure = simulateDeviceVerificationFailure;
-}
 
 // 测试设备指纹读取功能
 function testDeviceFingerprint() {
