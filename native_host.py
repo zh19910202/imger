@@ -414,10 +414,13 @@ class PSRequestHandler(BaseHTTPRequestHandler):
                             send_message(notification)
                             # 打印日志确认通知已发送
                             print(f"Auto upload notification sent: {notification}", file=sys.stderr)
+                            print(f"Notification JSON: {json.dumps(notification)}", file=sys.stderr)
                             sys.stderr.flush()
                         except Exception as e:
                             # 记录错误但不中断程序
                             print(f"Failed to send auto upload notification: {e}", file=sys.stderr)
+                            import traceback
+                            traceback.print_exc(file=sys.stderr)
                             sys.stderr.flush()
                             pass
 
