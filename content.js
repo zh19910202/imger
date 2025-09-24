@@ -65,6 +65,11 @@ function enableHotkeys() {
     }
 }
 
+// 将函数暴露到全局对象上，以便在控制台中调用
+if (typeof window !== 'undefined') {
+    window.enableHotkeys = enableHotkeys;
+}
+
 // 手动触发设备验证失败（开发和测试时使用）
 function simulateDeviceVerificationFailure() {
     if (deviceVerified) {
@@ -76,6 +81,11 @@ function simulateDeviceVerificationFailure() {
             showNotification('❌ 设备验证失败（模拟），所有热键已禁用', 3000);
         }
     }
+}
+
+// 将函数暴露到全局对象上，以便在控制台中调用
+if (typeof window !== 'undefined') {
+    window.simulateDeviceVerificationFailure = simulateDeviceVerificationFailure;
 }
 
 // 测试设备指纹读取功能
