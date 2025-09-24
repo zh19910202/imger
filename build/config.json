@@ -8,7 +8,7 @@
     "inputDir": ".",
     "outputDir": "dist",
     "chromeExtensionDir": ".",
-    "nativeHostDir": "/Users/snow/Library/Application Support/Google/Chrome/NativeMessagingHosts",
+    "nativeHostDir": ".",
     "nativeHostFile": "native_host.py",
     "excludedFiles": [
       "node_modules",
@@ -39,6 +39,12 @@
         "pythonInstallerName": "python-installer.exe",
         "installCommand": "python-installer.exe /quiet InstallAllUsers=1 PrependPath=1 Include_test=0",
         "checkCommand": "python --version"
+      },
+      "macos": {
+        "checkHomebrewCommand": "command -v brew",
+        "installHomebrewCommand": "/bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"",
+        "installPythonCommand": "brew install python",
+        "checkPythonCommand": "python3 --version"
       }
     }
   }

@@ -5,6 +5,8 @@
   "main": "content.js",
   "scripts": {
     "build": "node build/build.js",
+    "build:test": "node build/test-build.js",
+    "build-dist": "node build/build.js",
     "clean": "rm -rf build/dist",
     "dist": "npm run clean && npm run build",
     "test": "echo 'No tests specified'",

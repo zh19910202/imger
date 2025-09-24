@@ -1,6 +1,6 @@
 # 外部应用程序 JavaScript API 使用示例
 
-本文档展示了如何使用JavaScript与Native Host进行交互，包括发送和请求数据的示例代码。
+本文档展示了如何使用JavaScript与Native Host进行交互，包括发送和请求数据的示例代码，以及触发自动上传功能。
 
 ## API 端点说明
 
@@ -11,8 +11,11 @@ Native Host 提供以下API端点用于外部应用程序与Chrome扩展之间�
 - **GET**: 外部应用程序获取原图和修改要求
 
 ### 外部应用程序数据端点 (`/api/external-data`)
-- **POST**: 外部应用程序发送修改图和蒙版图
+- **POST**: 外部应用程序发送修改图和蒙版图（会触发自动上传通知）
 - **GET**: Chrome扩展获取修改图和蒙版图
+
+### 健康检查端点 (`/api/health`)
+- **GET**: 检查Native Host是否正常运行
 
 ## 示例代码
 
@@ -21,6 +24,7 @@ Native Host 提供以下API端点用于外部应用程序与Chrome扩展之间�
 ```javascript
 /**
  * 发送修改图和蒙版图数据到Native Host
+ * 成功发送后会自动触发Chrome扩展的图片上传流程
  * @param {string} modifiedImageData - 修改图数据 (base64编码)
  * @param {string} maskImageData - 蒙版图数据 (base64编码)
  * @param {Object} metadata - 元数据
@@ -55,7 +59,7 @@ async function sendExternalImagesToNativeHost(modifiedImageData, maskImageData, 
 
         if (response.ok) {
             const result = await response.json();
-            console.log('✅ 图片数据发送成功!');
+            console.log('✅ 图片数据发送成功! Chrome扩展将自动开始上传流程。');
             return { success: true, data: result };
         } else {
             const errorText = await response.text();
@@ -227,9 +231,20 @@ async function runInNode() {
 ## 使用说明
 
 1. 确保Native Host正在运行（监听在localhost:8888）
-2. 根据您的需求修改示例代码中的数据处理逻辑
-3. 在浏览器或Node.js环境中运行代码
-4. 检查控制台输出以确认数据传输是否成功
+2. 确保Chrome扩展已安装并启用
+3. 根据您的需求修改示例代码中的数据处理逻辑
+4. 在浏览器或Node.js环境中运行代码
+5. 检查控制台输出以确认数据传输是否成功
+6. 当成功发送修改图和蒙版图数据时，Chrome扩展会自动触发上传流程
+
+## 自动上传功能说明
+
+当外部应用程序通过`/api/external-data`端点发送修改图和蒙版图数据时，Native Host会自动向Chrome扩展发送通知，触发以下流程：
+
+1. Chrome扩展接收到自动上传通知
+2. 扩展自动调用上传函数开始上传图片
+3. 用户会看到系统通知显示上传进度
+4. 上传完成后会显示成功通知
 
 ## 错误处理
 

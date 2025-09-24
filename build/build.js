@@ -21,7 +21,12 @@ try {
 
 // 读取配置文件
 const config = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8'));
-const obfuscatorConfig = JSON.parse(fs.readFileSync(path.join(__dirname, 'javascript-obfuscator-config.json'), 'utf8'));
+let obfuscatorConfig = {};
+try {
+    obfuscatorConfig = JSON.parse(fs.readFileSync(path.join(__dirname, 'javascript-obfuscator-config.json'), 'utf8'));
+} catch (e) {
+    console.warn('警告：无法加载javascript-obfuscator配置，将使用默认配置');
+}
 
 console.log(`开始构建 ${config.projectName} v${config.version}`);
 
@@ -95,7 +100,7 @@ function buildNativeHost() {
     }
 
     // 复制Native Host文件
-    const srcPath = path.join(nativeHostDir, nativeHostFile);
+    const srcPath = path.join(__dirname, '..', nativeHostFile);
     const destPath = path.join(distNativeHostDir, nativeHostFile);
 
     if (fs.existsSync(srcPath)) {
@@ -107,8 +112,11 @@ function buildNativeHost() {
         }
     }
 
-    // 创建安装脚本
-    createInstallScript(distNativeHostDir);
+    // 复制安装脚本
+    copyInstallScripts(distNativeHostDir);
+
+    // 创建requirements.txt文件
+    createRequirementsFile(distNativeHostDir);
 
     console.log('Native Host构建完成');
 }
@@ -197,184 +205,20 @@ requests>=2.25.1
     fs.writeFileSync(path.join(dir, 'requirements.txt'), requirements);
 }
 
-// 创建安装脚本
-function createInstallScript(dir) {
-    // 先创建requirements.txt文件
-    createRequirementsFile(dir);
-    const installScript = `@echo off
-REM ${config.projectName} 安装脚本
-REM 版本: ${config.version}
+// 复制安装脚本
+function copyInstallScripts(dir) {
+    // 复制Windows安装脚本
+    const windowsScriptPath = path.join(__dirname, '..', 'build', 'dist', 'AnnotateFlow-Assistant-v2.0.0', 'native-host', 'install.bat');
+    if (fs.existsSync(windowsScriptPath)) {
+        fs.copyFileSync(windowsScriptPath, path.join(dir, 'install.bat'));
+    }
 
-echo 正在安装 ${config.projectName}...
-
-REM 检查PowerShell版本
-powershell -Command "Get-Host" >nul 2>&1
-if %errorlevel% neq 0 (
-    echo 错误：需要PowerShell来下载Python
-    pause
-    exit /b 1
-)
-
-REM 检查Python环境
-python --version >nul 2>&1
-if %errorlevel% neq 0 (
-    echo 未检测到Python环境，正在自动安装...
-
-    REM 下载Python安装程序
-    set PYTHON_INSTALLER_URL=${config.installation.platforms.windows.pythonInstallerUrl}
-    set PYTHON_INSTALLER_NAME=${config.installation.platforms.windows.pythonInstallerName}
-
-    echo 正在下载Python安装程序...
-    powershell -Command "Invoke-WebRequest -Uri '%PYTHON_INSTALLER_URL%' -OutFile '%PYTHON_INSTALLER_NAME%'"
-    if %errorlevel% neq 0 (
-        echo 错误：下载Python安装程序失败
-        pause
-        exit /b 1
-    )
-
-    echo 正在安装Python，请稍候...
-    echo 这可能需要几分钟时间...
-    %PYTHON_INSTALLER_NAME% /quiet InstallAllUsers=1 PrependPath=1 Include_test=0
-    if %errorlevel% neq 0 (
-        echo 错误：Python安装失败
-        pause
-        exit /b 1
-    )
-
-    echo Python安装完成
-    del %PYTHON_INSTALLER_NAME%
-
-    REM 刷新环境变量
-    echo 刷新环境变量...
-    set "PATH=%PATH%;%LOCALAPPDATA%\\Programs\\Python\\Python39;%LOCALAPPDATA%\\Programs\\Python\\Python39\\Scripts"
-)
-
-REM 验证Python安装
-python --version >nul 2>&1
-if %errorlevel% neq 0 (
-    echo 错误：Python安装验证失败
-    pause
-    exit /b 1
-)
-
-echo Python环境已准备就绪
-
-REM 安装Python依赖（如果需要）
-echo 正在安装Python依赖...
-pip install -r requirements.txt >nul 2>&1
-if %errorlevel% neq 0 (
-    echo 警告：无法安装Python依赖，可能需要手动安装
-)
-
-REM 配置Chrome Native Messaging Host
-echo 正在配置Chrome Native Messaging Host...
-
-REM 复制native_host.py到适当位置
-set NATIVE_HOST_DIR=%LOCALAPPDATA%\\Google\\Chrome\\User Data\\NativeMessagingHosts\\com.annotateflow.assistant
-if not exist "%NATIVE_HOST_DIR%" mkdir "%NATIVE_HOST_DIR%"
-copy "native_host.py" "%NATIVE_HOST_DIR%\\native_host.py"
-
-REM 创建manifest.json
-(
-echo {^
-echo   "name": "com.annotateflow.assistant",^
-echo   "description": "${config.description}",^
-echo   "path": "%NATIVE_HOST_DIR%\\native_host.py",^
-echo   "type": "stdio",^
-echo   "allowed_origins": [^
-echo     "chrome-extension://__MSG_@@extension_id__/"^
-echo   ]^
-echo }
-) > "%NATIVE_HOST_DIR%\\com.annotateflow.assistant.json"
-
-echo 安装完成！
-echo.
-echo 请在Chrome中加载扩展：
-echo 1. 打开Chrome浏览器
-echo 2. 进入 chrome://extensions/
-echo 3. 启用"开发者模式"
-echo 4. 点击"加载已解压的扩展程序"
-echo 5. 选择extension文件夹
-echo.
-pause
-`;
-
-    fs.writeFileSync(path.join(dir, 'install.bat'), installScript);
-
-    // 创建macOS安装脚本
-    const installScriptMac = `#!/bin/bash
-# ${config.projectName} 安装脚本 (macOS)
-# 版本: ${config.version}
-
-echo "正在安装 ${config.projectName}..."
-
-# 检查Homebrew
-if ! command -v brew &> /dev/null
-then
-    echo "未检测到Homebrew，正在安装..."
-    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    if [ $? -ne 0 ]; then
-        echo "Homebrew安装失败，请手动安装后再运行此脚本"
-        exit 1
-    fi
-fi
-
-# 检查Python环境
-if ! command -v python3 &> /dev/null
-then
-    echo "未检测到Python环境，正在通过Homebrew安装..."
-    brew install python
-    if [ $? -ne 0 ]; then
-        echo "Python安装失败"
-        exit 1
-    fi
-fi
-
-# 验证Python安装
-PYTHON_VERSION=$(python3 --version 2>&1)
-if [ $? -ne 0 ]; then
-    echo "Python安装验证失败"
-    exit 1
-fi
-
-echo "Python环境已准备就绪: $PYTHON_VERSION"
-
-# 安装Python依赖（如果需要）
-echo "正在安装Python依赖..."
-pip3 install -r requirements.txt 2>/dev/null || echo "警告：无法安装Python依赖，可能需要手动安装"
-
-# 配置Chrome Native Messaging Host
-echo "正在配置Chrome Native Messaging Host..."
-
-NATIVE_HOST_DIR="$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.annotateflow.assistant"
-mkdir -p "$NATIVE_HOST_DIR"
-cp native_host.py "$NATIVE_HOST_DIR/native_host.py"
-
-# 创建manifest.json
-cat > "$NATIVE_HOST_DIR/com.annotateflow.assistant.json" << EOF
-{
-  "name": "com.annotateflow.assistant",
-  "description": "${config.description}",
-  "path": "$NATIVE_HOST_DIR/native_host.py",
-  "type": "stdio",
-  "allowed_origins": [
-    "chrome-extension://__MSG_@@extension_id__/"
-  ]
-}
-EOF
-
-echo "安装完成！"
-echo ""
-echo "请在Chrome中加载扩展："
-echo "1. 打开Chrome浏览器"
-echo "2. 进入 chrome://extensions/"
-echo "3. 启用\\"开发者模式\\""
-echo "4. 点击\\"加载已解压的扩展程序\\""
-echo "5. 选择extension文件夹"
-`;
-
-    fs.writeFileSync(path.join(dir, 'install.sh'), installScriptMac);
-    fs.chmodSync(path.join(dir, 'install.sh'), 0o755);
+    // 复制macOS安装脚本
+    const macosScriptPath = path.join(__dirname, '..', 'build', 'dist', 'AnnotateFlow-Assistant-v2.0.0', 'native-host', 'install.sh');
+    if (fs.existsSync(macosScriptPath)) {
+        fs.copyFileSync(macosScriptPath, path.join(dir, 'install.sh'));
+        fs.chmodSync(path.join(dir, 'install.sh'), 0o755);
+    }
 }
 
 // 创建分发包

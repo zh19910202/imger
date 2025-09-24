@@ -54,6 +54,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Dual Communication**: PS Plugin ↔ HTTP Server ↔ Native Host ↔ Chrome Extension
 - **Data Support**: Text and Base64 image transmission up to 50MB
 - **Auto-open**: Automatic file opening via native host integration
+- **Auto-upload Notification**: External applications can trigger automatic image uploads to Tencent QLabel platform through HTTP API, with notifications flowing through Native Host to Chrome Extension
 
 ## Development Commands
 
@@ -68,6 +69,13 @@ python3 test_ps_integration.py
 
 # Health check for PS integration
 curl http://localhost:8888/api/health
+
+# Test auto-upload notification workflow
+node simulate_external_app_js.js
+python3 test_native_messaging.py
+
+# Create distribution package
+npm run build-dist
 ```
 
 ## Development Workflow
@@ -96,6 +104,18 @@ curl http://localhost:8888/api/health
 2. Configure native messaging host manifest for Chrome
 3. Start HTTP server on localhost:8888 for PS integration
 4. See `NATIVE_HOST_SETUP.md` for detailed setup instructions
+
+### Auto-upload Notification Testing
+1. Use `simulate_external_app_js.js` to test HTTP API integration with external applications
+2. Use `test_native_messaging.py` to test direct Native Messaging communication
+3. Verify complete workflow: External App → HTTP API → Native Host → Native Messaging → Chrome Extension → Automatic Upload
+
+### Distribution Package Creation
+1. Use `npm run build-dist` to create the distribution package
+2. The package will be created in `build/dist/AnnotateFlow-Assistant-v2.0.0/` directory
+3. The package includes automatic Python installation scripts for both Windows and macOS
+4. Users can run the install script for their platform to automatically set up the environment
+5. The distribution package includes both the Chrome extension and Native Host with all necessary files
 
 ## Key Technical Details
 
