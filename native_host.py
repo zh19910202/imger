@@ -287,8 +287,6 @@ class PSRequestHandler(BaseHTTPRequestHandler):
         POST /api/external-data: 外部应用调用此接口，用于发送【修改图】和【蒙版图】
         GET /api/external-data: 谷歌插件调用此接口，用于获取【修改图】和【蒙版图】
 
-    /api/process: 用于处理PS请求（向后兼容）
-    /api/images: 旧版图片接口（向后兼容）
     /api/health: 健康检查端点
     """
     
@@ -405,132 +403,6 @@ class PSRequestHandler(BaseHTTPRequestHandler):
                 except Exception as e:
                     self.send_error(500, f"Failed to store external data: {str(e)}")
 
-            # 处理原有的PS处理端点（保持向后兼容）
-            elif self.path == '/api/process':
-                # 解析JSON数据
-                try:
-                    request_data = json.loads(post_data.decode('utf-8'))
-                except json.JSONDecodeError:
-                    self.send_error(400, "Invalid JSON")
-                    return
-
-                # 生成请求ID
-                request_id = generate_request_id()
-
-                # 创建响应事件
-                response_event = threading.Event()
-
-                # 存储请求信息
-                with request_lock:
-                    pending_requests[request_id] = {
-                        "timestamp": time.time(),
-                        "response_event": response_event,
-                        "response_data": None
-                    }
-
-                # 构造发送给Chrome扩展的消息
-                chrome_message = {
-                    "action": "ps_request",
-                    "request_id": request_id,
-                    "text_data": request_data.get("text_data", ""),
-                    "image_data": request_data.get("image_data", ""),
-                    "metadata": request_data.get("metadata", {})
-                }
-
-                # 放入队列
-                http_request_queue.put(chrome_message)
-
-                # 等待响应
-                timeout = HTTP_SERVER_CONFIG["timeout"]
-                if response_event.wait(timeout):
-                    # 获取响应数据
-                    with request_lock:
-                        response_data = pending_requests[request_id]["response_data"]
-                        del pending_requests[request_id]
-
-                    # 发送响应
-                    self.send_response(200)
-                    self.send_header('Content-Type', 'application/json')
-                    self.send_header('Access-Control-Allow-Origin', '*')
-                    self.end_headers()
-                    self.wfile.write(json.dumps(response_data).encode('utf-8'))
-                else:
-                    # 超时处理
-                    with request_lock:
-                        if request_id in pending_requests:
-                            del pending_requests[request_id]
-
-                    self.send_error(408, "Request timeout")
-
-            # 处理旧的/images端点（保持向后兼容）
-            elif self.path == '/api/images':
-                try:
-                    # 解析JSON数据
-                    request_data = json.loads(post_data.decode('utf-8'))
-
-                    # 验证必需字段
-                    original_image = request_data.get("original_image")
-                    annotated_image = request_data.get("annotated_image")
-
-                    if not original_image or not annotated_image:
-                        self.send_error(400, "Missing required image data")
-                        return
-
-                    # 获取当前时间戳
-                    current_time = time.time()
-
-                    # 确定数据来源类型（保持旧逻辑向后兼容）
-                    source_type = "external_application"
-                    if request_data.get("source") == "annotateflow-assistant":
-                        source_type = "chrome_extension"
-
-                    # 存储图片数据 - 按来源隔离存储
-                    with image_data_lock:
-                        if source_type == "chrome_extension":
-                            # Chrome扩展数据：原图 + 标注图
-                            image_data_store["chrome_extension"]["original_image"] = original_image
-                            image_data_store["chrome_extension"]["annotated_image"] = annotated_image
-                            image_data_store["chrome_extension"]["instructions"] = request_data.get("instructions", "")
-                            image_data_store["chrome_extension"]["metadata"] = {
-                                "upload_time": current_time,
-                                "source": request_data.get("source", "unknown"),
-                                "format": request_data.get("format", "base64"),
-                                **request_data.get("metadata", {})
-                            }
-                            image_data_store["chrome_extension"]["update_timestamp"] = current_time
-                        else:
-                            # 外部应用数据：修改图 + 蒙版图
-                            image_data_store["external_application"]["modified_image"] = original_image
-                            image_data_store["external_application"]["mask_image"] = annotated_image
-                            image_data_store["external_application"]["instructions"] = request_data.get("instructions", "")
-                            image_data_store["external_application"]["metadata"] = {
-                                "upload_time": current_time,
-                                "source": request_data.get("source", "unknown"),
-                                "format": request_data.get("format", "base64"),
-                                **request_data.get("metadata", {})
-                            }
-                            image_data_store["external_application"]["update_timestamp"] = current_time
-
-                        # 更新当前活跃数据源
-                        image_data_store["current_source"] = source_type
-
-                    # 发送成功响应
-                    self.send_response(200)
-                    self.send_header('Content-Type', 'application/json')
-                    self.send_header('Access-Control-Allow-Origin', '*')
-                    self.end_headers()
-
-                    response = {
-                        "success": True,
-                        "message": "Images stored successfully (legacy endpoint)",
-                        "timestamp": time.time()
-                    }
-                    self.wfile.write(json.dumps(response, ensure_ascii=False).encode('utf-8'))
-
-                except json.JSONDecodeError:
-                    self.send_error(400, "Invalid JSON")
-                except Exception as e:
-                    self.send_error(500, f"Failed to store images: {str(e)}")
             else:
                 self.send_error(404, "Not Found")
 
@@ -598,66 +470,6 @@ class PSRequestHandler(BaseHTTPRequestHandler):
                 }
             self.wfile.write(json.dumps(img_data, ensure_ascii=False).encode('utf-8'))
 
-        # 获取图片数据端点 - 支持定向数据获取（保持向后兼容）
-        elif self.path.startswith('/api/img'):
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.end_headers()
-            # 获取当前时间戳
-            current_time = time.time()
-
-            # 解析查询参数来确定请求来源
-            from urllib.parse import urlparse, parse_qs
-            parsed_url = urlparse(self.path)
-            query_params = parse_qs(parsed_url.query)
-
-            # 确定请求者身份和目标数据源
-            target_source = None
-            requester_type = "unknown"
-
-            # 检查是否有明确指定的数据源请求
-            if 'source' in query_params:
-                source_param = query_params['source'][0]
-                if source_param in ['chrome_extension', 'external_application']:
-                    target_source = source_param
-                    requester_type = "direct_request"
-            else:
-                # 根据请求特征推断请求者身份
-                user_agent = self.headers.get('User-Agent', '').lower()
-                origin = self.headers.get('Origin', '').lower()
-
-                # 外部应用通常是Python requests或其他工具
-                if 'python-requests' in user_agent or 'python' in user_agent:
-                    # 外部应用请求，应该返回Chrome插件的数据
-                    target_source = "chrome_extension"
-                    requester_type = "external_app"
-                else:
-                    # Chrome插件请求，应该返回外部应用的数据
-                    target_source = "external_application"
-                    requester_type = "chrome_extension"
-
-            # 获取存储的图片数据
-            with image_data_lock:
-                if target_source and target_source in image_data_store:
-                    source_data = image_data_store[target_source]
-                    img_data = {
-                        # 包含该数据源的所有字段
-                        **source_data,
-                        "source_type": target_source,
-                        "requester_type": requester_type,
-                        "response_timestamp": current_time
-                    }
-                else:
-                    # 返回所有数据源的概览（用于调试）
-                    img_data = {
-                        "chrome_extension": image_data_store["chrome_extension"],
-                        "external_application": image_data_store["external_application"],
-                        "current_source": image_data_store["current_source"],
-                        "requester_type": requester_type,
-                        "response_timestamp": current_time
-                    }
-            self.wfile.write(json.dumps(img_data, ensure_ascii=False).encode('utf-8'))
 
         else:
             self.send_error(404, "Not Found")

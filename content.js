@@ -8967,7 +8967,7 @@ async function getNativeHostImageData() {
     }
 }
 
-// 上传Native Host图片数据到标注平台（通过网页标签页切换上传不同图片）
+// 上传Native Host图片数据到标注平台（默认同时上传修改图和蒙版图）
 async function uploadNativeHostImageToAnnotationPlatform() {
     try {
         // 获取native host中的图片数据，指定数据源为external_application以获取PS插件上传的数据
@@ -8978,63 +8978,65 @@ async function uploadNativeHostImageToAnnotationPlatform() {
 
         showNotification('正在处理图片数据...', 1000);
 
-        // 检查是否有图片可以上传
-        const hasModifiedImage = !!imageData.modified_image;
-        const hasMaskImage = !!imageData.mask_image;
+        // 收集要上传的图片
+        const imagesToUpload = [];
 
-        if (!hasModifiedImage && !hasMaskImage) {
+        // 添加PS修改图（如果存在）
+        if (imageData.modified_image) {
+            imagesToUpload.push({
+                data: imageData.modified_image,
+                fileName: 'ps_modified_image.png',
+                imageType: 'PS修改图',
+                uploadTarget: 'ps'
+            });
+        }
+
+        // 添加蒙版图（如果存在）
+        if (imageData.mask_image) {
+            imagesToUpload.push({
+                data: imageData.mask_image,
+                fileName: 'mask_image.png',
+                imageType: '蒙版图',
+                uploadTarget: 'mask'
+            });
+        }
+
+        // 检查是否有图片需要上传
+        if (imagesToUpload.length === 0) {
             showNotification('❌ 未找到可上传的图片', 3000);
             return;
         }
 
-        // 上传PS修改图（如果存在）
-        if (hasModifiedImage) {
+        // 顺序上传所有图片
+        let successfulUploads = 0;
+        for (let i = 0; i < imagesToUpload.length; i++) {
+            const image = imagesToUpload[i];
             try {
-                showNotification('正在切换到PS修改图标签页...', 1500);
-                // 切换到PS修改图标签页
-                await switchToUploadTab('ps');
+                await uploadSingleImage(image.data, image.fileName, image.imageType, image.uploadTarget);
+                successfulUploads++;
 
-                // 等待标签页切换完成
-                await new Promise(resolve => setTimeout(resolve, 1500));
-
-                // 上传PS修改图
-                await uploadSingleImage(imageData.modified_image, 'ps_modified_image.png', 'PS修改图', 'ps');
-
-                showNotification('✅ PS修改图上传成功', 2000);
+                // 如果不是最后一张图片，等待一段时间再上传下一张
+                if (i < imagesToUpload.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                }
             } catch (error) {
-                console.error('PS修改图上传失败:', error);
-                debugLog(`PS修改图上传失败: ${error.message}`);
-                showNotification(`❌ PS修改图上传失败: ${error.message}`, 3000);
-            }
-
-            // 如果还有蒙版图需要上传，等待一段时间再切换
-            if (hasMaskImage) {
-                await new Promise(resolve => setTimeout(resolve, 2000));
+                console.error(`${image.imageType}上传失败:`, error);
+                debugLog(`${image.imageType}上传失败: ${error.message}`);
+                showNotification(`❌ ${image.imageType}上传失败: ${error.message}`, 3000);
+                // 继续上传下一张图片，不中断整个流程
             }
         }
 
-        // 上传蒙版图（如果存在）
-        if (hasMaskImage) {
-            try {
-                showNotification('正在切换到蒙版图标签页...', 1500);
-                // 切换到蒙版图标签页
-                await switchToUploadTab('mask');
-
-                // 等待标签页切换完成
-                await new Promise(resolve => setTimeout(resolve, 1500));
-
-                // 上传蒙版图
-                await uploadSingleImage(imageData.mask_image, 'mask_image.png', '蒙版图', 'mask');
-
-                showNotification('✅ 蒙版图上传成功', 2000);
-            } catch (error) {
-                console.error('蒙版图上传失败:', error);
-                debugLog(`蒙版图上传失败: ${error.message}`);
-                showNotification(`❌ 蒙版图上传失败: ${error.message}`, 3000);
+        // 显示最终结果
+        if (successfulUploads > 0) {
+            if (successfulUploads === imagesToUpload.length) {
+                showNotification(`✅ 成功上传所有${successfulUploads}张图片！`, 3000);
+            } else {
+                showNotification(`✅ 成功上传${successfulUploads}张图片，${imagesToUpload.length - successfulUploads}张失败`, 3000);
             }
+        } else {
+            showNotification('❌ 所有图片上传失败', 3000);
         }
-
-        showNotification('✅ 图片上传流程完成', 3000);
 
     } catch (error) {
         console.error('上传Native Host图片失败:', error);
@@ -9049,35 +9051,73 @@ async function switchToUploadTab(tabType) {
         // 根据标签页类型查找并点击对应的标签页按钮
         debugLog('查找标签页切换按钮', { tabType });
 
-        // 定义不同标签页的按钮文本
-        let tabButtonText = [];
-        if (tabType === 'ps') {
-            tabButtonText = ['PS后图片', 'PS修改图', '后处理图片', '处理后图片'];
-        } else if (tabType === 'mask') {
-            tabButtonText = ['蒙版图', '蒙版', 'Mask图', '遮罩图'];
-        }
-
-        // 查找标签页按钮
+        // 直接通过CSS选择器和精确文本内容查找标签页
         let tabButton = null;
-        for (const buttonText of tabButtonText) {
-            tabButton = findButtonByText([buttonText]);
-            if (tabButton) {
-                debugLog('找到标签页按钮', { buttonText });
-                break;
+        const tabElements = document.querySelectorAll('span.t-tabs__nav-item-text-wrapper');
+
+        if (tabType === 'ps') {
+            // 查找PS后图片上传标签页
+            for (const element of tabElements) {
+                if (element.textContent && element.textContent.trim() === 'PS后图片上传') {
+                    tabButton = element;
+                    debugLog('找到PS后图片上传标签页');
+                    break;
+                }
+            }
+        } else if (tabType === 'mask') {
+            // 查找蒙版图片上传标签页
+            for (const element of tabElements) {
+                if (element.textContent && element.textContent.trim() === '蒙版图片上传') {
+                    tabButton = element;
+                    debugLog('找到蒙版图片上传标签页');
+                    break;
+                }
             }
         }
 
         // 如果找到了标签页按钮，点击切换
         if (tabButton) {
-            tabButton.click();
+            // 点击标签页按钮的父元素，因为通常父元素是可点击的
+            const clickableElement = tabButton.closest('div') || tabButton;
+            clickableElement.click();
             debugLog('已点击标签页按钮进行切换', { tabType });
 
             // 等待标签页切换完成
             await new Promise(resolve => setTimeout(resolve, 1000));
         } else {
-            // 如果没有找到标签页按钮，尝试其他方式
-            debugLog('未找到标签页按钮，尝试通用方法', { tabType });
-            showNotification(`⚠️ 未找到${tabType === 'ps' ? 'PS修改图' : '蒙版图'}标签页`, 2000);
+            // 如果没有找到标签页按钮，尝试使用文本查找方法
+            debugLog('未通过CSS选择器找到标签页按钮，尝试文本查找方法', { tabType });
+
+            // 定义不同标签页的按钮文本
+            let tabButtonText = [];
+            if (tabType === 'ps') {
+                tabButtonText = ['PS后图片上传', 'PS后图片', 'PS修改图', '后处理图片', '处理后图片'];
+            } else if (tabType === 'mask') {
+                tabButtonText = ['蒙版图片上传', '蒙版图上传', '蒙版图片', '蒙版图', '蒙版', 'Mask图', '遮罩图'];
+            }
+
+            // 查找标签页按钮
+            let fallbackTabButton = null;
+            for (const buttonText of tabButtonText) {
+                fallbackTabButton = findButtonByText([buttonText]);
+                if (fallbackTabButton) {
+                    debugLog('通过文本查找找到标签页按钮', { buttonText });
+                    break;
+                }
+            }
+
+            // 如果找到了标签页按钮，点击切换
+            if (fallbackTabButton) {
+                fallbackTabButton.click();
+                debugLog('已点击标签页按钮进行切换', { tabType, method: 'fallback' });
+
+                // 等待标签页切换完成
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            } else {
+                // 如果没有找到标签页按钮
+                debugLog('未找到标签页按钮', { tabType });
+                showNotification(`⚠️ 未找到${tabType === 'ps' ? 'PS后图片' : '蒙版图片'}上传标签页`, 2000);
+            }
         }
 
     } catch (error) {
@@ -9103,44 +9143,17 @@ async function uploadSingleImage(base64Data, fileName, imageType, uploadTarget) 
         // 创建File对象
         const file = new File([blob], fileName, { type: mimeString });
 
-        // 根据图片类型查找并点击对应的上传按钮
-        debugLog('查找指定上传位置按钮', { target: uploadTarget, imageType });
+        // 根据上传目标切换到对应的标签页
+        debugLog('切换到指定上传标签页', { target: uploadTarget, imageType });
 
-        // 根据上传目标查找对应的按钮
-        let uploadButtonText = [];
         if (uploadTarget === 'ps') {
-            uploadButtonText = ['PS后图片上传', 'PS后上传', 'PS上传', '后处理图片上传', '处理后图片上传'];
+            await switchToUploadTab('ps');
         } else if (uploadTarget === 'mask') {
-            uploadButtonText = ['蒙版图上传', '蒙版上传', 'Mask上传', '遮罩图上传', '蒙版'];
+            await switchToUploadTab('mask');
         }
 
-        let uploadButton = null;
-        let foundButtonText = '';
-
-        // 按优先级查找按钮
-        for (const buttonText of uploadButtonText) {
-            uploadButton = findButtonByText([buttonText]);
-            if (uploadButton) {
-                foundButtonText = buttonText;
-                break;
-            }
-        }
-
-        if (uploadButton) {
-            debugLog('找到指定上传按钮，点击触发上传', { target: uploadTarget, buttonText: foundButtonText });
-            showNotification(`正在上传${imageType}...`, 1500);
-            uploadButton.click();
-            // 等待文件输入框出现
-            await new Promise(resolve => setTimeout(resolve, 1500));
-        } else {
-            showNotification(`⚠️ 未找到${imageType}上传按钮，尝试使用通用上传`, 3000);
-            // 如果没找到指定按钮，尝试触发默认A键功能
-            const defaultUploadButton = findButtonByText(['上传图片', '上传', 'Upload', '选择图片', '选择文件']);
-            if (defaultUploadButton) {
-                defaultUploadButton.click();
-                await new Promise(resolve => setTimeout(resolve, 1500));
-            }
-        }
+        // 等待标签页切换完成
+        await new Promise(resolve => setTimeout(resolve, 1500));
 
         // 查找文件输入框
         let fileInput = document.querySelector('input[type="file"]:not([style*="display: none"])');
