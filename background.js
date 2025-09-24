@@ -475,7 +475,7 @@ function initializeNativeMessaging() {
       
       // 优化消息监听器 - 处理所有Native Host消息
       port.onMessage.addListener((response) => {
-        if (LOG_VERBOSE) console.log('Native Host响应:', response);
+        console.log('收到Native Host消息:', response);
 
         // 处理自动上传通知
         if (response.action === 'auto_upload_notification') {
@@ -486,17 +486,36 @@ function initializeNativeMessaging() {
             if (tabs && tabs.length > 0) {
               const activeTab = tabs[0];
               console.log('找到活动标签页，ID:', activeTab.id);
-              // 发送消息到当前活动标签页的content script
-              chrome.tabs.sendMessage(activeTab.id, {
-                action: 'trigger_auto_upload',
-                data: response
-              }, function(response) {
-                if (chrome.runtime.lastError) {
-                  console.error('发送自动上传通知到content script失败:', chrome.runtime.lastError.message);
-                } else {
-                  console.log('自动上传通知已发送到content script');
-                }
-              });
+              console.log('标签页URL:', activeTab.url);
+
+              // 检查标签页是否为标注页面
+              if (activeTab.url && activeTab.url.includes('qlabel.tencent.com')) {
+                console.log('活动标签页是标注页面，发送自动上传通知');
+                // 发送消息到当前活动标签页的content script
+                chrome.tabs.sendMessage(activeTab.id, {
+                  action: 'trigger_auto_upload',
+                  data: response
+                }, function(response) {
+                  if (chrome.runtime.lastError) {
+                    console.error('发送自动上传通知到content script失败:', chrome.runtime.lastError.message);
+                  } else {
+                    console.log('自动上传通知已发送到content script');
+                  }
+                });
+              } else {
+                console.log('活动标签页不是标注页面，跳过自动上传');
+                // 即使不是标注页面也发送通知，让content script自己判断
+                chrome.tabs.sendMessage(activeTab.id, {
+                  action: 'trigger_auto_upload',
+                  data: response
+                }, function(response) {
+                  if (chrome.runtime.lastError) {
+                    console.error('发送自动上传通知到content script失败:', chrome.runtime.lastError.message);
+                  } else {
+                    console.log('自动上传通知已发送到content script（非标注页面）');
+                  }
+                });
+              }
             } else {
               console.log('未找到活动标签页');
             }
@@ -509,6 +528,9 @@ function initializeNativeMessaging() {
           } else if (response.error) {
             console.error('Native Host打开失败:', response.error);
           }
+        } else {
+          // 处理其他类型的消息
+          console.log('收到其他类型的Native Host消息:', response);
         }
 
         // 文件检查响应由专门的监听器处理，这里不需要处理
