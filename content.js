@@ -22,6 +22,8 @@ let isComparisonModalOpen = false; // 对比页面开启状态
 let debugMode = false; // 调试模式开关（默认关闭）
 let debugPanel = null; // 调试面板元素
 let debugLogs = []; // 调试日志数组
+let deviceVerified = true; // 设备验证状态，默认为true，表示允许使用热键
+let keydownListener = null; // 键盘事件监听器引用
 // F1 连续无效化相关
 let f1AutoInvalidating = false;
 let f1IntervalMs = 800; // 可调整的执行间隔（毫秒）
@@ -76,12 +78,21 @@ function testDeviceFingerprint() {
             console.log('设备指纹读取成功');
             debugLog('设备指纹读取成功');
             showNotification('✅ 设备指纹验证成功', 2000);
+            // 设置设备验证状态为成功
+            deviceVerified = true;
             // 验证卡密
             validateCardKey(response.content);
         } else {
             console.error('设备指纹读取失败:', response);
             debugLog('设备指纹读取失败: ' + (response ? response.error : '未知错误'));
-            showNotification('❌ 设备指纹验证失败', 2000);
+            showNotification('❌ 设备指纹验证失败，所有热键已禁用', 3000);
+            // 设置设备验证状态为失败
+            deviceVerified = false;
+            // 禁用键盘事件监听器
+            if (keydownListener) {
+                document.removeEventListener('keydown', keydownListener);
+                debugLog('已禁用键盘事件监听器');
+            }
         }
     });
 }
@@ -243,10 +254,11 @@ function initializeScript() {
     
     // 加载自动对比设置
     loadAutoCompareSettings();
-    
+
     // 初始化音效
-    // 添加键盘事件监听器
-    document.addEventListener('keydown', handleKeydown);
+    // 添加键盘事件监听器并保存引用
+    keydownListener = handleKeydown;
+    document.addEventListener('keydown', keydownListener);
     
     // 监听存储变化
     chrome.storage.onChanged.addListener((changes, namespace) => {
@@ -574,6 +586,12 @@ function closeComparisonModal() {
 
 // 处理键盘事件
 function handleKeydown(event) {
+    // 检查设备是否已验证
+    if (!deviceVerified) {
+        // 设备未验证，不处理任何快捷键
+        return;
+    }
+
     // 检查是否在输入框中
     if (isInInputField(event.target)) {
         return; // 在输入框中，不处理快捷键
