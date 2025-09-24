@@ -354,9 +354,14 @@ class PSRequestHandler(BaseHTTPRequestHandler):
 
             # 处理外部应用数据端点 - 存放修改图和蒙版图
             elif self.path == '/api/external-data':
+                print(f"处理外部应用数据请求，路径: {self.path}", file=sys.stderr)
+                print(f"POST数据长度: {len(post_data)}", file=sys.stderr)
+                sys.stderr.flush()
                 try:
                     # 解析JSON数据
                     request_data = json.loads(post_data.decode('utf-8'))
+                    print(f"JSON数据解析成功: {list(request_data.keys())}", file=sys.stderr)
+                    sys.stderr.flush()
 
                     # 验证必需字段 - 外部应用发送修改图和蒙版图
                     modified_image = request_data.get("modified_image")
