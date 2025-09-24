@@ -919,16 +919,20 @@ function addImageEventListeners() {
 // 为单个图片添加事件监听器
 function addImageListeners(img) {
     // 鼠标悬停事件
-    img.addEventListener('mouseenter', (event) => {
+    img.addEventListener('mouseenter', async (event) => {
         lastHoveredImage = event.target;
         highlightImage(event.target, true);
-        showImageDimensions(event.target, event);
+        await showImageDimensions(event.target, event);
     });
-    
+
     img.addEventListener('mouseleave', (event) => {
         if (lastHoveredImage === event.target) {
             highlightImage(event.target, false);
         }
+
+        // 恢复鼠标样式
+        event.target.style.cursor = '';
+
         hideImageDimensions();
     });
     
@@ -1479,33 +1483,90 @@ function addLinkClickEffect(link) {
 }
 
 // 显示图片尺寸提示框
-function showImageDimensions(img, event) {
+async function showImageDimensions(img, event) {
     try {
         // 获取图片的真实尺寸
         const width = img.naturalWidth || img.width;
         const height = img.naturalHeight || img.height;
-        
+
         // 如果尺寸无效，不显示提示框
         if (!width || !height) {
             return;
         }
-        
+
+        // 检查图片是否符合要求
+        const isValid = await isImageValidForRequirements(img);
+
         // 创建或更新提示框
         if (!dimensionTooltip) {
             createDimensionTooltip();
         }
-        
-        // 设置提示框内容
+
+        // 设置提示框内容和样式
         dimensionTooltip.textContent = `${width} × ${height}`;
-        
+
+        // 根据是否符合要求设置提示框样式
+        if (isValid) {
+            dimensionTooltip.style.background = 'rgba(5, 150, 105, 0.9)'; // 绿色背景表示符合要求
+            dimensionTooltip.style.color = 'white';
+        } else {
+            dimensionTooltip.style.background = 'rgba(0, 0, 0, 0.8)'; // 黑色背景表示不符合要求
+            dimensionTooltip.style.color = 'white';
+        }
+
         // 显示提示框
         dimensionTooltip.style.display = 'block';
-        
+
+        // 根据是否符合要求更改鼠标样式
+        if (isValid) {
+            img.style.cursor = 'pointer'; // 符合要求时显示手指指针
+        } else {
+            img.style.cursor = 'not-allowed'; // 不符合要求时显示禁止手势
+        }
+
         // 更新位置
         updateTooltipPosition(event);
-        
+
     } catch (error) {
         console.error('显示图片尺寸时发生错误:', error);
+    }
+}
+
+// 检查图片是否符合要求（尺寸是8的倍数且文件大小不超过5MB）
+async function isImageValidForRequirements(img) {
+    try {
+        // 获取图片的真实尺寸
+        const width = img.naturalWidth || img.width;
+        const height = img.naturalHeight || img.height;
+
+        // 检查尺寸是否符合要求（长宽都是8的倍数）
+        const isWidthValid = width % 8 === 0;
+        const isHeightValid = height % 8 === 0;
+        const isDimensionValid = isWidthValid && isHeightValid;
+
+        if (!isDimensionValid) {
+            return false;
+        }
+
+        // 检查文件大小是否符合要求（不超过5MB）
+        // 只有当图片有src且不是data URL时才检查文件大小
+        if (img.src && !img.src.startsWith('data:')) {
+            try {
+                const response = await fetch(img.src, { method: 'HEAD' });
+                const fileSize = parseInt(response.headers.get('content-length') || '0');
+                const isFileSizeValid = fileSize <= 5 * 1024 * 1024; // 5MB限制
+                return isFileSizeValid;
+            } catch (sizeError) {
+                // 如果无法获取文件大小，假定符合要求
+                return true;
+            }
+        }
+
+        // 对于data URL或无法检查大小的图片，假定符合要求
+        return true;
+    } catch (error) {
+        console.error('检查图片要求时发生错误:', error);
+        return false;
     }
 }
 
