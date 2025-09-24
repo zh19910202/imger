@@ -161,15 +161,17 @@ function initializeNetworkInterception() {
         if (LOG_VERBOSE) console.log('🔍 [COS拦截] 详细信息:', logData);
         
         // 发送网络请求数据到content script
-        chrome.tabs.sendMessage(details.tabId, buildCosImageMessage(url, details, 'request', {
-          method: details.method,
-          type: details.type,
-          timeStamp: details.timeStamp,
-          initiator: details.initiator,
-          isJpeg: true
-        })).catch(() => {
-          // 忽略发送失败（可能content script还未加载）
-        });
+        if (details.tabId >= 0) {
+          chrome.tabs.sendMessage(details.tabId, buildCosImageMessage(url, details, 'request', {
+            method: details.method,
+            type: details.type,
+            timeStamp: details.timeStamp,
+            initiator: details.initiator,
+            isJpeg: true
+          })).catch(() => {
+            // 忽略发送失败（可能content script还未加载）
+          });
+        }
       }
       
       // 不阻止请求，只记录日志
@@ -246,17 +248,20 @@ function initializeNetworkInterception() {
         if (LOG_VERBOSE) console.log(`📥 [COS拦截] ${imageType}响应头:`, logData);
         
         // 发送响应数据到content script
-        chrome.tabs.sendMessage(details.tabId, buildCosImageMessage(url, details, 'response', {
-          statusCode: details.statusCode,
-          contentType: contentType,
-          contentLength: contentLength,
-          isJpeg: isJpeg,
-          jpegDetection: {
-            byContentType: isJpegByContentType,
-            byUrl: isJpegByUrl
-          }
-        })).catch(() => {
-          // 忽略发送失败
+        if (details.tabId >= 0) {
+          chrome.tabs.sendMessage(details.tabId, buildCosImageMessage(url, details, 'response', {
+            statusCode: details.statusCode,
+            contentType: contentType,
+            contentLength: contentLength,
+            isJpeg: isJpeg,
+            jpegDetection: {
+              byContentType: isJpegByContentType,
+              byUrl: isJpegByUrl
+            }
+          })).catch(() => {
+            // 忽略发送失败
+          });
+        }
         });
       }
       
@@ -313,12 +318,14 @@ function initializeNetworkInterception() {
         if (LOG_VERBOSE) console.log(`✅ [COS拦截] ${imageType}请求完成:`, logData);
         
         // 发送完成状态到content script
-        chrome.tabs.sendMessage(details.tabId, buildCosImageMessage(url, details, 'completed', {
-          statusCode: details.statusCode,
-          isJpeg: isJpegByUrl
-        })).catch(() => {
-          // 忽略发送失败
-        });
+        if (details.tabId >= 0) {
+          chrome.tabs.sendMessage(details.tabId, buildCosImageMessage(url, details, 'completed', {
+            statusCode: details.statusCode,
+            isJpeg: isJpegByUrl
+          })).catch(() => {
+            // 忽略发送失败
+          });
+        }
       }
     },
     {
