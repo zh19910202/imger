@@ -9257,25 +9257,44 @@ async function uploadSingleImage(base64Data, fileName, imageType, uploadTarget) 
         debugLog('查找当前标签页下的文件输入框');
         let fileInput = null;
 
-        // 尝试更精确地查找当前标签页下的文件输入框
-        // 方法1: 查找可见的文件输入框
-        fileInput = document.querySelector('input[type="file"]:not([style*="display: none"]):not([style*="visibility: hidden"])');
+        // 根据HTML结构，查找当前激活的标签页下的文件输入框
+        // 激活的标签页对应的t-tab-panel没有display: none样式
+        const activeTabPanel = document.querySelector('.t-tab-panel:not([style*="display: none"])');
+        if (activeTabPanel) {
+            debugLog('找到激活的标签页面板');
+            // 在激活的标签页面板内查找文件输入框
+            fileInput = activeTabPanel.querySelector('input[type="file"][hidden="hidden"]');
+            if (fileInput) {
+                debugLog('在激活的标签页中找到文件输入框');
+            } else {
+                debugLog('在激活的标签页中未找到文件输入框');
+            }
+        } else {
+            debugLog('未找到激活的标签页面板');
+        }
 
-        // 方法2: 如果没找到，尝试查找所有文件输入框并根据其位置判断
+        // 如果没找到，使用备选方案
         if (!fileInput) {
-            const allFileInputs = document.querySelectorAll('input[type="file"]');
-            debugLog('找到文件输入框数量', { count: allFileInputs.length });
+            // 尝试更精确地查找当前标签页下的文件输入框
+            // 方法1: 查找可见的文件输入框
+            fileInput = document.querySelector('input[type="file"]:not([style*="display: none"]):not([style*="visibility: hidden"])');
 
-            if (allFileInputs.length > 0) {
-                // 如果只有一个文件输入框，使用它
-                if (allFileInputs.length === 1) {
-                    fileInput = allFileInputs[0];
-                    debugLog('使用唯一的文件输入框');
-                } else {
-                    // 如果有多个文件输入框，尝试找到最近添加的或根据位置判断
-                    // 这里我们使用最后一个，假设它是最新出现的
-                    fileInput = allFileInputs[allFileInputs.length - 1];
-                    debugLog('使用最后一个文件输入框');
+            // 方法2: 如果没找到，尝试查找所有文件输入框并根据其位置判断
+            if (!fileInput) {
+                const allFileInputs = document.querySelectorAll('input[type="file"]');
+                debugLog('找到文件输入框数量', { count: allFileInputs.length });
+
+                if (allFileInputs.length > 0) {
+                    // 如果只有一个文件输入框，使用它
+                    if (allFileInputs.length === 1) {
+                        fileInput = allFileInputs[0];
+                        debugLog('使用唯一的文件输入框');
+                    } else {
+                        // 如果有多个文件输入框，尝试找到最近添加的或根据位置判断
+                        // 这里我们使用最后一个，假设它是最新出现的
+                        fileInput = allFileInputs[allFileInputs.length - 1];
+                        debugLog('使用最后一个文件输入框');
+                    }
                 }
             }
         }
