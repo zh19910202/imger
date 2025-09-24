@@ -1,0 +1,45 @@
+{
+  "projectName": "AnnotateFlow-Assistant",
+  "version": "2.0.0",
+  "author": "Auxis Team",
+  "description": "Chrome extension for Tencent QLabel annotation platform with PS integration",
+  "main": "index.js",
+  "build": {
+    "inputDir": ".",
+    "outputDir": "dist",
+    "chromeExtensionDir": ".",
+    "nativeHostDir": "/Users/snow/Library/Application Support/Google/Chrome/NativeMessagingHosts",
+    "nativeHostFile": "native_host.py",
+    "excludedFiles": [
+      "node_modules",
+      ".git",
+      "build",
+      "*.md",
+      "test_*.js",
+      ".*"
+    ]
+  },
+  "obfuscation": {
+    "enabled": true,
+    "chromeExtensionFiles": [
+      "content.js",
+      "background.js",
+      "popup.js"
+    ],
+    "nativeHostFiles": [
+      "native_host.py"
+    ]
+  },
+  "installation": {
+    "checkPython": true,
+    "installPythonIfMissing": true,
+    "platforms": {
+      "windows": {
+        "pythonInstallerUrl": "https://www.python.org/ftp/python/3.9.13/python-3.9.13-amd64.exe",
+        "pythonInstallerName": "python-installer.exe",
+        "installCommand": "python-installer.exe /quiet InstallAllUsers=1 PrependPath=1 Include_test=0",
+        "checkCommand": "python --version"
+      }
+    }
+  }
+}

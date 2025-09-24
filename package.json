@@ -4,7 +4,9 @@
   "description": "Chrome extension for Tencent QLabel annotation platform with fast image download and keyboard shortcuts",
   "main": "content.js",
   "scripts": {
-    "build": "echo 'No build process needed for Chrome extension'",
+    "build": "node build/build.js",
+    "clean": "rm -rf build/dist",
+    "dist": "npm run clean && npm run build",
     "test": "echo 'No tests specified'",
     "lint": "echo 'No linter configured'"
   },
@@ -25,5 +27,8 @@
   "bugs": {
     "url": "https://github.com/your-username/auxis/issues"
   },
-  "homepage": "https://github.com/your-username/auxis#readme"
+  "homepage": "https://github.com/your-username/auxis#readme",
+  "devDependencies": {
+    "javascript-obfuscator": "^4.0.0"
+  }
 }
