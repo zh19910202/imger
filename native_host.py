@@ -31,6 +31,7 @@ HTTP_SERVER_CONFIG = {
 # 全局变量
 http_request_queue = queue.Queue()
 native_messaging_send_queue = queue.Queue()  # 用于发送Native Messaging消息的队列
+native_messaging_read_queue = queue.Queue()  # 用于存储从Chrome扩展读取到的消息
 pending_requests = {}  # 存储待处理的请求
 request_lock = threading.Lock()
 # 图片数据存储 - 按来源隔离
@@ -581,16 +582,33 @@ def cleanup_expired_requests():
     """清理过期的请求"""
     current_time = time.time()
     expired_requests = []
-    
+
     with request_lock:
         for request_id, request_info in pending_requests.items():
             if current_time - request_info["timestamp"] > HTTP_SERVER_CONFIG["timeout"]:
                 expired_requests.append(request_id)
-        
+
         for request_id in expired_requests:
             if request_id in pending_requests:
                 pending_requests[request_id]["response_event"].set()
                 del pending_requests[request_id]
+
+
+def read_message_loop():
+    """读取消息的循环 - 运行在独立线程中"""
+    print("Starting Native Messaging read loop thread", file=sys.stderr)
+    while True:
+        try:
+            message = read_message()
+            if message:
+                print(f"Message received and queued: {message.get('action', 'unknown')}", file=sys.stderr)
+                native_messaging_read_queue.put(message)
+            else:
+                # 如果没有读取到消息，短暂休眠避免过度占用CPU
+                time.sleep(0.1)
+        except Exception as e:
+            print(f"Error in read message loop: {e}", file=sys.stderr)
+            time.sleep(1)  # 出错时休眠更长时间
 
 def main():
     """主函数 - 增强版支持HTTP服务器"""
@@ -615,20 +633,18 @@ def main():
         print("Cleanup thread started", file=sys.stderr)
         print(f"Cleanup thread is alive: {cleanup_thread.is_alive()}", file=sys.stderr)
 
-        # 为了让HTTP服务器持续运行，我们需要保持主线程活跃
-        # 除非是作为Chrome扩展的Native Host运行，否则保持服务器运行
-        import select
+        # 启动Native Messaging读取线程
+        read_thread = threading.Thread(target=read_message_loop, daemon=True)
+        read_thread.start()
+        print("Native Messaging read thread started", file=sys.stderr)
+        print(f"Read thread is alive: {read_thread.is_alive()}", file=sys.stderr)
 
-        # 如果没有stdin或者不是交互模式，则运行HTTP服务器
-        if not sys.stdin.isatty():
-            print("Running as Chrome Native Host, processing messages", file=sys.stderr)
-            # 主循环 - 处理Native Messaging
-            print("Entering main loop", file=sys.stderr)
-            loop_count = 0
+        # 主循环 - 处理所有队列中的消息
+        print("Entering main message processing loop", file=sys.stderr)
+        try:
             while True:
-                loop_count += 1
-                if loop_count % 10 == 0:  # Print every 10 iterations to avoid spam
-                    print(f"Main loop iteration {loop_count}", file=sys.stderr)
+                time.sleep(0.1)  # 短暂休眠避免过度占用CPU
+
                 # 检查HTTP请求队列
                 try:
                     while not http_request_queue.empty():
@@ -647,71 +663,65 @@ def main():
                 except queue.Empty:
                     pass
 
-                # 处理Chrome扩展消息
-                print("About to read message from Chrome extension", file=sys.stderr)
-                message = read_message()
-                print(f"Message read: {message is not None}", file=sys.stderr)
-                if not message:
-                    print("No message received, breaking loop", file=sys.stderr)
-                    break
+                # 检查Native Messaging读取队列
+                try:
+                    while not native_messaging_read_queue.empty():
+                        print("Processing Native Messaging read queue", file=sys.stderr)
+                        message = native_messaging_read_queue.get_nowait()
+                        if message:
+                            action = message.get('action')
 
-                action = message.get('action')
-
-                # 处理PS响应
-                if action == 'ps_response':
-                    handle_ps_response(message)
-                # 原有的文件操作功能
-                elif action == 'open_file':
-                    file_path = message.get('file_path')
-                    open_id = message.get('open_id')
-                    if file_path and os.path.exists(file_path):
-                        result = open_file_with_default_app(file_path, open_id)
-                        send_message(result)
-                    else:
-                        result = {
-                            "success": False,
-                            "error": f"File not found: {file_path}"
-                        }
-                        if open_id:
-                            result["open_id"] = open_id
-                        send_message(result)
-                elif action == 'check_file':
-                    file_path = message.get('file_path')
-                    check_id = message.get('check_id')
-                    if file_path:
-                        result = check_file_ready(file_path, check_id)
-                        send_message(result)
-                    else:
-                        result = {
-                            "action": "check_file_result",
-                            "exists": False,
-                            "readable": False,
-                            "error": "No file path provided"
-                        }
-                        if check_id:
-                            result["check_id"] = check_id
-                        send_message(result)
-                elif action == 'read_device_fingerprint':
-                    read_id = message.get('read_id')
-                    result = read_device_fingerprint(read_id)
-                    send_message(result)
-                elif action == 'get_cache_info':
-                    info_id = message.get('info_id')
-                    result = get_cache_info(info_id)
-                    send_message(result)
-                else:
-                    send_message({
-                        "success": False,
-                        "error": "Unknown action"
-                    })
-        else:
-            print("Running in standalone mode, keeping HTTP server alive", file=sys.stderr)
-            # 在独立模式下，保持主线程运行以维持HTTP服务器
-            try:
-                while http_thread.is_alive():
-                    time.sleep(1)
-            except KeyboardInterrupt:
-                print("Shutting down HTTP server", file=sys.stderr)
+                            # 处理PS响应
+                            if action == 'ps_response':
+                                handle_ps_response(message)
+                            # 原有的文件操作功能
+                            elif action == 'open_file':
+                                file_path = message.get('file_path')
+                                open_id = message.get('open_id')
+                                if file_path and os.path.exists(file_path):
+                                    result = open_file_with_default_app(file_path, open_id)
+                                    send_message(result)
+                                else:
+                                    result = {
+                                        "success": False,
+                                        "error": f"File not found: {file_path}"
+                                    }
+                                    if open_id:
+                                        result["open_id"] = open_id
+                                    send_message(result)
+                            elif action == 'check_file':
+                                file_path = message.get('file_path')
+                                check_id = message.get('check_id')
+                                if file_path:
+                                    result = check_file_ready(file_path, check_id)
+                                    send_message(result)
+                                else:
+                                    result = {
+                                        "action": "check_file_result",
+                                        "exists": False,
+                                        "readable": False,
+                                        "error": "No file path provided"
+                                    }
+                                    if check_id:
+                                        result["check_id"] = check_id
+                                    send_message(result)
+                            elif action == 'read_device_fingerprint':
+                                read_id = message.get('read_id')
+                                result = read_device_fingerprint(read_id)
+                                send_message(result)
+                            elif action == 'get_cache_info':
+                                info_id = message.get('info_id')
+                                result = get_cache_info(info_id)
+                                send_message(result)
+                            else:
+                                send_message({
+                                    "success": False,
+                                    "error": "Unknown action"
+                                })
+                except queue.Empty:
+                    pass
+        except KeyboardInterrupt:
+            print("Shutting down HTTP server", file=sys.stderr)
 
     except Exception as e:
         send_message({

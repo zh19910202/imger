@@ -262,7 +262,6 @@ function initializeNetworkInterception() {
             // 忽略发送失败
           });
         }
-        });
       }
       
       return {};
@@ -486,10 +485,12 @@ function initializeNativeMessaging() {
 
         // 处理自动上传通知
         if (response.action === 'auto_upload_notification') {
-          console.log('收到Native Host自动上传通知:', response.message);
+          console.log('=== 收到Native Host自动上传通知 ===');
+          console.log('通知内容:', response);
 
           // 获取当前活动标签页并发送通知
           chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+            console.log('查询到的活动标签页:', tabs);
             if (tabs && tabs.length > 0) {
               const activeTab = tabs[0];
               console.log('找到活动标签页，ID:', activeTab.id);
@@ -499,29 +500,36 @@ function initializeNativeMessaging() {
               if (activeTab.url && activeTab.url.includes('qlabel.tencent.com')) {
                 console.log('活动标签页是标注页面，发送自动上传通知');
                 // 发送消息到当前活动标签页的content script
-                chrome.tabs.sendMessage(activeTab.id, {
-                  action: 'trigger_auto_upload',
-                  data: response
-                }, function(response) {
-                  if (chrome.runtime.lastError) {
-                    console.error('发送自动上传通知到content script失败:', chrome.runtime.lastError.message);
-                  } else {
-                    console.log('自动上传通知已发送到content script');
-                  }
-                });
+                if (activeTab.id >= 0) {
+                  chrome.tabs.sendMessage(activeTab.id, {
+                    action: 'trigger_auto_upload',
+                    data: response
+                  }, function(response) {
+                    if (chrome.runtime.lastError) {
+                      console.error('发送自动上传通知到content script失败:', chrome.runtime.lastError.message);
+                    } else {
+                      console.log('自动上传通知已发送到content script');
+                    }
+                  });
+                } else {
+                  console.error('活动标签页ID无效:', activeTab.id);
+                }
               } else {
-                console.log('活动标签页不是标注页面，跳过自动上传');
-                // 即使不是标注页面也发送通知，让content script自己判断
-                chrome.tabs.sendMessage(activeTab.id, {
-                  action: 'trigger_auto_upload',
-                  data: response
-                }, function(response) {
-                  if (chrome.runtime.lastError) {
-                    console.error('发送自动上传通知到content script失败:', chrome.runtime.lastError.message);
-                  } else {
-                    console.log('自动上传通知已发送到content script（非标注页面）');
-                  }
-                });
+                console.log('活动标签页不是标注页面，但仍发送通知让content script自己判断');
+                if (activeTab.id >= 0) {
+                  chrome.tabs.sendMessage(activeTab.id, {
+                    action: 'trigger_auto_upload',
+                    data: response
+                  }, function(response) {
+                    if (chrome.runtime.lastError) {
+                      console.error('发送自动上传通知到content script失败:', chrome.runtime.lastError.message);
+                    } else {
+                      console.log('自动上传通知已发送到content script（非标注页面）');
+                    }
+                  });
+                } else {
+                  console.error('活动标签页ID无效:', activeTab.id);
+                }
               }
             } else {
               console.log('未找到活动标签页');
