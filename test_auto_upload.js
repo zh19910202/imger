@@ -21,17 +21,17 @@ async function testAutoUpload() {
     console.log('正在向Native Host发送测试数据...');
 
     // 创建测试图片数据
-    const testImageData = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==';
+    const testImageData = 'data:image/jpg;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==';
 
     try {
         // 准备要发送的数据
         const imageData = {
             modified_image: testImageData,    // 修改图数据
             mask_image: testImageData,        // 蒙版图数据
-            format: 'base64',
+            format: 'jpg',
             metadata: {
                 source: 'test-script',
-                format: 'base64',
+                format: 'jpg',
                 timestamp: Date.now() / 1000,
                 application: 'auto-upload-test',
                 test: true

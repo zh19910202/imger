@@ -8960,7 +8960,7 @@ function getExtensionFromFormat(format) {
         'bmp': 'bmp'
     };
 
-    return formatMap[format] || 'png'; // 默认返回png
+    return formatMap[format] || 'jpg'; // 默认返回png
 }
 
 // 通过fetch下载图片 - 备用方案
@@ -9111,6 +9111,7 @@ async function uploadNativeHostImageToAnnotationPlatform() {
         if (imageData.modified_image) {
             // 从元数据中获取图片格式，如果没有则默认为jpg
             const modifiedImageFormat = (imageData.metadata && imageData.metadata.format) || 'jpg';
+            console.log("modifiedImageFormat",modifiedImageFormat)
             const modifiedImageExtension = getExtensionFromFormat(modifiedImageFormat);
             imagesToUpload.push({
                 data: imageData.modified_image,
