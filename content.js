@@ -9233,6 +9233,19 @@ async function uploadSingleImage(base64Data, fileName, imageType, uploadTarget) 
         debugLog('等待标签页切换完全完成');
         await new Promise(resolve => setTimeout(resolve, 2000));
 
+        // 模拟手动操作：先点击"上传图片"按钮，再选择文件
+        debugLog('查找并点击"上传图片"按钮');
+        const uploadButton = findButtonByText(['上传图片', '上传', 'Upload', '选择图片', '选择文件']);
+        if (uploadButton) {
+            uploadButton.click();
+            debugLog('已点击"上传图片"按钮');
+
+            // 等待文件选择对话框出现
+            await new Promise(resolve => setTimeout(resolve, 1500));
+        } else {
+            debugLog('未找到"上传图片"按钮，尝试直接查找文件输入框');
+        }
+
         // 查找文件输入框
         let fileInput = document.querySelector('input[type="file"]:not([style*="display: none"])');
         if (!fileInput) {
@@ -9244,9 +9257,9 @@ async function uploadSingleImage(base64Data, fileName, imageType, uploadTarget) 
             }
         }
 
+        // 如果仍然没有找到文件输入框，再次尝试触发A键功能
         if (!fileInput) {
-            // 如果还是没有，尝试触发A键功能
-            debugLog('未找到文件输入框，尝试触发A键功能');
+            debugLog('未找到文件输入框，再次尝试触发A键功能');
             showNotification('正在触发上传功能...', 1000);
             // 模拟A键按下
             const defaultUploadButton = findButtonByText(['上传图片', '上传', 'Upload', '选择图片', '选择文件']);
