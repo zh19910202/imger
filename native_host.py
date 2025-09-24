@@ -384,37 +384,47 @@ class PSRequestHandler(BaseHTTPRequestHandler):
                         # 更新当前活跃数据源
                         image_data_store["current_source"] = "external_application"
 
-                    # 发送成功响应
-                    self.send_response(200)
-                    self.send_header('Content-Type', 'application/json')
-                    self.send_header('Access-Control-Allow-Origin', '*')
-                    self.end_headers()
-
+                    # 准备响应数据
                     response = {
                         "success": True,
                         "message": "External application data stored successfully",
                         "timestamp": time.time(),
                         "data_type": "external_application"
                     }
+
+                    # 发送成功响应
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json')
+                    self.send_header('Access-Control-Allow-Origin', '*')
+                    self.end_headers()
                     self.wfile.write(json.dumps(response, ensure_ascii=False).encode('utf-8'))
+                    self.wfile.flush()  # 确保响应已发送
 
                     # 通知Chrome扩展自动上传图片
-                    try:
-                        notification = {
-                            "action": "auto_upload_notification",
-                            "message": "External application data received, triggering auto upload",
-                            "data_type": "external_application",
-                            "timestamp": time.time()
-                        }
-                        send_message(notification)
-                        # 打印日志确认通知已发送
-                        print(f"Auto upload notification sent: {notification}", file=sys.stderr)
-                        sys.stderr.flush()
-                    except Exception as e:
-                        # 记录错误但不中断程序
-                        print(f"Failed to send auto upload notification: {e}", file=sys.stderr)
-                        sys.stderr.flush()
-                        pass
+                    def send_notification():
+                        try:
+                            # 等待一小段时间确保HTTP响应完成
+                            time.sleep(0.1)
+                            notification = {
+                                "action": "auto_upload_notification",
+                                "message": "External application data received, triggering auto upload",
+                                "data_type": "external_application",
+                                "timestamp": time.time()
+                            }
+                            send_message(notification)
+                            # 打印日志确认通知已发送
+                            print(f"Auto upload notification sent: {notification}", file=sys.stderr)
+                            sys.stderr.flush()
+                        except Exception as e:
+                            # 记录错误但不中断程序
+                            print(f"Failed to send auto upload notification: {e}", file=sys.stderr)
+                            sys.stderr.flush()
+                            pass
+
+                    # 在新线程中发送通知，避免阻塞HTTP响应
+                    import threading
+                    notification_thread = threading.Thread(target=send_notification, daemon=True)
+                    notification_thread.start()
 
                 except json.JSONDecodeError:
                     self.send_error(400, "Invalid JSON")
