@@ -23,7 +23,6 @@ Native Host 提供以下API端点用于外部应用程序与Chrome扩展之间�
  * 发送修改图和蒙版图数据到Native Host
  * @param {string} modifiedImageData - 修改图数据 (base64编码)
  * @param {string} maskImageData - 蒙版图数据 (base64编码)
- * @param {string} instructions - 图片说明
  * @param {Object} metadata - 元数据
  * @returns {Promise<Object>} 响应结果
  */
@@ -35,7 +34,6 @@ async function sendExternalImagesToNativeHost(modifiedImageData, maskImageData, 
         const imageData = {
             modified_image: modifiedImageData,    // 修改图数据
             mask_image: maskImageData,            // 蒙版图数据
-            instructions: instructions,
             format: 'base64',
             metadata: {
                 source: 'external-application',
