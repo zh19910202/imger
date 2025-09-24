@@ -8929,28 +8929,13 @@ async function loadRunningHubConfig() {
 }
 
 // 从Native Host获取图片数据
-async function getNativeHostImageData(source = null) {
+async function getNativeHostImageData() {
     try {
         showNotification('正在获取Native Host图片数据...', 2000);
         debugLog('开始获取Native Host图片数据');
 
-        // 根据source参数构建URL，使用新的API端点
-        let url;
-        if (source === 'external_application') {
-            // 获取外部应用发送的修改图和蒙版图
-            url = 'http://localhost:8888/api/external-data';
-        } else if (source === 'chrome_extension') {
-            // 获取Chrome扩展发送的原图和标注图（理论上Chrome扩展不会调用这个）
-            url = 'http://localhost:8888/api/chrome-data';
-        } else {
-            // 默认使用旧的端点以保持向后兼容
-            let legacyUrl = 'http://localhost:8888/api/img';
-            if (source) {
-                legacyUrl += `?source=${source}`;
-            }
-            url = legacyUrl;
-        }
-
+        let url = 'http://localhost:8888/api/external-data'
+        
         // 向native host发送请求获取图片数据
         const response = await fetch(url, {
             method: 'GET',
@@ -8986,34 +8971,71 @@ async function getNativeHostImageData(source = null) {
 async function uploadNativeHostImageToAnnotationPlatform() {
     try {
         // 获取native host中的图片数据，指定数据源为external_application以获取PS插件上传的数据
-        const imageData = await getNativeHostImageData('external_application');
+        const imageData = await getNativeHostImageData();
         if (!imageData) {
             return;
         }
 
         showNotification('正在处理图片数据...', 1000);
 
-        // 默认同时上传修改图和蒙版图（如果存在）
-        let uploadCount = 0;
+        // 收集要上传的图片
+        const imagesToUpload = [];
 
-        // 优先上传PS修改图
+        // 添加PS修改图（如果存在）
         if (imageData.modified_image) {
-            await uploadSingleImage(imageData.modified_image, 'ps_modified_image.png', 'PS修改图', 'ps');
-            uploadCount++;
-            // 等待一段时间再上传下一个
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            imagesToUpload.push({
+                data: imageData.modified_image,
+                fileName: 'ps_modified_image.png',
+                imageType: 'PS修改图',
+                uploadTarget: 'ps'
+            });
         }
 
-        // 然后上传蒙版图
+        // 添加蒙版图（如果存在）
         if (imageData.mask_image) {
-            await uploadSingleImage(imageData.mask_image, 'mask_image.png', '蒙版图', 'mask');
-            uploadCount++;
+            imagesToUpload.push({
+                data: imageData.mask_image,
+                fileName: 'mask_image.png',
+                imageType: '蒙版图',
+                uploadTarget: 'mask'
+            });
         }
 
-        if (uploadCount > 0) {
-            showNotification(`✅ 成功上传${uploadCount}张图片！`, 3000);
-        } else {
+        // 检查是否有图片需要上传
+        if (imagesToUpload.length === 0) {
             showNotification('❌ 未找到可上传的图片', 3000);
+            return;
+        }
+
+        // 顺序上传所有图片
+        let successfulUploads = 0;
+        for (let i = 0; i < imagesToUpload.length; i++) {
+            const image = imagesToUpload[i];
+            try {
+                await uploadSingleImage(image.data, image.fileName, image.imageType, image.uploadTarget);
+                successfulUploads++;
+
+                // 如果不是最后一张图片，等待一段时间再上传下一张
+                if (i < imagesToUpload.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                }
+            } catch (error) {
+                console.error(`${image.imageType}上传失败:`, error);
+                debugLog(`${image.imageType}上传失败: ${error.message}`);
+                showNotification(`❌ ${image.imageType}上传失败: ${error.message}`, 3000);
+                // 继续上传下一张图片，不中断整个流程
+            }
+        }
+
+        // 显示最终结果
+        if (successfulUploads > 0) {
+            if (successfulUploads === imagesToUpload.length) {
+                showNotification(`✅ 成功上传所有${successfulUploads}张图片！`, 3000);
+            } else {
+                showNotification(`✅ 成功上传${successfulUploads}张图片，${imagesToUpload.length - successfulUploads}张失败`, 3000);
+            }
+        } else {
+            showNotification('❌ 所有图片上传失败', 3000);
         }
 
     } catch (error) {
