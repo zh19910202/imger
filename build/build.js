@@ -10,6 +10,15 @@ const path = require('path');
 const { execSync, spawn } = require('child_process');
 const crypto = require('crypto');
 
+// 导入javascript-obfuscator（如果可用）
+let JavaScriptObfuscator;
+try {
+    JavaScriptObfuscator = require('javascript-obfuscator');
+} catch (e) {
+    console.warn('警告：无法加载javascript-obfuscator，将使用简化版混淆');
+    JavaScriptObfuscator = null;
+}
+
 // 读取配置文件
 const config = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8'));
 const obfuscatorConfig = JSON.parse(fs.readFileSync(path.join(__dirname, 'javascript-obfuscator-config.json'), 'utf8'));
@@ -126,10 +135,8 @@ function obfuscateJavaScript(filePath) {
     console.log(`正在混淆JavaScript文件: ${filePath}`);
 
     try {
-        // 这里应该使用javascript-obfuscator库来混淆代码
-        // 由于这是一个构建脚本，我们简化处理
         const content = fs.readFileSync(filePath, 'utf8');
-        const obfuscatedContent = simpleObfuscateJS(content);
+        const obfuscatedContent = obfuscateJavaScriptContent(content);
         fs.writeFileSync(filePath, obfuscatedContent, 'utf8');
         console.log(`JavaScript文件混淆完成: ${filePath}`);
     } catch (error) {
@@ -137,9 +144,20 @@ function obfuscateJavaScript(filePath) {
     }
 }
 
-// 简单的JavaScript混淆（实际项目中应使用专业的混淆器）
-function simpleObfuscateJS(content) {
-    // 这只是一个示例，实际应该使用javascript-obfuscator等专业工具
+// JavaScript混淆函数
+function obfuscateJavaScriptContent(content) {
+    // 如果javascript-obfuscator可用，使用它进行专业混淆
+    if (JavaScriptObfuscator) {
+        try {
+            const obfuscationResult = JavaScriptObfuscator.obfuscate(content, obfuscatorConfig);
+            return obfuscationResult.getObfuscatedCode();
+        } catch (error) {
+            console.error('JavaScript混淆失败，使用简化版混淆:', error.message);
+        }
+    }
+
+    // 如果javascript-obfuscator不可用或失败，使用简化版混淆
+    console.warn('使用简化版JavaScript混淆');
     return content
         .replace(/console\.log/g, 'c.log')
         .replace(/debugLog/g, 'd.log');
