@@ -446,6 +446,18 @@ function checkPageChange() {
         originalImage = null;
         shouldAutoCompare = false; // 重置自动对比标记
 
+        // 重置网络监听的原图数据
+        originalImageFromNetwork = null;
+
+        // 重置COS拦截的原图数据
+        capturedOriginalImage = null;
+        capturedModifiedImage = null;
+
+        // 重置Cosine图片缓存
+        if (typeof cosImageCache !== 'undefined' && cosImageCache && cosImageCache.clear) {
+            cosImageCache.clear();
+        }
+
         // 取消所有待执行的对比任务
         debugLog('取消待执行的对比任务', { count: pendingComparisonTimeouts.length });
         pendingComparisonTimeouts.forEach(timeoutId => {
@@ -470,6 +482,12 @@ function checkPageChange() {
         currentPageTaskInfo = null;
         lastSuccessfulTaskId = null;
 
+        // 清除图片请求捕获状态
+        if (capturedImageRequests && capturedImageRequests.clear) {
+            debugLog('清除COS图片请求捕获缓存');
+            capturedImageRequests.clear();
+        }
+
         debugLog('页面跳转重置状态', {
             'originalImageLocked': originalImageLocked,
             'originalImage': originalImage ? '有' : '无',
@@ -483,7 +501,7 @@ function checkPageChange() {
         setTimeout(() => {
             recordOriginalImages();
         }, 100);
-        
+
         // 延迟多次重试检测原图，因为新页面内容可能需要时间加载
         const retryIntervals = [500, 1000, 2000, 3000, 5000];
         retryIntervals.forEach((delay, index) => {
@@ -492,22 +510,22 @@ function checkPageChange() {
                 if (!originalImageLocked) { // 只有在还没检测到原图时才继续尝试
                     recordOriginalImages();
                 }
-                
+
                 // 从待执行列表中移除
                 const timeoutIndex = pendingComparisonTimeouts.indexOf(retryTimeoutId);
                 if (timeoutIndex > -1) {
                     pendingComparisonTimeouts.splice(timeoutIndex, 1);
                 }
             }, delay);
-            
+
             // 将重试任务也加入管理队列
             pendingComparisonTimeouts.push(retryTimeoutId);
         });
     }
-    
+
     currentPageUrl = newUrl;
     debugLog('当前页面URL已更新', currentPageUrl.substring(0, 100) + '...');
-    
+
     // 监听后续的URL变化
     if (!window._pageChangeObserverStarted) {
         window._pageChangeObserverStarted = true;
@@ -6891,11 +6909,22 @@ async function manualDimensionCheck() {
             debugLog('未找到原图，尝试重新检测');
             recordOriginalImages();
 
-            // 等待一下再检查
-            await new Promise(resolve => setTimeout(resolve, 500));
+            // 等待一下再检查，给原图检测更多时间
+            debugLog('等待原图检测完成...');
+            let waitTime = 0;
+            const maxWaitTime = 5000; // 最多等待5秒
+            const checkInterval = 200; // 每200ms检查一次
+
+            while (!originalImage && waitTime < maxWaitTime) {
+                await new Promise(resolve => setTimeout(resolve, checkInterval));
+                waitTime += checkInterval;
+                debugLog(`等待原图检测... (${waitTime}ms)`);
+            }
 
             if (!originalImage) {
-                showNotification('❌ 未找到原图，请等待页面加载完成', 3000);
+                // 如果仍然没有找到原图，显示错误信息
+                showNotification('❌ 未找到原图，请等待页面加载完成或手动检测原图(B键)', 3000);
+                debugLog('原图检测超时，未找到原图');
                 return;
             }
         }
