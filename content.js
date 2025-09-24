@@ -228,7 +228,7 @@ if (document.readyState === 'loading') {
 }
 
 function initializeScript() {
-    console.log('=== AnnotateFlow Assistant v2.0 已加载 ===');
+    console.log('=== AnnotateFlow Assistant v3.0 已加载 ===');
     console.log('专为腾讯QLabel标注平台设计');
     console.log('支持功能: D键下载图片, 空格键跳过, S键提交标注, A键上传图片, F键查看历史, W键智能图片对比, Z键调试模式, I键检查文件输入, B键重新检测原图, N键重新检测原图, P键/F2键智能尺寸检查, R键手动检查尺寸是否为8的倍数, T键测试设备指纹并验证卡密, J键同时上传修改图和蒙版图');
     console.log('🎯 原图检测: 支持多种格式的COS原图 (.jpg/.jpeg/.png/.webp/.gif/.bmp)');
@@ -310,10 +310,10 @@ function initializeScript() {
     initializeCOSImageListener();
 
     // 插件启动时自动测试设备指纹
-    setTimeout(() => {
-        debugLog('插件启动时自动测试设备指纹');
-        testDeviceFingerprint();
-    }, 2000); // 延迟2秒执行，确保插件完全初始化
+    // setTimeout(() => {
+    //     debugLog('插件启动时自动测试设备指纹');
+    //     testDeviceFingerprint();
+    // }, 2000); // 延迟2秒执行，确保插件完全初始化
 
     console.log('AnnotateFlow Assistant 初始化完成，调试模式:', debugMode ? '已启用' : '已禁用');
 }
@@ -8792,7 +8792,7 @@ async function sendPostRequestToNativeHost() {
         // 获取原图数据
         if (originalImage && originalImage.src) {
             try {
-                originalImageData = await getImageAsBase64(originalImage.src);
+                originalImageData = await getOriginalImageAsBase64();
                 console.log('原图数据获取成功');
             } catch (error) {
                 console.error('获取原图数据失败:', error);
@@ -8812,13 +8812,16 @@ async function sendPostRequestToNativeHost() {
         const instructionText = extractInstructionText();
         const instructions = instructionText || "未正确匹配指令，人工核对";
 
+        // 从base64数据中提取实际的图片格式
+        const imageFormat = extractImageFormatFromBase64(originalImageData);
+
         // 准备要发送的数据
         const imageData = {
             original_image: originalImageData,
             instructions: instructions,
             metadata: {
                 source: "annotateflow-assistant",
-                format: "base64",
+                format: imageFormat,
                 timestamp: Date.now(),
                 page_url: window.location.href
             }
@@ -8853,17 +8856,17 @@ async function sendPostRequestToNativeHost() {
 
 
 
-// 将图片URL转换为base64编码
+// 将图片URL转换为base64编码（保留原始格式）
 async function getImageAsBase64(imageUrl) {
-    return new Promise((resolve, reject) => {
-        // 检查是否是跨域图片
-        const isCrossOrigin = !imageUrl.startsWith(window.location.origin) &&
-                             !imageUrl.startsWith('data:') &&
-                             !imageUrl.startsWith('blob:');
+    // 检查是否是跨域图片
+    const isCrossOrigin = !imageUrl.startsWith(window.location.origin) &&
+                         !imageUrl.startsWith('data:') &&
+                         !imageUrl.startsWith('blob:');
 
-        if (isCrossOrigin) {
-            // 对于跨域图片，使用background script代理获取
-            if (typeof chrome !== 'undefined' && chrome.runtime) {
+    if (isCrossOrigin) {
+        // 对于跨域图片，使用background script代理获取（已保留原始格式）
+        if (typeof chrome !== 'undefined' && chrome.runtime) {
+            return new Promise((resolve, reject) => {
                 chrome.runtime.sendMessage({
                     action: 'fetchCOSImage',
                     url: imageUrl
@@ -8879,38 +8882,85 @@ async function getImageAsBase64(imageUrl) {
                         reject(new Error(response?.error || '获取图片数据失败'));
                     }
                 });
-            } else {
-                reject(new Error('无法获取跨域图片数据'));
-            }
+            });
         } else {
-            // 对于同域图片，使用Canvas转换
-            const img = new Image();
-            img.crossOrigin = 'anonymous';
-
-            img.onload = function() {
-                try {
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
-
-                    canvas.width = this.naturalWidth;
-                    canvas.height = this.naturalHeight;
-
-                    ctx.drawImage(this, 0, 0);
-
-                    const dataUrl = canvas.toDataURL('image/png');
-                    resolve(dataUrl);
-                } catch (error) {
-                    reject(error);
-                }
-            };
-
-            img.onerror = function() {
-                reject(new Error('图片加载失败'));
-            };
-
-            img.src = imageUrl;
+            throw new Error('无法获取跨域图片数据');
         }
-    });
+    } else {
+        // 对于同域图片，直接使用fetch获取（保留原始格式）
+        try {
+            const response = await fetch(imageUrl);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const blob = await response.blob();
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => reject(new Error('图片读取失败'));
+                reader.readAsDataURL(blob);
+            });
+        } catch (error) {
+            throw new Error(`获取图片数据失败: ${error.message}`);
+        }
+    }
+}
+
+// 将当前原图转换为base64编码（保留原始格式）
+async function getOriginalImageAsBase64() {
+    // 检查originalImage对象是否存在
+    if (!originalImage || !originalImage.src) {
+        throw new Error('未找到原图');
+    }
+
+    // 直接使用getImageAsBase64函数获取，该方法能正确处理跨域图片并保持原始格式
+    return await getImageAsBase64(originalImage.src);
+}
+
+// 获取图片的MIME类型
+function getImageMimeType(src) {
+    if (src) {
+        if (src.includes('.jpg') || src.includes('.jpeg') || src.includes('image/jpeg')) {
+            return 'image/jpeg';
+        } else if (src.includes('.png') || src.includes('image/png')) {
+            return 'image/png';
+        } else if (src.includes('.gif') || src.includes('image/gif')) {
+            return 'image/gif';
+        } else if (src.includes('.webp') || src.includes('image/webp')) {
+            return 'image/webp';
+        }
+    }
+    // 默认返回jpeg
+    return 'image/jpeg';
+}
+
+// 从base64数据中提取实际的图片格式
+function extractImageFormatFromBase64(base64Data) {
+    if (!base64Data) return 'unknown';
+
+    // base64数据URL格式: data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQ...
+    const match = base64Data.match(/^data:image\/(\w+);base64,/);
+    if (match && match[1]) {
+        return match[1].toLowerCase();
+    }
+
+    return 'unknown';
+}
+
+// 根据图片格式获取文件扩展名
+function getExtensionFromFormat(format) {
+    const formatMap = {
+        'jpeg': 'jpg',
+        'jpg': 'jpg',
+        'png': 'png',
+        'gif': 'gif',
+        'webp': 'webp',
+        'svg': 'svg',
+        'bmp': 'bmp'
+    };
+
+    return formatMap[format] || 'png'; // 默认返回png
 }
 
 // 通过fetch下载图片 - 备用方案
@@ -9059,9 +9109,12 @@ async function uploadNativeHostImageToAnnotationPlatform() {
 
         // 添加PS修改图（如果存在）
         if (imageData.modified_image) {
+            // 从元数据中获取图片格式，如果没有则默认为jpg
+            const modifiedImageFormat = (imageData.metadata && imageData.metadata.format) || 'jpg';
+            const modifiedImageExtension = getExtensionFromFormat(modifiedImageFormat);
             imagesToUpload.push({
                 data: imageData.modified_image,
-                fileName: 'ps_modified_image.png',
+                fileName: `ps_modified_image.${modifiedImageExtension}`,
                 imageType: 'PS修改图',
                 uploadTarget: 'ps'
             });
@@ -9069,9 +9122,12 @@ async function uploadNativeHostImageToAnnotationPlatform() {
 
         // 添加蒙版图（如果存在）
         if (imageData.mask_image) {
+            // 从元数据中获取图片格式，如果没有则默认为png
+            const maskImageFormat = (imageData.metadata && imageData.metadata.format) || 'png';
+            const maskImageExtension = getExtensionFromFormat(maskImageFormat);
             imagesToUpload.push({
                 data: imageData.mask_image,
-                fileName: 'mask_image.png',
+                fileName: `mask_image.${maskImageExtension}`,
                 imageType: '蒙版图',
                 uploadTarget: 'mask'
             });
