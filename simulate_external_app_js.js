@@ -387,6 +387,25 @@ async function sendOriginalAndAnnotatedImages() {
 // 或者调用新的示例函数
 // sendOriginalAndAnnotatedImages();
 
+// 添加一个简单的测试函数来模拟发送数据
+async function testAutoUpload() {
+    console.log('=== 测试自动上传功能 ===');
+
+    // 创建简单的测试图片数据
+    const testImageData = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==';
+
+    // 调用发送函数
+    const result = await sendExternalImagesToNativeHost(
+        testImageData,  // 修改图数据
+        testImageData,  // 蒙版图数据
+        '测试自动上传功能',
+        { test: true, purpose: 'auto-upload-testing' }
+    );
+
+    console.log('测试结果:', result);
+    return result;
+}
+
 // Node.js环境下的使用示例 (需要安装node-fetch)
 /*
 const fetch = require('node-fetch');
@@ -405,6 +424,8 @@ global.FileReader = class {
 main();
 // 或者调用新的示例函数
 // sendOriginalAndAnnotatedImages();
+// 或者测试自动上传功能
+// testAutoUpload();
 */
 
 // 导出函数供外部使用
@@ -416,6 +437,30 @@ if (typeof module !== 'undefined' && module.exports) {
         getChromeDataFromNativeHost,
         createSampleImageAsBase64,
         createMaskImageAsBase64,
-        sendOriginalAndAnnotatedImages
+        sendOriginalAndAnnotatedImages,
+        testAutoUpload
     };
+}
+
+// 如果直接运行此脚本，执行测试函数
+if (typeof window === 'undefined' && typeof require !== 'undefined' && require.main === module) {
+    // Node.js环境下运行
+    const fetch = require('node-fetch');
+    global.fetch = fetch;
+    global.File = class {};
+    global.Blob = class {};
+    global.FileReader = class {
+        readAsDataURL() {
+            // 模拟实现
+            setTimeout(() => {
+                this.onload({ target: { result: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==' } });
+            }, 100);
+        }
+    };
+
+    testAutoUpload().then(result => {
+        console.log('测试完成:', result);
+    }).catch(error => {
+        console.error('测试出错:', error);
+    });
 }
