@@ -9233,6 +9233,19 @@ async function uploadSingleImage(base64Data, fileName, imageType, uploadTarget) 
         debugLog('等待标签页切换完全完成');
         await new Promise(resolve => setTimeout(resolve, 2000));
 
+        // 验证当前是否在正确的标签页
+        const currentTab = document.querySelector('span.t-tabs__nav-item-text-wrapper[aria-selected="true"]') ||
+                          document.querySelector('span.t-tabs__nav-item-text-wrapper.active') ||
+                          document.querySelector('span.t-tabs__nav-item-text-wrapper');
+        if (currentTab) {
+            debugLog('当前标签页', { textContent: currentTab.textContent });
+            if (uploadTarget === 'ps' && currentTab.textContent.includes('蒙版')) {
+                debugLog('警告：应该在PS后图片上传标签页，但似乎仍在蒙版图片上传标签页');
+            } else if (uploadTarget === 'mask' && currentTab.textContent.includes('PS')) {
+                debugLog('警告：应该在蒙版图片上传标签页，但似乎仍在PS后图片上传标签页');
+            }
+        }
+
         // 直接查找文件输入框进行上传，不需要点击"上传图片"按钮触发文件选择窗口
         // 因为我们已经有了图片数据，可以直接通过文件输入框上传
 
