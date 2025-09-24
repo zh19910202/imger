@@ -5450,16 +5450,19 @@ function initializeCOSImageListener() {
 // 处理自动上传通知
 function handleAutoUploadNotification(data) {
     debugLog('收到自动上传通知', data);
+    console.log('Content script收到自动上传通知:', data);
 
     // 显示通知
     showNotification('收到PS处理完成通知，正在自动上传图片...', 2000);
 
     // 延迟一小段时间确保数据完全存储后再执行上传
     setTimeout(() => {
+        console.log('开始执行自动上传...');
         uploadNativeHostImageToAnnotationPlatform()
             .then(() => {
                 debugLog('自动上传完成');
                 showNotification('✅ 图片已自动上传完成', 3000);
+                console.log('自动上传完成');
             })
             .catch(error => {
                 console.error('自动上传失败:', error);

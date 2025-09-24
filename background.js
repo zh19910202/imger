@@ -485,6 +485,7 @@ function initializeNativeMessaging() {
           chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
             if (tabs && tabs.length > 0) {
               const activeTab = tabs[0];
+              console.log('找到活动标签页，ID:', activeTab.id);
               // 发送消息到当前活动标签页的content script
               chrome.tabs.sendMessage(activeTab.id, {
                 action: 'trigger_auto_upload',
@@ -496,6 +497,8 @@ function initializeNativeMessaging() {
                   console.log('自动上传通知已发送到content script');
                 }
               });
+            } else {
+              console.log('未找到活动标签页');
             }
           });
         }
