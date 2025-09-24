@@ -392,6 +392,9 @@ class PSRequestHandler(BaseHTTPRequestHandler):
                         "data_type": "external_application"
                     }
 
+                    print(f"准备发送HTTP响应: {response}", file=sys.stderr)
+                    sys.stderr.flush()
+
                     # 发送成功响应
                     self.send_response(200)
                     self.send_header('Content-Type', 'application/json')
@@ -400,9 +403,13 @@ class PSRequestHandler(BaseHTTPRequestHandler):
                     self.wfile.write(json.dumps(response, ensure_ascii=False).encode('utf-8'))
                     self.wfile.flush()  # 确保响应已发送
 
+                    print("HTTP响应发送完成，准备发送自动上传通知", file=sys.stderr)
+                    sys.stderr.flush()
+
                     # 通知Chrome扩展自动上传图片
                     def send_notification():
                         try:
+                            print("开始执行通知发送函数", file=sys.stderr)
                             # 等待一小段时间确保HTTP响应完成
                             time.sleep(0.1)
                             notification = {
@@ -411,6 +418,7 @@ class PSRequestHandler(BaseHTTPRequestHandler):
                                 "data_type": "external_application",
                                 "timestamp": time.time()
                             }
+                            print(f"准备发送通知: {notification}", file=sys.stderr)
                             send_message(notification)
                             # 打印日志确认通知已发送
                             print(f"Auto upload notification sent: {notification}", file=sys.stderr)
@@ -424,10 +432,13 @@ class PSRequestHandler(BaseHTTPRequestHandler):
                             sys.stderr.flush()
                             pass
 
+                    print("创建通知发送线程", file=sys.stderr)
                     # 在新线程中发送通知，避免阻塞HTTP响应
                     import threading
                     notification_thread = threading.Thread(target=send_notification, daemon=True)
                     notification_thread.start()
+                    print("通知发送线程已启动", file=sys.stderr)
+                    sys.stderr.flush()
 
                 except json.JSONDecodeError:
                     self.send_error(400, "Invalid JSON")
