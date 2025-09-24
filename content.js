@@ -98,67 +98,7 @@ function testDeviceFingerprint() {
     });
 }
 
-// 获取Native Host缓存信息
-function getNativeHostCacheInfo() {
-    showNotification('正在获取Native Host缓存信息...', 2000);
-    debugLog('开始获取Native Host缓存信息');
 
-    const message = {
-        action: 'get_cache_info',
-        info_id: 'cache_info_' + Date.now()
-    };
-
-    // 发送消息到 Native Host
-    chrome.runtime.sendMessage({
-        action: 'send_native_message',
-        nativeMessage: message
-    }, (response) => {
-        if (chrome.runtime.lastError) {
-            const errorMsg = `Native Messaging 错误: ${chrome.runtime.lastError.message}`;
-            console.error(errorMsg);
-            debugLog(errorMsg);
-            showNotification('❌ Native Host 连接失败', 3000);
-            return;
-        }
-
-        if (response && response.success) {
-            console.log('Native Host缓存信息获取成功:', response);
-            debugLog(`Native Host缓存信息获取成功: ${JSON.stringify(response, null, 2)}`);
-
-            // 显示缓存信息摘要
-            const cacheInfo = response.cache_info;
-            const chromeExtData = cacheInfo.image_data_store.chrome_extension;
-            const extAppData = cacheInfo.image_data_store.external_application;
-
-            showNotification('✅ 缓存信息获取成功！正在显示详情...', 3000);
-
-            // 显示详细的缓存信息
-            setTimeout(() => {
-                showNotification(`📊 Chrome扩展数据: 原图${chromeExtData.has_original_image ? '✓' : '✗'}, 标注图${chromeExtData.has_annotated_image ? '✓' : '✗'}`, 5000);
-            }, 1000);
-
-            setTimeout(() => {
-                showNotification(`📊 外部应用数据: 修改图${extAppData.has_modified_image ? '✓' : '✗'}, 蒙版图${extAppData.has_mask_image ? '✓' : '✗'}`, 5000);
-            }, 2000);
-
-            setTimeout(() => {
-                showNotification(`🔄 当前数据源: ${cacheInfo.image_data_store.current_source}`, 3000);
-            }, 3000);
-
-            setTimeout(() => {
-                showNotification(`🕒 待处理请求数: ${cacheInfo.pending_requests_count}`, 3000);
-            }, 4000);
-
-            // 可选：在控制台显示完整的缓存信息
-            console.log('完整的缓存信息:', cacheInfo);
-        } else {
-            const errorMsg = response ? response.error : '未知错误';
-            console.error('缓存信息获取失败:', errorMsg);
-            debugLog(`缓存信息获取失败: ${errorMsg}`);
-            showNotification(`❌ 获取失败: ${errorMsg}`, 5000);
-        }
-    });
-}
 
 // 验证卡密
 async function validateCardKey(figId) {
@@ -6876,19 +6816,19 @@ async function manualDimensionCheck() {
         if (!originalImage) {
             debugLog('未找到原图，尝试重新检测');
             recordOriginalImages();
-            
+
             // 等待一下再检查
             await new Promise(resolve => setTimeout(resolve, 500));
-            
+
             if (!originalImage) {
                 showNotification('❌ 未找到原图，请等待页面加载完成', 3000);
                 return;
             }
         }
-        
+
         // 创建新的Image对象来获取真实的图片尺寸
         const img = new Image();
-        
+
         // 等待图片加载完成
         const loadPromise = new Promise((resolve, reject) => {
             img.onload = () => {
@@ -6898,36 +6838,54 @@ async function manualDimensionCheck() {
                 reject(new Error('图片加载失败'));
             };
         });
-        
+
         // 设置超时
         const timeoutPromise = new Promise((_, reject) => {
             setTimeout(() => reject(new Error('图片加载超时')), 5000);
         });
-        
+
         img.src = originalImage.src;
-        
+
         // 等待图片加载或超时
         const { width, height } = await Promise.race([loadPromise, timeoutPromise]);
-        
+
         debugLog('手动检查图片尺寸', { width, height, src: originalImage.src });
-        
+
         // 检查尺寸是否符合要求（长宽都是8的倍数）
         const isWidthValid = width % 8 === 0;
         const isHeightValid = height % 8 === 0;
         const isDimensionValid = isWidthValid && isHeightValid;
-        
+
+        // 检查文件大小是否符合要求（不超过5MB）
+        let isFileSizeValid = true;
+        let fileSize = 0;
+
+        try {
+            // 获取图片文件大小
+            const response = await fetch(originalImage.src, { method: 'HEAD' });
+            fileSize = parseInt(response.headers.get('content-length') || '0');
+            isFileSizeValid = fileSize <= 5 * 1024 * 1024; // 5MB限制
+
+            debugLog('文件大小检查', { fileSize, isFileSizeValid });
+        } catch (sizeError) {
+            debugLog('获取文件大小失败，跳过大小检查', sizeError);
+            // 如果无法获取文件大小，跳过大小检查
+        }
+
         debugLog('手动尺寸检查结果', {
             width,
             height,
             isWidthValid,
             isHeightValid,
-            isDimensionValid
+            isDimensionValid,
+            fileSize,
+            isFileSizeValid
         });
-        
-        if (isDimensionValid) {
-            // 尺寸符合要求，弹出模态框
-            showNotification('✅ 图片尺寸符合要求，弹出模态框', 1500);
-            
+
+        if (isDimensionValid && isFileSizeValid) {
+            // 尺寸和文件大小都符合要求，弹出模态框
+            showNotification('✅ 图片尺寸和大小都符合要求，弹出模态框', 1500);
+
             // 保存检查信息
             lastDimensionCheckInfo = {
                 imageInfo: {
@@ -6941,7 +6899,7 @@ async function manualDimensionCheck() {
                 height: height,
                 timestamp: Date.now()
             };
-            
+
             // 创建包含正确尺寸信息的图片对象
             const imageInfoForModal = {
                 src: originalImage.src,
@@ -6949,37 +6907,49 @@ async function manualDimensionCheck() {
                 height: height,
                 name: originalImage.name || extractFileNameFromUrl(originalImage.src) || '原图'
             };
-            
+
             // 显示模态框
             showDimensionCheckModal(imageInfoForModal, true);
             return true; // 返回true表示符合要求
-            
+
         } else {
-            // 尺寸不符合要求，系统提示
-            const widthStatus = isWidthValid ? '✅' : '❌';
-            const heightStatus = isHeightValid ? '✅' : '❌';
-            
-            showNotification(
-                `❌ 图片尺寸不符合要求！\n` +
-                `宽度: ${width}px ${widthStatus} (${isWidthValid ? '是' : '不是'}8的倍数)\n` +
-                `高度: ${height}px ${heightStatus} (${isHeightValid ? '是' : '不是'}8的倍数)\n` +
-                `要求: 长宽都必须是8的倍数`, 
-                4000
-            );
-            
-            debugLog('图片尺寸不符合要求', {
+            // 检查失败的原因
+            let errorMessage = '';
+
+            if (!isDimensionValid) {
+                const widthStatus = isWidthValid ? '✅' : '❌';
+                const heightStatus = isHeightValid ? '✅' : '❌';
+                errorMessage += `❌ 图片尺寸不符合要求！\n` +
+                    `宽度: ${width}px ${widthStatus} (${isWidthValid ? '是' : '不是'}8的倍数)\n` +
+                    `高度: ${height}px ${heightStatus} (${isHeightValid ? '是' : '不是'}8的倍数)\n` +
+                    `要求: 长宽都必须是8的倍数\n\n`;
+            }
+
+            if (!isFileSizeValid) {
+                const sizeInMB = (fileSize / (1024 * 1024)).toFixed(2);
+                errorMessage += `❌ 图片文件大小不符合要求！\n` +
+                    `当前大小: ${sizeInMB}MB\n` +
+                    `要求: 不超过5MB\n\n`;
+            }
+
+            showNotification(errorMessage, 4000);
+
+            debugLog('图片检查不符合要求', {
                 width, height,
                 widthRemainder: width % 8,
                 heightRemainder: height % 8,
-                isWidthValid, isHeightValid,
+                isWidthValid,
+                isHeightValid,
+                fileSize,
+                isFileSizeValid,
                 src: originalImage.src
             });
             return false; // 返回false表示不符合要求
         }
-        
+
     } catch (error) {
-        debugLog('手动检查图片尺寸时出错', error);
-        showNotification('❌ 检查图片尺寸时出错: ' + error.message, 3000);
+        debugLog('手动检查图片时出错', error);
+        showNotification('❌ 检查图片时出错: ' + error.message, 3000);
         return false; // 出错时返回false
     }
 }
