@@ -30,6 +30,7 @@ HTTP_SERVER_CONFIG = {
 
 # 全局变量
 http_request_queue = queue.Queue()
+native_messaging_send_queue = queue.Queue()  # 用于发送Native Messaging消息的队列
 pending_requests = {}  # 存储待处理的请求
 request_lock = threading.Lock()
 # 图片数据存储 - 按来源隔离
@@ -412,37 +413,16 @@ class PSRequestHandler(BaseHTTPRequestHandler):
                     sys.stderr.flush()
 
                     # 通知Chrome扩展自动上传图片
-                    def send_notification():
-                        try:
-                            print("开始执行通知发送函数", file=sys.stderr)
-                            # 等待一小段时间确保HTTP响应完成
-                            time.sleep(0.1)
-                            notification = {
-                                "action": "auto_upload_notification",
-                                "message": "External application data received, triggering auto upload",
-                                "data_type": "external_application",
-                                "timestamp": time.time()
-                            }
-                            print(f"准备发送通知: {notification}", file=sys.stderr)
-                            send_message(notification)
-                            # 打印日志确认通知已发送
-                            print(f"Auto upload notification sent: {notification}", file=sys.stderr)
-                            print(f"Notification JSON: {json.dumps(notification)}", file=sys.stderr)
-                            sys.stderr.flush()
-                        except Exception as e:
-                            # 记录错误但不中断程序
-                            print(f"Failed to send auto upload notification: {e}", file=sys.stderr)
-                            import traceback
-                            traceback.print_exc(file=sys.stderr)
-                            sys.stderr.flush()
-                            pass
-
-                    print("创建通知发送线程", file=sys.stderr)
-                    # 在新线程中发送通知，避免阻塞HTTP响应
-                    import threading
-                    notification_thread = threading.Thread(target=send_notification, daemon=True)
-                    notification_thread.start()
-                    print("通知发送线程已启动", file=sys.stderr)
+                    # 将通知消息放入发送队列，由主循环处理
+                    notification = {
+                        "action": "auto_upload_notification",
+                        "message": "External application data received, triggering auto upload",
+                        "data_type": "external_application",
+                        "timestamp": time.time()
+                    }
+                    print(f"将通知放入发送队列: {notification}", file=sys.stderr)
+                    native_messaging_send_queue.put(notification)
+                    print("通知已放入发送队列", file=sys.stderr)
                     sys.stderr.flush()
 
                 except json.JSONDecodeError:
@@ -655,6 +635,15 @@ def main():
                         print("Processing HTTP request queue", file=sys.stderr)
                         http_message = http_request_queue.get_nowait()
                         send_message(http_message)
+                except queue.Empty:
+                    pass
+
+                # 检查Native Messaging发送队列
+                try:
+                    while not native_messaging_send_queue.empty():
+                        print("Processing Native Messaging send queue", file=sys.stderr)
+                        message_to_send = native_messaging_send_queue.get_nowait()
+                        send_message(message_to_send)
                 except queue.Empty:
                     pass
 
