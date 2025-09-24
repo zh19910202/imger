@@ -5431,11 +5431,13 @@ async function testResourceExtraction() {
 function initializeCOSImageListener() {
     debugLog('初始化COS图片拦截监听器');
     
-    // 监听来自background.js的COS图片拦截消息
+    // 监听来自background.js的消息
     if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
         chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             if (message.type === 'COS_IMAGE_DETECTED') {
                 handleCOSImageDetection(message.data);
+            } else if (message.action === 'trigger_auto_upload') {
+                handleAutoUploadNotification(message.data);
             }
         });
         
@@ -5445,17 +5447,39 @@ function initializeCOSImageListener() {
     }
 }
 
+// 处理自动上传通知
+function handleAutoUploadNotification(data) {
+    debugLog('收到自动上传通知', data);
+
+    // 显示通知
+    showNotification('收到PS处理完成通知，正在自动上传图片...', 2000);
+
+    // 延迟一小段时间确保数据完全存储后再执行上传
+    setTimeout(() => {
+        uploadNativeHostImageToAnnotationPlatform()
+            .then(() => {
+                debugLog('自动上传完成');
+                showNotification('✅ 图片已自动上传完成', 3000);
+            })
+            .catch(error => {
+                console.error('自动上传失败:', error);
+                debugLog(`自动上传失败: ${error.message}`);
+                showNotification(`❌ 自动上传失败: ${error.message}`, 3000);
+            });
+    }, 1000);
+}
+
 // 处理COS图片检测 - 简化版
 function handleCOSImageDetection(data) {
     debugLog('COS图片检测', data);
-    
+
     const { url, isOriginal, isModified, imageType, stage } = data;
-    
+
     // 只处理请求完成阶段，避免重复处理
     if (stage !== 'completed') {
         return;
     }
-    
+
     // 缓存图片信息
     cosImageCache.set(url, {
         ...data,

@@ -398,6 +398,19 @@ class PSRequestHandler(BaseHTTPRequestHandler):
                     }
                     self.wfile.write(json.dumps(response, ensure_ascii=False).encode('utf-8'))
 
+                    # 通知Chrome扩展自动上传图片
+                    try:
+                        notification = {
+                            "action": "auto_upload_notification",
+                            "message": "External application data received, triggering auto upload",
+                            "data_type": "external_application",
+                            "timestamp": time.time()
+                        }
+                        send_message(notification)
+                    except Exception as e:
+                        # 记录错误但不中断程序
+                        pass
+
                 except json.JSONDecodeError:
                     self.send_error(400, "Invalid JSON")
                 except Exception as e:
