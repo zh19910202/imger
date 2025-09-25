@@ -208,13 +208,13 @@ requests>=2.25.1
 // 复制安装脚本
 function copyInstallScripts(dir) {
     // 复制Windows安装脚本
-    const windowsScriptPath = path.join(__dirname, '..', 'build', 'dist', 'AnnotateFlow-Assistant-v2.0.0', 'native-host', 'install.bat');
+    const windowsScriptPath = path.join(__dirname, '..', 'build', 'dist', 'native-host', 'install.bat');
     if (fs.existsSync(windowsScriptPath)) {
         fs.copyFileSync(windowsScriptPath, path.join(dir, 'install.bat'));
     }
 
     // 复制macOS安装脚本
-    const macosScriptPath = path.join(__dirname, '..', 'build', 'dist', 'AnnotateFlow-Assistant-v2.0.0', 'native-host', 'install.sh');
+    const macosScriptPath = path.join(__dirname, '..', 'build', 'dist', 'native-host', 'install.sh');
     if (fs.existsSync(macosScriptPath)) {
         fs.copyFileSync(macosScriptPath, path.join(dir, 'install.sh'));
         fs.chmodSync(path.join(dir, 'install.sh'), 0o755);
