@@ -2424,8 +2424,15 @@ function observeNetworkUploads() {
             handleNetworkResponse(url, response, 'fetch');
             return response;
         }).catch(error => {
-            debugLog('fetch请求错误', { url: url.substring(0, 50) + '...', error: error.message });
-            throw error;
+            // 捕获CORS错误并记录，但不中断其他功能
+            if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+                debugLog('CORS阻止的fetch请求(已捕获)', { url: url.substring(0, 50) + '...' });
+                // 不抛出CORS错误，让其他功能继续运行
+                return new Response(null, { status: 0, statusText: 'CORS blocked' });
+            } else {
+                debugLog('fetch请求错误', { url: url.substring(0, 50) + '...', error: error.message });
+                throw error;
+            }
         });
     };
     
@@ -6971,8 +6978,14 @@ async function manualDimensionCheck() {
 
             debugLog('文件大小检查', { fileSize, isFileSizeValid });
         } catch (sizeError) {
-            debugLog('获取文件大小失败，跳过大小检查', sizeError);
-            // 如果无法获取文件大小，跳过大小检查
+            // 更好地处理CORS错误和其他获取文件大小失败的情况
+            if (sizeError.name === 'TypeError' && sizeError.message.includes('Failed to fetch')) {
+                debugLog('CORS阻止文件大小检查(已跳过)', { url: originalImage.src.substring(0, 50) + '...' });
+                // CORS阻止时跳过文件大小检查，但仍视为有效
+            } else {
+                debugLog('获取文件大小失败，跳过大小检查', sizeError);
+            }
+            // 如果无法获取文件大小，跳过大小检查但仍视为有效
         }
 
         debugLog('手动尺寸检查结果', {
