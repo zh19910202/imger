@@ -1575,6 +1575,13 @@ async function isImageValidForRequirements(img) {
                 const isFileSizeValid = fileSize <= 5 * 1024 * 1024; // 5MB限制
                 return isFileSizeValid;
             } catch (sizeError) {
+                // 更好地处理CORS错误和其他获取文件大小失败的情况
+                if (sizeError.name === 'TypeError' && sizeError.message.includes('Failed to fetch')) {
+                    debugLog('CORS阻止图片文件大小检查(已跳过)', { url: img.src.substring(0, 50) + '...' });
+                    // CORS阻止时跳过文件大小检查，但仍视为有效
+                } else {
+                    debugLog('获取图片文件大小失败，跳过大小检查', sizeError);
+                }
                 // 如果无法获取文件大小，假定符合要求
                 return true;
             }
