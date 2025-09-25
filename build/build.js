@@ -280,22 +280,62 @@ if %errorlevel% neq 0 (
 REM 配置Chrome Native Messaging Host
 echo 正在配置Chrome Native Messaging Host...
 
+REM 检查LOCALAPPDATA环境变量
+if "%LOCALAPPDATA%"=="" (
+    echo 错误：LOCALAPPDATA环境变量未设置
+    echo 尝试使用默认路径...
+    set USERPROFILE_PATH=%USERPROFILE%
+    if "%USERPROFILE_PATH%"=="" (
+        echo 错误：无法确定用户目录
+        pause
+        exit /b 1
+    )
+    set NATIVE_HOST_DIR=%USERPROFILE_PATH%\AppData\Local\Google\Chrome\User Data\NativeMessagingHosts\com.annotateflow.assistant
+) else (
+    set NATIVE_HOST_DIR=%LOCALAPPDATA%\Google\Chrome\User Data\NativeMessagingHosts\com.annotateflow.assistant
+)
+
+echo Native Host目录: %NATIVE_HOST_DIR%
+
+REM 创建Native Host目录
+echo 正在创建Native Host目录...
+if not exist "%NATIVE_HOST_DIR%" (
+    mkdir "%NATIVE_HOST_DIR%"
+    if %errorlevel% neq 0 (
+        echo 错误：无法创建Native Host目录
+        echo 请检查权限或手动创建目录
+        pause
+        exit /b 1
+    )
+)
+
 REM 复制native_host.py到适当位置
-set NATIVE_HOST_DIR=%LOCALAPPDATA%\\Google\\Chrome\\User Data\\NativeMessagingHosts\\com.annotateflow.assistant
-if not exist "%NATIVE_HOST_DIR%" mkdir "%NATIVE_HOST_DIR%"
-copy "native_host.py" "%NATIVE_HOST_DIR%\\native_host.py"
+echo 正在复制Native Host文件...
+copy "native_host.py" "%NATIVE_HOST_DIR%\native_host.py"
+if %errorlevel% neq 0 (
+    echo 错误：无法复制Native Host文件
+    pause
+    exit /b 1
+)
 
 REM 创建manifest.json
+echo 正在创建manifest.json...
 (
 echo {^
 echo   "name": "com.annotateflow.assistant",^
 echo   "description": "Chrome extension for Tencent QLabel annotation platform with PS integration",^
-echo   "path": "%NATIVE_HOST_DIR%\\native_host.py",^
+echo   "path": "%NATIVE_HOST_DIR:\=\\%\\native_host.py",^
 echo   "type": "stdio",^
 echo   "allowed_origins": [^
 echo     "chrome-extension://__MSG_@@extension_id__/"]^
 echo }
-) > "%NATIVE_HOST_DIR%\\com.annotateflow.assistant.json"
+) > "%NATIVE_HOST_DIR%\com.annotateflow.assistant.json"
+
+if %errorlevel% neq 0 (
+    echo 错误：无法创建manifest.json文件
+    pause
+    exit /b 1
+)
 
 echo 安装完成！
 echo.
@@ -354,10 +394,27 @@ pip3 install -r requirements.txt 2>/dev/null || echo "警告：无法安装Pytho
 echo "正在配置Chrome Native Messaging Host..."
 
 NATIVE_HOST_DIR="$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.annotateflow.assistant"
+echo "Native Host目录: $NATIVE_HOST_DIR"
+
+# 创建Native Host目录
+echo "正在创建Native Host目录..."
 mkdir -p "$NATIVE_HOST_DIR"
+if [ $? -ne 0 ]; then
+    echo "错误：无法创建Native Host目录"
+    echo "请检查权限或手动创建目录"
+    exit 1
+fi
+
+# 复制native_host.py到适当位置
+echo "正在复制Native Host文件..."
 cp native_host.py "$NATIVE_HOST_DIR/native_host.py"
+if [ $? -ne 0 ]; then
+    echo "错误：无法复制Native Host文件"
+    exit 1
+fi
 
 # 创建manifest.json
+echo "正在创建manifest.json..."
 cat > "$NATIVE_HOST_DIR/com.annotateflow.assistant.json" << EOF
 {
   "name": "com.annotateflow.assistant",
@@ -369,6 +426,11 @@ cat > "$NATIVE_HOST_DIR/com.annotateflow.assistant.json" << EOF
   ]
 }
 EOF
+
+if [ $? -ne 0 ]; then
+    echo "错误：无法创建manifest.json文件"
+    exit 1
+fi
 
 echo "安装完成！"
 echo ""
