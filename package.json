@@ -1,6 +1,6 @@
 {
   "name": "auxis",
-  "version": "2.3.0",
+  "version": "3.0.0",
   "description": "Chrome extension for Tencent QLabel annotation platform with fast image download and keyboard shortcuts",
   "main": "content.js",
   "scripts": {
