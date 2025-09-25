@@ -55,6 +55,7 @@ function buildChromeExtension() {
         'popup.js',
         'background.js',
         'content.js',
+        'cardkey-validator.js',
         'resource-extractor.js',
         'runninghub-config.json',
         'icons'
