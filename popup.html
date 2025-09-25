@@ -174,10 +174,13 @@
   <div class="usage">
     <h3>⌨️ 主要功能：</h3>
     <ul>
+      <li><span class="hotkey">🖱️</span> → 悬停图片时满足大模型生图条件为绿色，不满足黑色</li>
       <li><span class="hotkey">D</span> → 悬停图片时按D键快速下载</li>
-      <li><span class="hotkey">R</span> → 尺寸检查+runinghub(支持缓存查看)</li>
+      <li><span class="hotkey">R</span> → 尺寸检查+RuningHub(支持缓存查看)</li>
+      <li><span class="hotkey">U</span> → 自动上传外部app推送的图片</li>
+      <li><span class="hotkey">P</span> → 将标注页面的原图和指令推送到预定位置</li>
       <li><span class="hotkey">Space</span> → 跳过当前标注任务</li>
-      <li><span class="hotkey">S</span> → 提交并继续标注（可配音效）</li>
+      <li><span class="hotkey">S</span> → 提交并继续标注</li>
       <li><span class="hotkey">A</span> → 快速打开上传图片对话框</li>
       <li><span class="hotkey">F</span> → 查看标注历史记录</li>
       <li><span class="hotkey">X</span> → 标记当前任务为无效</li>
@@ -194,21 +197,11 @@
       💡 上传图片时可自动对比，支持尺寸分析和智能原图检测（可在设置中开关）
     </p>
   </div>
-
-  <div class="usage">
-    <h3>🛠️ 辅助工具：</h3>
-    <ul>
-      <li><span class="hotkey">Z</span> → 开启/关闭调试模式（默认关闭）</li>
-      <li><span class="hotkey">B</span> → 重新检测页面原图</li>
-      <li><span class="hotkey">I</span> → 检查文件输入状态</li>
-    </ul>
-  </div>
-
   <div class="usage">
     <h3>⚡ 批量操作：</h3>
     <ul>
       <li><span class="hotkey">F1</span> → 连续执行"标记无效"（再次按F1停止）</li>
-      <li><span class="hotkey">F2</span> → 连续检查图片尺寸（8的倍数）并标注</li>
+      <li><span class="hotkey">F2</span> → 连续检查图片尺寸（8的倍数且小于5M）并标注</li>
     </ul>
     <p style="margin: 10px 0 0 0; font-size: 12px; opacity: 0.9;">
       💡 自动确认弹窗，默认间隔800ms，默认无限制次数
@@ -217,13 +210,6 @@
 
   <div class="settings">
     <h3>设置：</h3>
-    <div class="setting-item">
-      <label class="switch">
-        <input type="checkbox" id="soundToggle" checked>
-        <span class="slider"></span>
-      </label>
-      <span class="setting-label">S键音效</span>
-    </div>
     <div class="setting-item">
       <label class="switch">
         <input type="checkbox" id="autoOpenToggle" checked>

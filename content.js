@@ -617,7 +617,7 @@ function handleKeydown(event) {
     }
 
     // 添加测试按键：按K键发送POST请求
-    if (event.key === 'k' || event.key === 'K') {
+    if (event.key === 'p' || event.key === 'P') {
         event.preventDefault();
         sendPostRequestToNativeHost();
         return;
@@ -770,9 +770,9 @@ function handleKeydown(event) {
     }
     // 处理J键 - 上传Native Host图片数据到标注平台
     // J键默认同时上传修改图和蒙版图
-    else if (key === 'j') {
+    else if (key === 'u') {
         // 检查并关闭模态框
-        if (checkAndCloseModalIfOpen('j')) {
+        if (checkAndCloseModalIfOpen('u')) {
             return; // 如果关闭了模态框，停止执行
         }
 
@@ -5340,19 +5340,19 @@ document.addEventListener('keydown', function(event) {
 
 
 
-// 简化：P键强制重新检测原图（忽略锁定状态）
-document.addEventListener('keydown', function(event) {
-    if (!isInInputField(event.target) && event.key.toLowerCase() === 'p') {
-        // 检查并关闭模态框
-        if (checkAndCloseModalIfOpen('p')) {
-            return; // 如果关闭了模态框，停止执行
-        }
+// // 简化：P键强制重新检测原图（忽略锁定状态）
+// document.addEventListener('keydown', function(event) {
+//     if (!isInInputField(event.target) && event.key.toLowerCase() === 'p') {
+//         // 检查并关闭模态框
+//         if (checkAndCloseModalIfOpen('p')) {
+//             return; // 如果关闭了模态框，停止执行
+//         }
         
-        event.preventDefault();
-        debugLog('P键触发：智能尺寸检查 (与F2键功能相同)');
-        checkImageDimensionsAndShowModal();
-    }
-});
+//         event.preventDefault();
+//         debugLog('P键触发：智能尺寸检查 (与F2键功能相同)');
+//         checkImageDimensionsAndShowModal();
+//     }
+// });
 
 // 移除：R键相关逻辑（模式切换、资源提取测试）
 
