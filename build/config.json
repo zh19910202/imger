@@ -1,6 +1,6 @@
 {
   "projectName": "AnnotateFlow-Assistant",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "author": "Auxis Team",
   "description": "Chrome extension for Tencent QLabel annotation platform with PS integration",
   "main": "index.js",
