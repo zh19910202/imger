@@ -56,6 +56,7 @@ test_*.css
 test_*
 install_*.bat
 install_*.ps1
+install.bat
 *_test_*
 simple_test_*
 test_full_*
