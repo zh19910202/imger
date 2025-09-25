@@ -6277,7 +6277,7 @@ function showDimensionCheckModal(imageInfo, isDimensionValid) {
 
             const comment = textarea ? textarea.value.trim() : '';
             disableSubmitButton(submitBtn);
-            submitDimensionCheck(comment);
+            submitDimensionCheck(comment, selectedWorkflow);
         };
 
         submitBtn.addEventListener('click', handleSubmit);
@@ -6488,7 +6488,7 @@ function enableSubmitButton(submitBtn, status = 'ready') {
 
             // 禁用按钮并开始处理
             disableSubmitButton(submitBtn);
-            submitDimensionCheck(comment);
+            submitDimensionCheck(comment, selectedWorkflow);
         };
 
         // 添加事件监听器（避免重复添加）
@@ -6715,7 +6715,7 @@ function closeDimensionCheckModal() {
 }
 
 // 提交尺寸检查结果
-async function submitDimensionCheck(comment) {
+async function submitDimensionCheck(comment, selectedWorkflow = 'defaultWorkflow') {
     debugLog('提交尺寸检查结果', { comment });
 
     const submitBtn = document.querySelector('#dimensionCheckSubmitBtn');
@@ -6777,7 +6777,7 @@ async function submitDimensionCheck(comment) {
             debugLog('Running Hub图片上传成功:', uploadResponse);
 
             // 图片上传成功后，调用AI应用API
-            const taskResult = await createWorkflowTask(apiKey, comment || '1 girl in classroom', imageFileName);
+            const taskResult = await createWorkflowTask(apiKey, comment || '1 girl in classroom', imageFileName, selectedWorkflow);
 
             // 解析AI应用任务响应
             const taskResponse = JSON.parse(taskResult);
@@ -6879,8 +6879,220 @@ async function submitDimensionCheck(comment) {
     // closeDimensionCheckModal();
 }
 
+// 工作流选择模态框
+async function showWorkflowSelectionModal(workflowNames) {
+    return new Promise((resolve) => {
+        // 创建模态框容器
+        const workflowModal = document.createElement('div');
+        workflowModal.className = 'workflow-selection-modal';
+        workflowModal.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10001;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            animation: fadeIn 0.2s ease-out;
+        `;
+
+        // 创建模态框内容
+        const modalContent = document.createElement('div');
+        modalContent.style.cssText = `
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+            border-radius: 16px;
+            padding: 32px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 85vh;
+            overflow-y: auto;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.8);
+            position: relative;
+            transform: scale(0.95);
+            animation: modalSlideIn 0.3s ease-out forwards;
+        `;
+
+        // 获取默认工作流
+        chrome.storage.sync.get(['defaultWorkflow'], (items) => {
+            const defaultWorkflow = items.defaultWorkflow || 'defaultWorkflow';
+
+            let workflowOptions = '';
+            workflowNames.forEach(name => {
+                const isDefault = name === defaultWorkflow;
+                const displayName = name === 'defaultWorkflow' ? '默认工作流' : name;
+                workflowOptions += `
+                    <div class="workflow-option" data-workflow="${name}" style="
+                        padding: 16px 20px;
+                        margin-bottom: 12px;
+                        background: ${isDefault ? 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)' : 'rgba(241, 245, 249, 0.8)'};
+                        border: 2px solid ${isDefault ? '#3b82f6' : '#e2e8f0'};
+                        border-radius: 12px;
+                        cursor: pointer;
+                        transition: all 0.2s ease;
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                    ">
+                        <span style="font-size: 16px; font-weight: 500; color: #1e293b;">${displayName}</span>
+                        ${isDefault ? '<span style="background: #3b82f6; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;">默认</span>' : ''}
+                    </div>
+                `;
+            });
+
+            modalContent.innerHTML = `
+                <button id="workflowCloseBtn" style="
+                    position: absolute;
+                    top: 16px;
+                    right: 16px;
+                    width: 32px;
+                    height: 32px;
+                    border: none;
+                    background: rgba(0, 0, 0, 0.1);
+                    border-radius: 50%;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 18px;
+                    color: #6b7280;
+                    transition: all 0.2s ease;
+                ">×</button>
+
+                <div style="text-align: center; margin-bottom: 24px;">
+                    <h2 style="margin: 0 0 8px 0; color: #1e293b; font-size: 24px; font-weight: 700;">选择AI工作流</h2>
+                    <p style="margin: 0; color: #64748b; font-size: 15px;">请选择要使用的AI处理工作流</p>
+                </div>
+
+                <div id="workflowOptionsContainer">
+                    ${workflowOptions}
+                </div>
+
+                <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
+                    <div style="display: flex; gap: 12px;">
+                        <button id="workflowCancelBtn" style="
+                            flex: 1;
+                            padding: 14px;
+                            border: 2px solid #e2e8f0;
+                            background: white;
+                            color: #64748b;
+                            border-radius: 12px;
+                            cursor: pointer;
+                            font-size: 15px;
+                            font-weight: 600;
+                            transition: all 0.2s ease;
+                        ">取消</button>
+                    </div>
+                </div>
+            `;
+
+            // 添加CSS动画样式
+            if (!document.querySelector('#workflow-modal-styles')) {
+                const styles = document.createElement('style');
+                styles.id = 'workflow-modal-styles';
+                styles.textContent = `
+                    @keyframes fadeIn {
+                        from { opacity: 0; }
+                        to { opacity: 1; }
+                    }
+
+                    @keyframes modalSlideIn {
+                        from {
+                            transform: scale(0.9) translateY(-20px);
+                            opacity: 0;
+                        }
+                        to {
+                            transform: scale(1) translateY(0);
+                            opacity: 1;
+                        }
+                    }
+
+                    .workflow-selection-modal .workflow-option:hover {
+                        transform: translateY(-2px);
+                        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+                        border-color: #3b82f6;
+                    }
+
+                    .workflow-selection-modal button:hover {
+                        transform: translateY(-1px);
+                    }
+
+                    .workflow-selection-modal #workflowCloseBtn:hover {
+                        background: rgba(0, 0, 0, 0.15) !important;
+                    }
+                `;
+                document.head.appendChild(styles);
+            }
+
+            workflowModal.appendChild(modalContent);
+            document.body.appendChild(workflowModal);
+
+            // 绑定事件
+            const closeBtn = modalContent.querySelector('#workflowCloseBtn');
+            const cancelBtn = modalContent.querySelector('#workflowCancelBtn');
+            const workflowOptions = modalContent.querySelectorAll('.workflow-option');
+
+            const closeWorkflowModal = () => {
+                if (workflowModal.parentNode) {
+                    workflowModal.parentNode.removeChild(workflowModal);
+                }
+                resolve(false);
+            };
+
+            closeBtn.addEventListener('click', closeWorkflowModal);
+            cancelBtn.addEventListener('click', closeWorkflowModal);
+
+            workflowOptions.forEach(option => {
+                option.addEventListener('click', () => {
+                    const selectedWorkflow = option.getAttribute('data-workflow');
+                    if (workflowModal.parentNode) {
+                        workflowModal.parentNode.removeChild(workflowModal);
+                    }
+                    resolve(selectedWorkflow);
+                });
+            });
+
+            // ESC键关闭
+            const handleEscKey = (e) => {
+                if (e.key === 'Escape') {
+                    closeWorkflowModal();
+                    document.removeEventListener('keydown', handleEscKey);
+                }
+            };
+            document.addEventListener('keydown', handleEscKey);
+        });
+    });
+}
+
 // R键功能：手动触发图片尺寸检查
 async function manualDimensionCheck() {
+    // 检查是否有多个工作流配置
+    const workflowNames = await new Promise((resolve) => {
+        chrome.storage.sync.get(['runninghubWorkflows'], (items) => {
+            resolve(items.runninghubWorkflows || ['defaultWorkflow']);
+        });
+    });
+
+    let selectedWorkflow = 'defaultWorkflow';
+    // 如果有多个工作流，显示选择界面
+    if (workflowNames.length > 1) {
+        selectedWorkflow = await showWorkflowSelectionModal(workflowNames);
+        if (selectedWorkflow === false) {
+            return false; // 用户取消选择
+        }
+    } else {
+        // 获取默认工作流
+        const defaultWorkflow = await new Promise((resolve) => {
+            chrome.storage.sync.get(['defaultWorkflow'], (items) => {
+                resolve(items.defaultWorkflow || 'defaultWorkflow');
+            });
+        });
+        selectedWorkflow = defaultWorkflow;
+    }
     debugLog('手动触发图片尺寸检查');
 
     // 首先检查是否有缓存的结果可以快速显示
