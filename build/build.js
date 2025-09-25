@@ -58,7 +58,7 @@ function buildChromeExtension() {
         'cardkey-validator.js',
         'resource-extractor.js',
         'runninghub-config.json',
-        'icons'
+        'icon.png'
     ];
 
     essentialFiles.forEach(file => {
