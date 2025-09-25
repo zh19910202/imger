@@ -51,3 +51,20 @@ test_*.css
 *_test.html
 *_test.js
 *_test.css
+
+# 安装测试脚本
+test_*
+install_*.bat
+install_*.ps1
+*_test_*
+simple_test_*
+test_full_*
+test_powershell.bat
+
+# 测试报告和摘要
+*_test_*.md
+build_test_*.md
+dist_test_*.md
+
+# 测试目录
+test_native_host/
