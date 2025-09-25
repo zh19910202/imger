@@ -393,15 +393,37 @@ pip3 install -r requirements.txt 2>/dev/null || echo "警告：无法安装Pytho
 # 配置Chrome Native Messaging Host
 echo "正在配置Chrome Native Messaging Host..."
 
+# 检查HOME环境变量
+if [ -z "$HOME" ]; then
+    echo "错误：HOME环境变量未设置"
+    exit 1
+fi
+
 NATIVE_HOST_DIR="$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.annotateflow.assistant"
 echo "Native Host目录: $NATIVE_HOST_DIR"
+
+# 检查Chrome目录是否存在
+CHROME_DIR="$HOME/Library/Application Support/Google/Chrome"
+if [ ! -d "$CHROME_DIR" ]; then
+    echo "警告：Chrome目录不存在，可能Chrome从未运行过"
+    echo "请先启动Chrome浏览器，然后重新运行此脚本"
+    # 询问用户是否继续
+    read -p "是否仍然继续创建目录？(y/N): " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        exit 1
+    fi
+fi
 
 # 创建Native Host目录
 echo "正在创建Native Host目录..."
 mkdir -p "$NATIVE_HOST_DIR"
 if [ $? -ne 0 ]; then
     echo "错误：无法创建Native Host目录"
-    echo "请检查权限或手动创建目录"
+    echo "请尝试以下解决方案："
+    echo "1. 手动创建目录：mkdir -p \"$NATIVE_HOST_DIR\""
+    echo "2. 检查权限：ls -la \"$HOME/Library/Application Support/Google/\""
+    echo "3. 确保Chrome已运行过至少一次"
     exit 1
 fi
 
