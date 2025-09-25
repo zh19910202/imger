@@ -217,146 +217,101 @@ function copyInstallScripts(dir) {
     const config = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8'));
     const version = config.version;
 
-    // Windows安装脚本内容
-    const windowsScriptContent = `@echo off
-REM AnnotateFlow-Assistant Windows 安装脚本
-REM 版本: ${version}
+    // Windows启动器脚本内容
+    const windowsLauncherContent = `@echo off
+:: Native Host Launcher for Windows
+:: This script is called by Chrome to launch the native host
 
-echo 正在安装 AnnotateFlow-Assistant...
+python "%~dp0native_host.py" %*`;
 
-REM 检查PowerShell版本
-powershell -Command "Get-Host" >nul 2>&1
-if %errorlevel% neq 0 (
-    echo 错误：需要PowerShell来下载Python
-    pause
-    exit /b 1
-)
+    // Windows安装脚本内容（更新版）
+    const windowsScriptContent = `# AnnotateFlow-Assistant Windows Installation Script (Simple Version)
+# Version: ${version}
 
-REM 检查Python环境
-python --version >nul 2>&1
-if %errorlevel% neq 0 (
-    echo 未检测到Python环境，正在自动安装...
+Write-Host "Installing AnnotateFlow-Assistant..."
 
-    REM 下载Python安装程序
-    set PYTHON_INSTALLER_URL=https://www.python.org/ftp/python/3.9.13/python-3.9.13-amd64.exe
-    set PYTHON_INSTALLER_NAME=python-installer.exe
+# Check Python environment
+python --version 2>$null
+if (-not $?) {
+    Write-Host "Error: Python environment not found"
+    Write-Host "Please install Python 3.9 or higher first"
+    $null = Read-Host "Press any key to exit..."
+    exit 1
+}
 
-    echo 正在下载Python安装程序...
-    powershell -Command "Invoke-WebRequest -Uri '%PYTHON_INSTALLER_URL%' -OutFile '%PYTHON_INSTALLER_NAME%'"
-    if %errorlevel% neq 0 (
-        echo 错误：下载Python安装程序失败
-        pause
-        exit /b 1
-    )
+Write-Host "Python environment is ready"
 
-    echo 正在安装Python，请稍候...
-    echo 这可能需要几分钟时间...
-    %PYTHON_INSTALLER_NAME% /quiet InstallAllUsers=1 PrependPath=1 Include_test=0
-    if %errorlevel% neq 0 (
-        echo 错误：Python安装失败
-        pause
-        exit /b 1
-    )
+# Install Python dependencies (if needed)
+Write-Host "Installing Python dependencies..."
+pip install -r requirements.txt 2>$null
+if (-not $?) {
+    Write-Host "Warning: Unable to install Python dependencies, you may need to install them manually"
+}
 
-    echo Python安装完成
-    del %PYTHON_INSTALLER_NAME%
+# Configure Chrome Native Messaging Host
+Write-Host "Configuring Chrome Native Messaging Host..."
 
-    REM 刷新环境变量
-    echo 刷新环境变量...
-    set "PATH=%PATH%;%LOCALAPPDATA%\\Programs\\Python\\Python39;%LOCALAPPDATA%\\Programs\\Python\\Python39\\Scripts"
-)
+# Set Native Host base directory
+$nativeMessagingBaseDir = "$env:LOCALAPPDATA\\Google\\Chrome\\User Data\\NativeMessagingHosts"
+$nativeHostDir = "$nativeMessagingBaseDir\\com.annotateflow.assistant"
+Write-Host "Native Host directory: $nativeHostDir"
 
-REM 验证Python安装
-python --version >nul 2>&1
-if %errorlevel% neq 0 (
-    echo 错误：Python安装验证失败
-    pause
-    exit /b 1
-)
+# Create Native Host directory
+Write-Host "Creating Native Host directory..."
+New-Item -ItemType Directory -Path $nativeHostDir -Force 2>$null
+if (-not $?) {
+    Write-Host "Error: Unable to create Native Host directory"
+    $null = Read-Host "Press any key to exit..."
+    exit 1
+}
 
-echo Python环境已准备就绪
+# Copy native_host.py to appropriate location
+Write-Host "Copying Native Host file..."
+Copy-Item "native_host.py" "$nativeHostDir\\native_host.py" -Force
+if (-not $?) {
+    Write-Host "Error: Unable to copy Native Host file"
+    $null = Read-Host "Press any key to exit..."
+    exit 1
+}
 
-REM 安装Python依赖（如果需要）
-echo 正在安装Python依赖...
-pip install -r requirements.txt >nul 2>&1
-if %errorlevel% neq 0 (
-    echo 警告：无法安装Python依赖，可能需要手动安装
-)
+# Create launcher scripts
+Write-Host "Creating launcher scripts..."
+Set-Content "$nativeHostDir\\native_host_launcher.cmd" '@echo off
+:: Native Host Launcher for Windows
+:: This script is called by Chrome to launch the native host
 
-REM 配置Chrome Native Messaging Host
-echo 正在配置Chrome Native Messaging Host...
+python "%~dp0native_host.py" %*'
 
-REM 检查LOCALAPPDATA环境变量
-if "%LOCALAPPDATA%"=="" (
-    echo 错误：LOCALAPPDATA环境变量未设置
-    echo 尝试使用默认路径...
-    set USERPROFILE_PATH=%USERPROFILE%
-    if "%USERPROFILE_PATH%"=="" (
-        echo 错误：无法确定用户目录
-        pause
-        exit /b 1
-    )
-    set NATIVE_HOST_DIR=%USERPROFILE_PATH%\\AppData\\Local\\Google\\Chrome\\User Data\\NativeMessagingHosts\\com.annotateflow.assistant
-) else (
-    set NATIVE_HOST_DIR=%LOCALAPPDATA%\\Google\\Chrome\\User Data\\NativeMessagingHosts\\com.annotateflow.assistant
-)
+# Create manifest.json
+Write-Host "Creating manifest.json..."
+$manifestContent = @{
+    name = "com.annotateflow.assistant"
+    description = "Chrome extension for Tencent QLabel annotation platform with PS integration"
+    path = "$nativeHostDir\\native_host_launcher.cmd"
+    type = "stdio"
+    allowed_origins = @("chrome-extension://phkoioegfpgodahcdamjdkbmkemphobd/")
+} | ConvertTo-Json -Depth 10
 
-echo Native Host目录: %NATIVE_HOST_DIR%
+# 保存manifest.json到Native Messaging Hosts根目录而不是子目录
+$manifestPath = "$nativeMessagingBaseDir\\com.annotateflow.assistant.json"
+$manifestContent | Set-Content $manifestPath
 
-REM 创建Native Host目录
-echo 正在创建Native Host目录...
-if not exist "%NATIVE_HOST_DIR%" (
-    mkdir "%NATIVE_HOST_DIR%"
-    if %errorlevel% neq 0 (
-        echo 错误：无法创建Native Host目录
-        echo 请检查权限或手动创建目录
-        pause
-        exit /b 1
-    )
-)
+if (-not $?) {
+    Write-Host "Error: Unable to create manifest.json file"
+    $null = Read-Host "Press any key to exit..."
+    exit 1
+}
 
-REM 复制native_host.py到适当位置
-echo 正在复制Native Host文件...
-copy "native_host.py" "%NATIVE_HOST_DIR%\\native_host.py"
-if %errorlevel% neq 0 (
-    echo 错误：无法复制Native Host文件
-    pause
-    exit /b 1
-)
-
-REM 创建manifest.json
-echo 正在创建manifest.json...
-(
-echo {^
-echo   "name": "com.annotateflow.assistant",^
-echo   "description": "Chrome extension for Tencent QLabel annotation platform with PS integration",^
-echo   "path": "%%NATIVE_HOST_DIR%%\\native_host.py",^
-echo   "type": "stdio",^
-echo   "allowed_origins": [^
-echo     "chrome-extension://__MSG_@@extension_id__/"]^
-echo }
-) > "%NATIVE_HOST_DIR%\\com.annotateflow.assistant.json"
-
-REM 使用PowerShell替换环境变量为实际路径
-echo 正在更新manifest.json中的路径...
-powershell -Command "(Get-Content '%NATIVE_HOST_DIR%\\com.annotateflow.assistant.json') -replace '%%NATIVE_HOST_DIR%%', '%NATIVE_HOST_DIR%' | Set-Content '%NATIVE_HOST_DIR%\\com.annotateflow.assistant.json'"
-
-if %errorlevel% neq 0 (
-    echo 错误：无法创建manifest.json文件
-    pause
-    exit /b 1
-)
-
-echo 安装完成！
-echo.
-echo 请在Chrome中加载扩展：
-echo 1. 打开Chrome浏览器
-echo 2. 进入 chrome://extensions/
-echo 3. 启用"开发者模式"
-echo 4. 点击"加载已解压的扩展程序"
-echo 5. 选择extension文件夹
-echo.
-pause`;
+Write-Host "Installation completed!"
+Write-Host ""
+Write-Host "Please load the extension in Chrome:"
+Write-Host "1. Open Chrome browser"
+Write-Host "2. Go to chrome://extensions/"
+Write-Host "3. Enable ""Developer mode"""
+Write-Host "4. Click ""Load unpacked extension"""
+Write-Host "5. Select the extension folder"
+Write-Host ""
+$null = Read-Host "Press any key to exit..."`;
 
     // macOS安装脚本内容
     const macosScriptContent = `#!/bin/bash
@@ -474,7 +429,7 @@ echo "4. 点击\\"加载已解压的扩展程序\\""
 echo "5. 选择extension文件夹"`;
 
     // 创建Windows安装脚本
-    const windowsScriptPath = path.join(dir, 'install.bat');
+    const windowsScriptPath = path.join(dir, 'install.ps1');
     fs.writeFileSync(windowsScriptPath, windowsScriptContent);
 
     // 创建macOS安装脚本
