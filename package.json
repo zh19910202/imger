@@ -31,6 +31,6 @@
   },
   "homepage": "https://github.com/your-username/auxis#readme",
   "devDependencies": {
-    "javascript-obfuscator": "^4.0.0"
+    "javascript-obfuscator": "^4.1.1"
   }
 }
