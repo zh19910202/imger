@@ -14,6 +14,7 @@ const crypto = require('crypto');
 let JavaScriptObfuscator;
 try {
     JavaScriptObfuscator = require('javascript-obfuscator');
+    console.log('已加载javascript-obfuscator，将使用专业混淆');
 } catch (e) {
     console.warn('警告：无法加载javascript-obfuscator，将使用简化版混淆');
     JavaScriptObfuscator = null;
@@ -168,8 +169,13 @@ function obfuscateJavaScriptContent(content) {
     // 如果javascript-obfuscator不可用或失败，使用简化版混淆
     console.warn('使用简化版JavaScript混淆');
     return content
-        .replace(/console\.log/g, 'c.log')
-        .replace(/debugLog/g, 'd.log');
+        .replace(/console\.log/g, 'c_log')
+        .replace(/debugLog/g, 'd_log')
+        // 修复属性名混淆问题
+        .replace(/\bd\.logs\b/g, 'debugLogs')
+        .replace(/\bc\.logs\b/g, 'consoleLogs')
+        .replace(/\bd_logs\b/g, 'debugLogs')
+        .replace(/\bc_logs\b/g, 'consoleLogs');
 }
 
 // 混淆Python文件（简化处理）
@@ -290,9 +296,9 @@ if "%LOCALAPPDATA%"=="" (
         pause
         exit /b 1
     )
-    set NATIVE_HOST_DIR=%USERPROFILE_PATH%\AppData\Local\Google\Chrome\User Data\NativeMessagingHosts\com.annotateflow.assistant
+    set NATIVE_HOST_DIR=%USERPROFILE_PATH%\\AppData\\Local\\Google\\Chrome\\User Data\\NativeMessagingHosts\\com.annotateflow.assistant
 ) else (
-    set NATIVE_HOST_DIR=%LOCALAPPDATA%\Google\Chrome\User Data\NativeMessagingHosts\com.annotateflow.assistant
+    set NATIVE_HOST_DIR=%LOCALAPPDATA%\\Google\\Chrome\\User Data\\NativeMessagingHosts\\com.annotateflow.assistant
 )
 
 echo Native Host目录: %NATIVE_HOST_DIR%
@@ -311,7 +317,7 @@ if not exist "%NATIVE_HOST_DIR%" (
 
 REM 复制native_host.py到适当位置
 echo 正在复制Native Host文件...
-copy "native_host.py" "%NATIVE_HOST_DIR%\native_host.py"
+copy "native_host.py" "%NATIVE_HOST_DIR%\\native_host.py"
 if %errorlevel% neq 0 (
     echo 错误：无法复制Native Host文件
     pause
@@ -324,12 +330,16 @@ echo 正在创建manifest.json...
 echo {^
 echo   "name": "com.annotateflow.assistant",^
 echo   "description": "Chrome extension for Tencent QLabel annotation platform with PS integration",^
-echo   "path": "%NATIVE_HOST_DIR:\=\\%\\native_host.py",^
+echo   "path": "%%NATIVE_HOST_DIR%%\\native_host.py",^
 echo   "type": "stdio",^
 echo   "allowed_origins": [^
 echo     "chrome-extension://__MSG_@@extension_id__/"]^
 echo }
-) > "%NATIVE_HOST_DIR%\com.annotateflow.assistant.json"
+) > "%NATIVE_HOST_DIR%\\com.annotateflow.assistant.json"
+
+REM 使用PowerShell替换环境变量为实际路径
+echo 正在更新manifest.json中的路径...
+powershell -Command "(Get-Content '%NATIVE_HOST_DIR%\\com.annotateflow.assistant.json') -replace '%%NATIVE_HOST_DIR%%', '%NATIVE_HOST_DIR%' | Set-Content '%NATIVE_HOST_DIR%\\com.annotateflow.assistant.json'"
 
 if %errorlevel% neq 0 (
     echo 错误：无法创建manifest.json文件
