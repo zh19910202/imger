@@ -4,7 +4,7 @@
 // 2. 空格键 - 点击"跳过"按钮
 // 3. S键 - 点击"提交并继续标注"按钮
 // 4. T键 - 测试设备指纹读取并验证卡密 (需要cardkey-validator.js)
-// 5. K键 - 发送POST测试请求到Native Host
+
 
 // 全局变量
 let lastHoveredImage = null;
@@ -46,7 +46,13 @@ let autoSendEnabled = true; // 自动发送开关
 let sentImageHashes = new Set(); // 已发送图片的哈希值，避免重复发送
 let lastAutoSendTime = 0; // 上次自动发送时间，防止过于频繁发送
 let currentPageTaskInfo = null; // 当前页面的任务信息
-let lastSuccessfulTaskId = null; // 最后成功的任务ID 
+let lastSuccessfulTaskId = null; // 最后成功的任务ID
+let hasSentDataForCurrentPage = false; // 当前页面是否已发送数据
+
+// 原图信息和指令文本缓存
+let cachedOriginalImageInfo = null; // 缓存的原图信息
+let cachedInstructionText = null; // 缓存的指令文本
+let lastCacheUpdateTime = 0; // 上次缓存更新时间 
 // 已移除：模式相关变量
 // let isRevisionMode = false;
 // let modeStatusIndicator = null;
@@ -403,7 +409,7 @@ async function autoSendImageData(forceSend = false) {
         }
 
         // 直接调用与K键相同的发送函数
-        await sendPostRequestToNativeHost();
+        await sendPostRequestToNativeHost(true);
 
         // 记录已发送的图片（仅在自动模式下）
         if (!forceSend) {
@@ -481,6 +487,13 @@ function checkPageChange() {
         cachedRunningHubResults = null;
         currentPageTaskInfo = null;
         lastSuccessfulTaskId = null;
+        // 重置页面数据发送状态
+        hasSentDataForCurrentPage = false;
+        // 清除原图信息和指令文本缓存
+        debugLog('清除原图信息和指令文本缓存');
+        cachedOriginalImageInfo = null;
+        cachedInstructionText = null;
+        lastCacheUpdateTime = 0;
 
         // 清除图片请求捕获状态
         if (capturedImageRequests && capturedImageRequests.clear) {
@@ -619,7 +632,7 @@ function handleKeydown(event) {
     // 添加测试按键：按K键发送POST请求
     if (event.key === 'p' || event.key === 'P') {
         event.preventDefault();
-        sendPostRequestToNativeHost();
+        sendPostRequestToNativeHost(true);
         return;
     }
 
@@ -1910,6 +1923,22 @@ async function parallelOriginalImageDetection(maxRetries = 3) {
             });
             showNotification(`使用COS拦截原图: ${img.naturalWidth}×${img.naturalHeight}`, 2000);
 
+            // 缓存原图信息
+            const cosImageInfo = {
+                src: capturedOriginalImage,
+                width: img.naturalWidth,
+                height: img.naturalHeight,
+                name: extractFileNameFromUrl(capturedOriginalImage),
+                element: img,
+                source: 'COS拦截'
+            };
+            cacheOriginalImageInfo(cosImageInfo);
+
+            // 触发原图检测完成检查
+            setTimeout(() => {
+                onOriginalImageDetected();
+            }, 100);
+
             // 如果启用了自动发送，则触发自动发送
             if (autoSendEnabled) {
                 setTimeout(() => {
@@ -2022,6 +2051,14 @@ async function parallelOriginalImageDetection(maxRetries = 3) {
                 // 更新全局原图
                 originalImage = bestImage;
                 originalImageLocked = true;
+
+                // 缓存原图信息
+                cacheOriginalImageInfo(bestImage);
+
+                // 触发原图检测完成检查
+                setTimeout(() => {
+                    onOriginalImageDetected();
+                }, 100);
 
                 showNotification(`并行获取原图成功 (${bestImage.source}): ${bestImage.width}×${bestImage.height}`, 2000);
 
@@ -2398,6 +2435,14 @@ function setOriginalImageCommon(img) {
 
     // 锁定原图，防止在当前页面内被覆盖
     originalImageLocked = true;
+
+    // 缓存原图信息
+    cacheOriginalImageInfo(originalImage);
+
+    // 触发原图检测完成检查
+    setTimeout(() => {
+        onOriginalImageDetected();
+    }, 100);
 
     debugLog('成功记录原图并锁定到当前页面（通用）', {
         src: originalImage.src.substring(0, 50) + '...',
@@ -2915,7 +2960,15 @@ async function processNetworkOriginalImage(imageInfo) {
                 // 更新全局原图引用
                 originalImage = originalImageFromNetwork;
                 originalImageLocked = true;
-                
+
+                // 缓存原图信息
+                cacheOriginalImageInfo(originalImageFromNetwork);
+
+                // 触发原图检测完成检查
+                setTimeout(() => {
+                    onOriginalImageDetected();
+                }, 100);
+
                 debugLog('通过网络请求更新了原图', {
                     src: originalImage.src.substring(0, 50) + '...',
                     width: originalImage.width,
@@ -5578,6 +5631,22 @@ async function updateOriginalImageFromCOS(imageUrl) {
         
         originalImage = img;
         originalImageLocked = true;
+
+        // 缓存原图信息
+        const cosDisplayImageInfo = {
+            src: imageUrl,
+            width: img.naturalWidth,
+            height: img.naturalHeight,
+            element: img,
+            source: 'COS显示'
+        };
+        cacheOriginalImageInfo(cosDisplayImageInfo);
+
+        // 触发原图检测完成检查
+        setTimeout(() => {
+            onOriginalImageDetected();
+        }, 100);
+
         debugLog('原图从COS加载成功 (仅显示)', {
             src: imageUrl,
             width: img.naturalWidth,
@@ -5862,9 +5931,33 @@ async function autoSkipToValidImageWithRKeyLogic() {
 
 
 
+// 缓存原图信息
+function cacheOriginalImageInfo(imageInfo) {
+    if (imageInfo && imageInfo.src) {
+        cachedOriginalImageInfo = {
+            src: imageInfo.src,
+            width: imageInfo.width,
+            height: imageInfo.height,
+            name: imageInfo.name,
+            source: imageInfo.source,
+            cachedAt: Date.now()
+        };
+        debugLog('原图信息已缓存', cachedOriginalImageInfo);
+    }
+}
+
 // 自动提取页面指令文本
-function extractInstructionText() {
+function extractInstructionText(useCache = true) {
     try {
+        // 如果启用缓存且缓存中有指令文本且缓存时间在1分钟内，则直接返回缓存的结果
+        if (useCache && cachedInstructionText && (Date.now() - lastCacheUpdateTime) < 60000) {
+            debugLog('使用缓存的指令文本', {
+                text: cachedInstructionText.substring(0, 50) + '...',
+                cacheAge: Date.now() - lastCacheUpdateTime
+            });
+            return cachedInstructionText;
+        }
+
         debugLog('开始提取页面指令文本');
 
         // 精确选择器：基于提供的示例
@@ -5993,18 +6086,21 @@ function extractInstructionText() {
             }
         }
 
+        // 缓存结果
         if (instructionText) {
-            debugLog('成功提取指令文本', {
+            cachedInstructionText = instructionText;
+            lastCacheUpdateTime = Date.now();
+            debugLog('成功提取并缓存指令文本', {
                 text: instructionText,
                 length: instructionText.length
             });
 
             showNotification(`📝 已提取指令: ${instructionText.substring(0, 30)}...`, 2000);
-            return instructionText;
         } else {
             debugLog('未找到指令文本');
-            return '';
         }
+
+        return instructionText || '';
 
     } catch (error) {
         debugLog('提取指令文本失败:', error);
@@ -6286,7 +6382,7 @@ function showDimensionCheckModal(imageInfo, isDimensionValid) {
     // 自动提取并填入指令文本（仅当textarea为空且图片尺寸有效时）
     if (textarea && isDimensionValid && !textarea.value.trim()) {
         debugLog('尝试自动提取指令文本填入输入框');
-        const instructionText = extractInstructionText();
+        const instructionText = extractInstructionText(true);
         if (instructionText) {
             textarea.value = instructionText;
             debugLog('指令文本已自动填入输入框', {
@@ -7588,6 +7684,55 @@ async function uploadToRunningHub(imageFile, apiKey, comment) {
     
     const result = await response.text();
     return result;
+}
+
+// 检查原图和指令是否都已就绪
+function checkIfReadyForAutoSend() {
+    // 检查原图是否就绪
+    const isOriginalImageReady = originalImageLocked && originalImage && originalImage.src;
+
+    // 检查指令是否就绪，使用缓存
+    const instructionText = extractInstructionText(true);
+    const isInstructionReady = instructionText && instructionText.length > 0;
+
+    debugLog('检查自动发送条件', {
+        isOriginalImageReady,
+        isInstructionReady,
+        hasSentDataForCurrentPage,
+        autoSendEnabled
+    });
+
+    // 如果原图和指令都就绪，且当前页面尚未发送数据，且自动发送已启用
+    if (isOriginalImageReady && isInstructionReady && !hasSentDataForCurrentPage && autoSendEnabled) {
+        debugLog('原图和指令都已就绪，准备发送数据');
+        hasSentDataForCurrentPage = true; // 标记为已发送，防止重复发送
+
+        // 延迟一小段时间后发送数据，确保所有状态都已正确设置
+        setTimeout(() => {
+            sendPostRequestToNativeHost(true).catch(error => {
+                console.error("自动发送失败:", error);
+                showNotification("❌ 自动发送失败: " + error.message, 3000);
+                // 发送失败时重置标记，以便重试
+                hasSentDataForCurrentPage = false;
+            });
+        }, 500);
+
+        return true;
+    }
+
+    return false;
+}
+
+// 在原图检测完成后调用此函数
+function onOriginalImageDetected() {
+    debugLog('原图检测完成，检查是否可以自动发送');
+    checkIfReadyForAutoSend();
+}
+
+// 在需要时手动触发指令检查
+function onInstructionCheck() {
+    debugLog('指令检查触发，检查是否可以自动发送');
+    checkIfReadyForAutoSend();
 }
 
 // ========== RunningHub 轮询与结果展示（最小增量） ==========
@@ -9106,7 +9251,7 @@ function downloadImageToLocal(imageUrl, fileType, index, customFileName = null, 
 // }
 
 // 添加一个测试函数来发送POST请求到Native Host
-async function sendPostRequestToNativeHost() {
+async function sendPostRequestToNativeHost(useCachedData = true) {
     try {
         console.log('准备发送POST请求到Native Host');
         // 获取当前原图和上传的图片
@@ -9130,8 +9275,8 @@ async function sendPostRequestToNativeHost() {
 
         annotatedImageData = originalImageData;
 
-        // 获取标注指令文本
-        const instructionText = extractInstructionText();
+        // 获取标注指令文本，优先使用缓存
+        const instructionText = extractInstructionText(useCachedData);
         const instructions = instructionText || "未正确匹配指令，人工核对";
 
         // 从base64数据中提取实际的图片格式
@@ -9791,4 +9936,53 @@ async function createWorkflowTask(apiKey, prompt, imageFileName = null, workflow
 
     const result = await response.text();
     return result;
+}
+
+// 检查原图和指令是否都已就绪
+function checkIfReadyForAutoSend() {
+    // 检查原图是否就绪
+    const isOriginalImageReady = originalImageLocked && originalImage && originalImage.src;
+
+    // 检查指令是否就绪，使用缓存
+    const instructionText = extractInstructionText(true);
+    const isInstructionReady = instructionText && instructionText.length > 0;
+
+    debugLog('检查自动发送条件', {
+        isOriginalImageReady,
+        isInstructionReady,
+        hasSentDataForCurrentPage,
+        autoSendEnabled
+    });
+
+    // 如果原图和指令都就绪，且当前页面尚未发送数据，且自动发送已启用
+    if (isOriginalImageReady && isInstructionReady && !hasSentDataForCurrentPage && autoSendEnabled) {
+        debugLog('原图和指令都已就绪，准备发送数据');
+        hasSentDataForCurrentPage = true; // 标记为已发送，防止重复发送
+
+        // 延迟一小段时间后发送数据，确保所有状态都已正确设置
+        setTimeout(() => {
+            sendPostRequestToNativeHost(true).catch(error => {
+                console.error("自动发送失败:", error);
+                showNotification("❌ 自动发送失败: " + error.message, 3000);
+                // 发送失败时重置标记，以便重试
+                hasSentDataForCurrentPage = false;
+            });
+        }, 500);
+
+        return true;
+    }
+
+    return false;
+}
+
+// 在原图检测完成后调用此函数
+function onOriginalImageDetected() {
+    debugLog('原图检测完成，检查是否可以自动发送');
+    checkIfReadyForAutoSend();
+}
+
+// 在需要时手动触发指令检查
+function onInstructionCheck() {
+    debugLog('指令检查触发，检查是否可以自动发送');
+    checkIfReadyForAutoSend();
 }
