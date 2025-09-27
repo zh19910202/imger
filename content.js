@@ -6108,6 +6108,1105 @@ function extractInstructionText(useCache = true) {
     }
 }
 
+// 显示RunningHub设置界面
+function showRunningHubSettings() {
+    // 首先关闭当前的尺寸检查模态框
+    if (dimensionCheckModal && isDimensionCheckModalOpen) {
+        closeDimensionCheckModal();
+    }
+
+    // 创建设置模态框
+    createRunningHubSettingsModal();
+}
+
+// 创建RunningHub设置模态框
+function createRunningHubSettingsModal() {
+    // 确保DOM已准备好
+    if (document.querySelector('.rh-settings-modal')) {
+        return;
+    }
+
+    // 创建模态框容器
+    const settingsModal = document.createElement('div');
+    settingsModal.className = 'rh-settings-modal';
+    settingsModal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(8px);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 10001;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        animation: fadeIn 0.2s ease-out;
+    `;
+
+    // 创建模态框内容
+    const modalContent = document.createElement('div');
+    modalContent.style.cssText = `
+        background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+        border-radius: 16px;
+        padding: 32px;
+        max-width: 800px;
+        width: 90%;
+        max-height: 85vh;
+        overflow-y: auto;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.8);
+        position: relative;
+        transform: scale(0.95);
+        animation: modalSlideIn 0.3s ease-out forwards;
+    `;
+
+    // 加载配置
+    loadRunningHubConfig().then(() => {
+        // 生成模态框内容
+        const workflowList = RunningHubConfigManager.getWorkflowList();
+        const defaultWorkflow = RunningHubConfigManager.getDefaultWorkflow();
+
+        modalContent.innerHTML = `
+            <button id="rhSettingsCloseBtn" style="
+                position: absolute;
+                top: 16px;
+                right: 16px;
+                width: 32px;
+                height: 32px;
+                border: none;
+                background: rgba(0, 0, 0, 0.1);
+                border-radius: 50%;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 18px;
+                color: #6b7280;
+                transition: all 0.2s ease;
+            ">×</button>
+
+            <div style="text-align: center; margin-bottom: 24px;">
+                <h2 style="margin: 0 0 8px 0; color: #1e293b; font-weight: 700;">RunningHub 配置管理</h2>
+                <p style="margin: 0; color: #64748b; font-size: 14px;">管理AI工作流配置</p>
+            </div>
+
+            <div style="display: flex; gap: 20px; margin-bottom: 24px;">
+                <button id="rhAddWorkflowBtn" style="
+                    padding: 10px 16px;
+                    background: #10b981;
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    font-size: 14px;
+                    font-weight: 500;
+                    transition: all 0.2s ease;
+                ">➕ 添加工作流</button>
+
+                <button id="rhImportConfigBtn" style="
+                    padding: 10px 16px;
+                    background: #3b82f6;
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    font-size: 14px;
+                    font-weight: 500;
+                    transition: all 0.2s ease;
+                " title="完全替换当前配置">📥 导入配置</button>
+                <button id="rhImportConfigIncrementalBtn" style="
+                    padding: 10px 16px;
+                    background: #0ea5e9;
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    font-size: 14px;
+                    font-weight: 500;
+                    transition: all 0.2s ease;
+                " title="只添加新工作流，保留现有配置">📥 增量导入</button>
+
+                <button id="rhExportConfigBtn" style="
+                    padding: 10px 16px;
+                    background: #8b5cf6;
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    font-size: 14px;
+                    font-weight: 500;
+                    transition: all 0.2s ease;
+                ">📤 导出配置</button>
+            </div>
+
+            <div style="margin-bottom: 24px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">默认工作流</label>
+                <select id="rhDefaultWorkflowSelect" style="
+                    width: 100%;
+                    padding: 12px;
+                    border: 2px solid #e2e8f0;
+                    border-radius: 8px;
+                    background: white;
+                    font-size: 14px;
+                ">
+                    ${workflowList.map(workflow =>
+                        `<option value="${workflow.id}" ${workflow.id === defaultWorkflow ? 'selected' : ''}>
+                            ${workflow.name} (${workflow.id})
+                        </option>`
+                    ).join('')}
+                </select>
+            </div>
+
+            <div style="margin-bottom: 24px;">
+                <h3 style="margin: 0 0 16px 0; color: #1e293b; font-weight: 600;">工作流列表</h3>
+                <div id="rhWorkflowList" style="display: grid; gap: 16px;">
+                    ${workflowList.map(workflow => `
+                        <div class="rh-workflow-item" data-workflow-id="${workflow.id}" style="
+                            background: white;
+                            border: 1px solid #e2e8f0;
+                            border-radius: 12px;
+                            padding: 20px;
+                            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+                        ">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px;">
+                                <div>
+                                    <h4 style="margin: 0 0 8px 0; color: #1e293b; font-weight: 600;">
+                                        ${workflow.name}
+                                        ${workflow.id === 'default' ? '<span style="background: #f59e0b; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-left: 8px;">默认</span>' : ''}
+                                    </h4>
+                                    <p style="margin: 0; color: #64748b; font-size: 13px;">ID: ${workflow.id}</p>
+                                    <p style="margin: 8px 0 0 0; color: #64748b; font-size: 14px;">${workflow.description || '无描述'}</p>
+                                </div>
+                                <div style="display: flex; gap: 8px;">
+                                    ${workflow.id !== 'default' ? `
+                                        <button class="rh-edit-workflow-btn" data-workflow-id="${workflow.id}" style="
+                                            padding: 8px 12px;
+                                            background: #3b82f6;
+                                            color: white;
+                                            border: none;
+                                            border-radius: 6px;
+                                            cursor: pointer;
+                                            font-size: 12px;
+                                        ">编辑</button>
+                                        <button class="rh-delete-workflow-btn" data-workflow-id="${workflow.id}" style="
+                                            padding: 8px 12px;
+                                            background: #ef4444;
+                                            color: white;
+                                            border: none;
+                                            border-radius: 6px;
+                                            cursor: pointer;
+                                            font-size: 12px;
+                                        ">删除</button>
+                                    ` : `
+                                        <button class="rh-edit-workflow-btn" data-workflow-id="${workflow.id}" style="
+                                            padding: 8px 12px;
+                                            background: #3b82f6;
+                                            color: white;
+                                            border: none;
+                                            border-radius: 6px;
+                                            cursor: pointer;
+                                            font-size: 12px;
+                                        ">编辑</button>
+                                    `}
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+
+        // 添加隐藏的文件输入用于导入
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = '.json';
+        fileInput.style.display = 'none';
+        fileInput.id = 'rhImportFileInput';
+        modalContent.appendChild(fileInput);
+
+        settingsModal.appendChild(modalContent);
+        document.body.appendChild(settingsModal);
+
+        // 绑定事件
+        bindSettingsModalEvents(settingsModal, fileInput);
+    }).catch(error => {
+        console.error('加载配置失败:', error);
+        showNotification('❌ 加载配置失败: ' + error.message, 3000);
+    });
+}
+
+// 绑定设置模态框事件
+function bindSettingsModalEvents(modal, fileInput) {
+    // 关闭按钮
+    const closeBtn = modal.querySelector('#rhSettingsCloseBtn');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            modal.remove();
+        });
+    }
+
+    // 点击背景关闭
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.remove();
+        }
+    });
+
+    // ESC键关闭
+    const handleEscKey = (e) => {
+        if (e.key === 'Escape') {
+            modal.remove();
+            document.removeEventListener('keydown', handleEscKey);
+        }
+    };
+    document.addEventListener('keydown', handleEscKey);
+
+    // 添加工作流按钮
+    const addWorkflowBtn = modal.querySelector('#rhAddWorkflowBtn');
+    if (addWorkflowBtn) {
+        addWorkflowBtn.addEventListener('click', () => {
+            showAddWorkflowDialog(modal);
+        });
+    }
+
+    // 导入配置按钮
+    const importBtn = modal.querySelector('#rhImportConfigBtn');
+    if (importBtn && fileInput) {
+        importBtn.addEventListener('click', () => {
+            fileInput.setAttribute('data-import-mode', 'replace');
+            fileInput.click();
+        });
+    }
+
+    // 增量导入配置按钮
+    const importIncrementalBtn = modal.querySelector('#rhImportConfigIncrementalBtn');
+    if (importIncrementalBtn && fileInput) {
+        importIncrementalBtn.addEventListener('click', () => {
+            fileInput.setAttribute('data-import-mode', 'incremental');
+            fileInput.click();
+        });
+    }
+
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+            const importMode = fileInput.getAttribute('data-import-mode') || 'replace';
+            if (importMode === 'incremental') {
+                // 增量导入
+                importRunningHubConfigIncremental(e.target.files[0]);
+            } else {
+                // 完全覆盖导入
+                importRunningHubConfig(e.target.files[0]);
+            }
+            // 重新加载界面
+            setTimeout(() => {
+                modal.remove();
+                showRunningHubSettings();
+            }, 1000);
+        }
+    });
+
+    // 导出配置按钮
+    const exportBtn = modal.querySelector('#rhExportConfigBtn');
+    if (exportBtn) {
+        exportBtn.addEventListener('click', exportRunningHubConfig);
+    }
+
+    // 默认工作流选择
+    const defaultWorkflowSelect = modal.querySelector('#rhDefaultWorkflowSelect');
+    if (defaultWorkflowSelect) {
+        defaultWorkflowSelect.addEventListener('change', (e) => {
+            RunningHubConfigManager.setDefaultWorkflow(e.target.value);
+            showNotification('✅ 默认工作流已更新', 1500);
+        });
+    }
+
+    // 编辑工作流按钮
+    modal.querySelectorAll('.rh-edit-workflow-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const workflowId = btn.getAttribute('data-workflow-id');
+            showEditWorkflowDialog(modal, workflowId);
+        });
+    });
+
+    // 删除工作流按钮
+    modal.querySelectorAll('.rh-delete-workflow-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const workflowId = btn.getAttribute('data-workflow-id');
+            if (confirm(`确定要删除工作流 "${workflowId}" 吗？`)) {
+                try {
+                    RunningHubConfigManager.removeWorkflow(workflowId);
+                    showNotification('✅ 工作流已删除', 1500);
+                    // 重新加载界面
+                    modal.remove();
+                    showRunningHubSettings();
+                } catch (error) {
+                    showNotification('❌ 删除失败: ' + error.message, 3000);
+                }
+            }
+        });
+    });
+}
+
+// 显示添加工作流对话框
+function showAddWorkflowDialog(parentModal) {
+    // 创建添加工作流对话框
+    const dialog = document.createElement('div');
+    dialog.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        border-radius: 12px;
+        padding: 24px;
+        width: 90%;
+        max-width: 500px;
+        max-height: 80vh;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        z-index: 10002;
+        overflow-y: auto;
+    `;
+
+    dialog.innerHTML = `
+        <h3 style="margin: 0 0 20px 0; color: #1e293b;">添加新工作流</h3>
+        <div style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 8px; font-weight: 500;">工作流ID</label>
+            <input type="text" id="newWorkflowId" placeholder="输入唯一的工作流ID" style="
+                width: 100%;
+                padding: 12px;
+                border: 1px solid #d1d5db;
+                border-radius: 6px;
+                font-size: 14px;
+            ">
+        </div>
+        <div style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 8px; font-weight: 500;">工作流名称</label>
+            <input type="text" id="newWorkflowName" placeholder="输入工作流名称" style="
+                width: 100%;
+                padding: 12px;
+                border: 1px solid #d1d5db;
+                border-radius: 6px;
+                font-size: 14px;
+            ">
+        </div>
+        <div style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 8px; font-weight: 500;">WebApp ID</label>
+            <input type="text" id="newWebAppId" placeholder="输入RunningHub WebApp ID" style="
+                width: 100%;
+                padding: 12px;
+                border: 1px solid #d1d5db;
+                border-radius: 6px;
+                font-size: 14px;
+            ">
+        </div>
+        <div style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 8px; font-weight: 500;">描述</label>
+            <textarea id="newWorkflowDescription" placeholder="输入工作流描述（可选）" style="
+                width: 100%;
+                padding: 12px;
+                border: 1px solid #d1d5db;
+                border-radius: 6px;
+                font-size: 14px;
+                height: 80px;
+                resize: vertical;
+            "></textarea>
+        </div>
+
+        <!-- 节点信息配置 -->
+        <div style="margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <label style="font-weight: 500; color: #374151;">节点信息</label>
+                <div>
+                    <button id="addNodeBtn" style="
+                        padding: 6px 12px;
+                        background: #3b82f6;
+                        color: white;
+                        border: none;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-size: 13px;
+                        margin-right: 8px;
+                    ">➕ 添加节点</button>
+                    <button id="toggleJsonBtn" style="
+                        padding: 6px 12px;
+                        background: #8b5cf6;
+                        color: white;
+                        border: none;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-size: 13px;
+                    ">📋 JSON配置</button>
+                </div>
+            </div>
+
+            <!-- 节点列表容器 -->
+            <div id="nodeListContainer" style="border: 1px solid #d1d5db; border-radius: 6px; padding: 16px; background: #f9fafb;">
+                <div style="text-align: center; color: #6b7280; font-size: 14px; padding: 20px;">
+                    暂无节点信息，点击"添加节点"按钮添加
+                </div>
+            </div>
+
+            <!-- JSON配置容器（默认隐藏） -->
+            <div id="jsonConfigContainer" style="display: none; margin-top: 16px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 500; color: #374151;">JSON配置</label>
+                <textarea id="nodeInfoJson" placeholder='[{"nodeId": "123", "fieldName": "image", "fieldValue": "{IMAGE_FILE}", "description": "图片文件"}]' style="
+                    width: 100%;
+                    height: 150px;
+                    padding: 12px;
+                    border: 1px solid #d1d5db;
+                    border-radius: 6px;
+                    font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+                    font-size: 13px;
+                    resize: vertical;
+                "></textarea>
+                <div style="margin-top: 8px; font-size: 12px; color: #6b7280;">
+                    提示：可以直接粘贴节点信息的JSON数组
+                </div>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 12px; justify-content: flex-end;">
+            <button id="cancelAddWorkflow" style="
+                padding: 10px 16px;
+                background: #e5e7eb;
+                color: #374151;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+            ">取消</button>
+            <button id="confirmAddWorkflow" style="
+                padding: 10px 16px;
+                background: #10b981;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+            ">添加</button>
+        </div>
+    `;
+
+    parentModal.appendChild(dialog);
+
+    // 绑定事件
+    dialog.querySelector('#cancelAddWorkflow').addEventListener('click', () => {
+        dialog.remove();
+    });
+
+    // JSON配置切换按钮事件
+    dialog.querySelector('#toggleJsonBtn').addEventListener('click', () => {
+        const nodeListContainer = dialog.querySelector('#nodeListContainer');
+        const jsonConfigContainer = dialog.querySelector('#jsonConfigContainer');
+
+        if (jsonConfigContainer.style.display === 'none') {
+            // 切换到JSON配置模式
+            nodeListContainer.style.display = 'none';
+            jsonConfigContainer.style.display = 'block';
+            dialog.querySelector('#toggleJsonBtn').textContent = '📝 表单配置';
+        } else {
+            // 切换到表单配置模式
+            jsonConfigContainer.style.display = 'none';
+            nodeListContainer.style.display = 'block';
+            dialog.querySelector('#toggleJsonBtn').textContent = '📋 JSON配置';
+        }
+    });
+
+    // 添加节点按钮事件
+    dialog.querySelector('#addNodeBtn').addEventListener('click', () => {
+        const nodeListContainer = dialog.querySelector('#nodeListContainer');
+        // 移除空状态提示
+        if (nodeListContainer.querySelector('div[style*="text-align: center"]')) {
+            nodeListContainer.innerHTML = '';
+        }
+
+        // 添加新节点项
+        const newNodeHtml = `
+            <div class="node-item" style="margin-bottom: 16px; padding: 16px; background: white; border: 1px solid #e5e7eb; border-radius: 8px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                    <div>
+                        <label style="font-size: 12px; color: #6b7280;">Node ID</label>
+                        <input type="text" class="node-id" value="" style="
+                            width: 100%;
+                            padding: 8px;
+                            border: 1px solid #d1d5db;
+                            border-radius: 4px;
+                            font-size: 13px;
+                        ">
+                    </div>
+                    <div>
+                        <label style="font-size: 12px; color: #6b7280;">Field Name</label>
+                        <input type="text" class="node-field-name" value="" style="
+                            width: 100%;
+                            padding: 8px;
+                            border: 1px solid #d1d5db;
+                            border-radius: 4px;
+                            font-size: 13px;
+                        ">
+                    </div>
+                    <div>
+                        <label style="font-size: 12px; color: #6b7280;">Field Value</label>
+                        <input type="text" class="node-field-value" value="" style="
+                            width: 100%;
+                            padding: 8px;
+                            border: 1px solid #d1d5db;
+                            border-radius: 4px;
+                            font-size: 13px;
+                        ">
+                    </div>
+                    <div>
+                        <label style="font-size: 12px; color: #6b7280;">Description</label>
+                        <input type="text" class="node-description" value="" style="
+                            width: 100%;
+                            padding: 8px;
+                            border: 1px solid #d1d5db;
+                            border-radius: 4px;
+                            font-size: 13px;
+                        ">
+                    </div>
+                </div>
+                <div style="text-align: right;">
+                    <button class="remove-node-btn" style="
+                        padding: 6px 12px;
+                        background: #ef4444;
+                        color: white;
+                        border: none;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-size: 12px;
+                    ">删除</button>
+                </div>
+            </div>
+        `;
+        nodeListContainer.insertAdjacentHTML('beforeend', newNodeHtml);
+
+        // 绑定删除按钮事件
+        const removeBtn = nodeListContainer.lastElementChild.querySelector('.remove-node-btn');
+        removeBtn.addEventListener('click', () => {
+            removeBtn.closest('.node-item').remove();
+            // 如果没有节点了，显示空状态提示
+            if (nodeListContainer.children.length === 0) {
+                nodeListContainer.innerHTML = `
+                    <div style="text-align: center; color: #6b7280; font-size: 14px; padding: 20px;">
+                        暂无节点信息，点击"添加节点"按钮添加
+                    </div>
+                `;
+            }
+        });
+    });
+
+    dialog.querySelector('#confirmAddWorkflow').addEventListener('click', () => {
+        const workflowId = dialog.querySelector('#newWorkflowId').value.trim();
+        const workflowName = dialog.querySelector('#newWorkflowName').value.trim();
+        const webAppId = dialog.querySelector('#newWebAppId').value.trim();
+        const description = dialog.querySelector('#newWorkflowDescription').value.trim();
+
+        if (!workflowId || !workflowName || !webAppId) {
+            showNotification('❌ 请填写所有必填字段', 2000);
+            return;
+        }
+
+        // 检查ID是否已存在
+        const workflowList = RunningHubConfigManager.getWorkflowList();
+        if (workflowList.some(w => w.id === workflowId)) {
+            showNotification('❌ 工作流ID已存在', 2000);
+            return;
+        }
+
+        // 收集节点信息
+        let nodeInfoList = [];
+        const jsonConfigContainer = dialog.querySelector('#jsonConfigContainer');
+        const nodeListContainer = dialog.querySelector('#nodeListContainer');
+        const jsonTextArea = dialog.querySelector('#nodeInfoJson');
+
+        // 检查当前是哪种配置模式
+        const isJsonMode = jsonConfigContainer.style.display === 'block' ||
+                          (jsonConfigContainer.style.display !== 'none' &&
+                           getComputedStyle(jsonConfigContainer).display !== 'none');
+
+        if (isJsonMode && jsonTextArea) {
+            // JSON配置模式
+            const jsonText = jsonTextArea.value.trim();
+
+            if (jsonText) {
+                try {
+                    const parsedJson = JSON.parse(jsonText);
+                    if (Array.isArray(parsedJson)) {
+                        // 验证每个节点是否有必要的字段
+                        let validNodes = true;
+                        for (const node of parsedJson) {
+                            if (!node.nodeId || !node.fieldName || node.fieldValue === undefined) {
+                                validNodes = false;
+                                break;
+                            }
+                        }
+
+                        if (validNodes) {
+                            nodeInfoList = parsedJson;
+                        } else {
+                            showNotification('❌ JSON节点信息不完整：每个节点必须包含nodeId、fieldName和fieldValue', 3000);
+                            return;
+                        }
+                    } else {
+                        showNotification('❌ JSON格式错误：应为节点数组格式', 3000);
+                        return;
+                    }
+                } catch (error) {
+                    showNotification('❌ JSON格式错误：' + error.message, 3000);
+                    return;
+                }
+            }
+        } else {
+            // 表单配置模式
+            const nodeItems = dialog.querySelectorAll('.node-item');
+            for (const item of nodeItems) {
+                const nodeId = item.querySelector('.node-id').value.trim();
+                const fieldName = item.querySelector('.node-field-name').value.trim();
+                const fieldValue = item.querySelector('.node-field-value').value.trim();
+                const nodeDescription = item.querySelector('.node-description').value.trim();
+
+                // 确保所有必要字段都存在
+                if (nodeId && fieldName && fieldValue !== undefined) {
+                    nodeInfoList.push({
+                        nodeId,
+                        fieldName,
+                        fieldValue,
+                        description: nodeDescription || ''  // 确保description字段存在
+                    });
+                }
+            }
+        }
+
+        // 创建新工作流
+        const newWorkflow = {
+            name: workflowName,
+            description: description,
+            webappId: webAppId,
+            nodeInfoList: nodeInfoList
+        };
+
+        try {
+            RunningHubConfigManager.addWorkflow(workflowId, newWorkflow);
+            showNotification('✅ 工作流添加成功', 1500);
+            dialog.remove();
+            // 重新加载设置界面
+            parentModal.remove();
+            showRunningHubSettings();
+        } catch (error) {
+            showNotification('❌ 添加失败: ' + error.message, 3000);
+        }
+    });
+}
+
+// 显示编辑工作流对话框
+function showEditWorkflowDialog(parentModal, workflowId) {
+    // 获取工作流配置
+    const workflow = RUNNINGHUB_CONFIG.workflows[workflowId];
+    if (!workflow) {
+        showNotification('❌ 未找到工作流配置', 2000);
+        return;
+    }
+
+    // 创建编辑工作流对话框
+    const dialog = document.createElement('div');
+    dialog.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        border-radius: 12px;
+        padding: 24px;
+        width: 90%;
+        max-width: 600px;
+        max-height: 80vh;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        z-index: 10002;
+        overflow-y: auto;
+    `;
+
+    dialog.innerHTML = `
+        <h3 style="margin: 0 0 20px 0; color: #1e293b;">编辑工作流: ${workflow.name}</h3>
+        <div style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 8px; font-weight: 500;">工作流ID</label>
+            <input type="text" id="editWorkflowId" value="${workflowId}" ${workflowId === 'default' ? 'readonly' : ''} style="
+                width: 100%;
+                padding: 12px;
+                border: 1px solid #d1d5db;
+                border-radius: 6px;
+                font-size: 14px;
+                background: ${workflowId === 'default' ? '#f3f4f6' : 'white'};
+            ">
+        </div>
+        <div style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 8px; font-weight: 500;">工作流名称</label>
+            <input type="text" id="editWorkflowName" value="${workflow.name}" style="
+                width: 100%;
+                padding: 12px;
+                border: 1px solid #d1d5db;
+                border-radius: 6px;
+                font-size: 14px;
+            ">
+        </div>
+        <div style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 8px; font-weight: 500;">WebApp ID</label>
+            <input type="text" id="editWebAppId" value="${workflow.webappId}" style="
+                width: 100%;
+                padding: 12px;
+                border: 1px solid #d1d5db;
+                border-radius: 6px;
+                font-size: 14px;
+            ">
+        </div>
+        <div style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 8px; font-weight: 500;">描述</label>
+            <textarea id="editWorkflowDescription" style="
+                width: 100%;
+                padding: 12px;
+                border: 1px solid #d1d5db;
+                border-radius: 6px;
+                font-size: 14px;
+                height: 80px;
+                resize: vertical;
+            ">${workflow.description || ''}</textarea>
+        </div>
+        <div style="margin-bottom: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <label style="font-weight: 500; color: #374151;">节点信息</label>
+                <button id="toggleJsonBtn" style="
+                    padding: 6px 12px;
+                    background: #8b5cf6;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 13px;
+                ">📋 JSON配置</button>
+            </div>
+
+            <!-- 节点列表容器 -->
+            <div id="nodeListContainer" style="border: 1px solid #d1d5db; border-radius: 6px; padding: 12px; max-height: 200px; overflow-y: auto;">
+                ${workflow.nodeInfoList.map((node, index) => `
+                    <div class="node-item" data-node-index="${index}" style="margin-bottom: 12px; padding: 12px; background: #f9fafb; border-radius: 6px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <strong>节点 ${index + 1}</strong>
+                            <button class="remove-node-btn" data-node-index="${index}" style="
+                                padding: 4px 8px;
+                                background: #ef4444;
+                                color: white;
+                                border: none;
+                                border-radius: 4px;
+                                cursor: pointer;
+                                font-size: 12px;
+                            ">删除</button>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                            <div>
+                                <label style="font-size: 12px; color: #6b7280;">Node ID</label>
+                                <input type="text" class="node-id" value="${node.nodeId}" style="
+                                    width: 100%;
+                                    padding: 6px;
+                                    border: 1px solid #d1d5db;
+                                    border-radius: 4px;
+                                    font-size: 12px;
+                                ">
+                            </div>
+                            <div>
+                                <label style="font-size: 12px; color: #6b7280;">Field Name</label>
+                                <input type="text" class="node-field-name" value="${node.fieldName}" style="
+                                    width: 100%;
+                                    padding: 6px;
+                                    border: 1px solid #d1d5db;
+                                    border-radius: 4px;
+                                    font-size: 12px;
+                                ">
+                            </div>
+                            <div>
+                                <label style="font-size: 12px; color: #6b7280;">Field Value</label>
+                                <input type="text" class="node-field-value" value="${node.fieldValue}" style="
+                                    width: 100%;
+                                    padding: 6px;
+                                    border: 1px solid #d1d5db;
+                                    border-radius: 4px;
+                                    font-size: 12px;
+                                ">
+                            </div>
+                            <div>
+                                <label style="font-size: 12px; color: #6b7280;">Description</label>
+                                <input type="text" class="node-description" value="${node.description || ''}" style="
+                                    width: 100%;
+                                    padding: 6px;
+                                    border: 1px solid #d1d5db;
+                                    border-radius: 4px;
+                                    font-size: 12px;
+                                ">
+                            </div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+
+            <!-- JSON配置容器（默认隐藏） -->
+            <div id="jsonConfigContainer" style="display: none; margin-top: 12px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 500; color: #374151;">JSON配置</label>
+                <textarea id="nodeInfoJson" placeholder='[{"nodeId": "123", "fieldName": "image", "fieldValue": "{IMAGE_FILE}", "description": "图片文件"}]' style="
+                    width: 100%;
+                    height: 150px;
+                    padding: 12px;
+                    border: 1px solid #d1d5db;
+                    border-radius: 6px;
+                    font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+                    font-size: 13px;
+                    resize: vertical;
+                ">${JSON.stringify(workflow.nodeInfoList, null, 2)}</textarea>
+                <div style="margin-top: 8px; font-size: 12px; color: #6b7280;">
+                    提示：可以直接编辑节点信息的JSON数组
+                </div>
+            </div>
+
+            <div style="margin-top: 12px; text-align: center;">
+                <button id="addNodeBtn" style="
+                    padding: 6px 12px;
+                    background: #3b82f6;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 13px;
+                ">➕ 添加节点</button>
+            </div>
+        </div>
+        <div style="display: flex; gap: 12px; justify-content: flex-end;">
+            <button id="cancelEditWorkflow" style="
+                padding: 10px 16px;
+                background: #e5e7eb;
+                color: #374151;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+            ">取消</button>
+            <button id="confirmEditWorkflow" style="
+                padding: 10px 16px;
+                background: #3b82f6;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+            ">保存</button>
+        </div>
+    `;
+
+    parentModal.appendChild(dialog);
+
+    // 绑定事件
+    dialog.querySelector('#cancelEditWorkflow').addEventListener('click', () => {
+        dialog.remove();
+    });
+
+    // JSON配置切换按钮事件
+    dialog.querySelector('#toggleJsonBtn').addEventListener('click', () => {
+        const nodeListContainer = dialog.querySelector('#nodeListContainer');
+        const jsonConfigContainer = dialog.querySelector('#jsonConfigContainer');
+
+        if (jsonConfigContainer.style.display === 'none') {
+            // 切换到JSON配置模式
+            nodeListContainer.style.display = 'none';
+            jsonConfigContainer.style.display = 'block';
+            dialog.querySelector('#toggleJsonBtn').textContent = '📝 表单配置';
+        } else {
+            // 切换到表单配置模式
+            jsonConfigContainer.style.display = 'none';
+            nodeListContainer.style.display = 'block';
+            dialog.querySelector('#toggleJsonBtn').textContent = '📋 JSON配置';
+        }
+    });
+
+    // 添加节点按钮
+    dialog.querySelector('#addNodeBtn').addEventListener('click', () => {
+        const nodeListContainer = dialog.querySelector('#nodeListContainer');
+        const newNodeIndex = workflow.nodeInfoList.length;
+        const newNodeHtml = `
+            <div class="node-item" data-node-index="${newNodeIndex}" style="margin-bottom: 12px; padding: 12px; background: #f9fafb; border-radius: 6px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <strong>节点 ${newNodeIndex + 1}</strong>
+                    <button class="remove-node-btn" data-node-index="${newNodeIndex}" style="
+                        padding: 4px 8px;
+                        background: #ef4444;
+                        color: white;
+                        border: none;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-size: 12px;
+                    ">删除</button>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <div>
+                        <label style="font-size: 12px; color: #6b7280;">Node ID</label>
+                        <input type="text" class="node-id" value="" style="
+                            width: 100%;
+                            padding: 6px;
+                            border: 1px solid #d1d5db;
+                            border-radius: 4px;
+                            font-size: 12px;
+                        ">
+                    </div>
+                    <div>
+                        <label style="font-size: 12px; color: #6b7280;">Field Name</label>
+                        <input type="text" class="node-field-name" value="" style="
+                            width: 100%;
+                            padding: 6px;
+                            border: 1px solid #d1d5db;
+                            border-radius: 4px;
+                            font-size: 12px;
+                        ">
+                    </div>
+                    <div>
+                        <label style="font-size: 12px; color: #6b7280;">Field Value</label>
+                        <input type="text" class="node-field-value" value="" style="
+                            width: 100%;
+                            padding: 6px;
+                            border: 1px solid #d1d5db;
+                            border-radius: 4px;
+                            font-size: 12px;
+                        ">
+                    </div>
+                    <div>
+                        <label style="font-size: 12px; color: #6b7280;">Description</label>
+                        <input type="text" class="node-description" value="" style="
+                            width: 100%;
+                            padding: 6px;
+                            border: 1px solid #d1d5db;
+                            border-radius: 4px;
+                            font-size: 12px;
+                        ">
+                    </div>
+                </div>
+            </div>
+        `;
+        // 插入到添加按钮之前
+        nodeListContainer.insertAdjacentHTML('beforeend', newNodeHtml);
+
+        // 重新绑定删除按钮事件
+        bindNodeRemoveEvents(dialog);
+    });
+
+    // 绑定节点删除事件
+    bindNodeRemoveEvents(dialog);
+
+    dialog.querySelector('#confirmEditWorkflow').addEventListener('click', () => {
+        const workflowIdInput = dialog.querySelector('#editWorkflowId').value.trim();
+        const workflowName = dialog.querySelector('#editWorkflowName').value.trim();
+        const webAppId = dialog.querySelector('#editWebAppId').value.trim();
+        const description = dialog.querySelector('#editWorkflowDescription').value.trim();
+
+        if (!workflowIdInput || !workflowName || !webAppId) {
+            showNotification('❌ 请填写所有必填字段', 2000);
+            return;
+        }
+
+        // 收集节点信息
+        let nodeInfoList = [];
+        const jsonConfigContainer = dialog.querySelector('#jsonConfigContainer');
+        const nodeListContainer = dialog.querySelector('#nodeListContainer');
+        const jsonTextArea = dialog.querySelector('#nodeInfoJson');
+
+        // 检查当前是哪种配置模式
+        const isJsonMode = jsonConfigContainer.style.display === 'block' ||
+                          (jsonConfigContainer.style.display !== 'none' &&
+                           getComputedStyle(jsonConfigContainer).display !== 'none');
+
+        if (isJsonMode && jsonTextArea) {
+            // JSON配置模式
+            const jsonText = jsonTextArea.value.trim();
+
+            if (jsonText) {
+                try {
+                    const parsedJson = JSON.parse(jsonText);
+                    if (Array.isArray(parsedJson)) {
+                        // 验证每个节点是否有必要的字段
+                        let validNodes = true;
+                        for (const node of parsedJson) {
+                            if (!node.nodeId || !node.fieldName || node.fieldValue === undefined) {
+                                validNodes = false;
+                                break;
+                            }
+                        }
+
+                        if (validNodes) {
+                            nodeInfoList = parsedJson;
+                        } else {
+                            showNotification('❌ JSON节点信息不完整：每个节点必须包含nodeId、fieldName和fieldValue', 3000);
+                            return;
+                        }
+                    } else {
+                        showNotification('❌ JSON格式错误：应为节点数组格式', 3000);
+                        return;
+                    }
+                } catch (error) {
+                    showNotification('❌ JSON格式错误：' + error.message, 3000);
+                    return;
+                }
+            }
+        } else {
+            // 表单配置模式
+            const nodeItems = dialog.querySelectorAll('.node-item');
+            for (const item of nodeItems) {
+                const nodeId = item.querySelector('.node-id').value.trim();
+                const fieldName = item.querySelector('.node-field-name').value.trim();
+                const fieldValue = item.querySelector('.node-field-value').value.trim();
+                const nodeDescription = item.querySelector('.node-description').value.trim();
+
+                // 确保所有必要字段都存在
+                if (nodeId && fieldName && fieldValue !== undefined) {
+                    nodeInfoList.push({
+                        nodeId,
+                        fieldName,
+                        fieldValue,
+                        description: nodeDescription || ''  // 确保description字段存在
+                    });
+                }
+            }
+        }
+
+        // 创建更新后的工作流
+        const updatedWorkflow = {
+            name: workflowName,
+            description: description,
+            webappId: webAppId,
+            nodeInfoList: nodeInfoList
+        };
+
+        try {
+            // 如果ID改变了并且不是默认工作流，需要先删除旧的工作流
+            if (workflowIdInput !== workflowId && workflowId !== 'default') {
+                RunningHubConfigManager.removeWorkflow(workflowId);
+            }
+
+            RunningHubConfigManager.updateWorkflow(workflowIdInput, updatedWorkflow);
+            showNotification('✅ 工作流更新成功', 1500);
+            dialog.remove();
+            // 重新加载设置界面
+            parentModal.remove();
+            showRunningHubSettings();
+        } catch (error) {
+            showNotification('❌ 更新失败: ' + error.message, 3000);
+        }
+    });
+}
+
+// 绑定节点删除事件
+function bindNodeRemoveEvents(dialog) {
+    dialog.querySelectorAll('.remove-node-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const nodeIndex = btn.getAttribute('data-node-index');
+            const nodeItem = dialog.querySelector(`.node-item[data-node-index="${nodeIndex}"]`);
+            if (nodeItem) {
+                nodeItem.remove();
+            }
+        });
+    });
+}
+
 // 显示尺寸检查模态框
 function showDimensionCheckModal(imageInfo, isDimensionValid) {
     if (isDimensionCheckModalOpen) {
@@ -6195,9 +7294,9 @@ function showDimensionCheckModal(imageInfo, isDimensionValid) {
         
         <div style="text-align: center; margin-bottom: 24px;">
             <img src="${imageInfo.src}" style="
-                max-width: 100%; 
-                max-height: 320px; 
-                border-radius: 12px; 
+                max-width: 100%;
+                max-height: 320px;
+                border-radius: 12px;
                 box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
                 border: 3px solid #ffffff;
             " />
@@ -6214,8 +7313,8 @@ function showDimensionCheckModal(imageInfo, isDimensionValid) {
                 <div style="text-align: center;">
                     <div style="color: #64748b; font-size: 13px; font-weight: 500; margin-bottom: 4px;">宽度</div>
                     <div style="
-                        font-size: 24px; 
-                        font-weight: 700; 
+                        font-size: 24px;
+                        font-weight: 700;
                         color: ${imageInfo.width % 8 === 0 ? '#059669' : '#dc2626'};
                         display: flex;
                         align-items: center;
@@ -6230,8 +7329,8 @@ function showDimensionCheckModal(imageInfo, isDimensionValid) {
                 <div style="text-align: center;">
                     <div style="color: #64748b; font-size: 13px; font-weight: 500; margin-bottom: 4px;">高度</div>
                     <div style="
-                        font-size: 24px; 
-                        font-weight: 700; 
+                        font-size: 24px;
+                        font-weight: 700;
                         color: ${imageInfo.height % 8 === 0 ? '#059669' : '#dc2626'};
                         display: flex;
                         align-items: center;
@@ -6259,9 +7358,9 @@ function showDimensionCheckModal(imageInfo, isDimensionValid) {
         ${isDimensionValid ? `
         <div style="margin-bottom: 24px;">
             <label style="
-                display: block; 
-                margin-bottom: 12px; 
-                color: #374151; 
+                display: block;
+                margin-bottom: 12px;
+                color: #374151;
                 font-weight: 600;
                 font-size: 14px;
             ">修改需求</label>
@@ -6279,6 +7378,39 @@ function showDimensionCheckModal(imageInfo, isDimensionValid) {
                 transition: all 0.2s ease;
                 outline: none;
             "></textarea>
+        </div>
+
+        <div style="margin-bottom: 24px;">
+            <label style="
+                display: block;
+                margin-bottom: 12px;
+                color: #374151;
+                font-weight: 600;
+                font-size: 14px;
+            ">AI工作流</label>
+            <select id="rhWorkflowSelect" style="
+                width: 100%;
+                padding: 12px;
+                border: 2px solid #e2e8f0;
+                border-radius: 12px;
+                font-size: 14px;
+                background: white;
+                cursor: pointer;
+            ">
+                <option value="">加载中...</option>
+            </select>
+            <div style="margin-top: 8px; text-align: right;">
+                <button id="rhWorkflowSettingsBtn" style="
+                    padding: 6px 12px;
+                    background: #f3f4f6;
+                    color: #374151;
+                    border: 1px solid #d1d5db;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    font-size: 12px;
+                    font-weight: 500;
+                ">⚙️ 配置工作流</button>
+            </div>
         </div>
         ` : ''}
         
@@ -6451,7 +7583,7 @@ function showDimensionCheckModal(imageInfo, isDimensionValid) {
         closeBtn.style.background = 'white';
         closeBtn.style.borderColor = '#d1d5db';
     });
-    
+
     if (submitBtn) {
         submitBtn.addEventListener('mouseenter', () => {
             submitBtn.style.background = '#2563eb';
@@ -6460,7 +7592,55 @@ function showDimensionCheckModal(imageInfo, isDimensionValid) {
             submitBtn.style.background = '#3b82f6';
         });
     }
-    
+
+    // 添加工作流设置按钮事件
+    const workflowSettingsBtn = modalContent.querySelector('#rhWorkflowSettingsBtn');
+    if (workflowSettingsBtn) {
+        workflowSettingsBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            // 关闭当前模态框
+            closeDimensionCheckModal();
+            // 打开设置模态框
+            setTimeout(() => {
+                showRunningHubSettings();
+            }, 300);
+        });
+    }
+
+    // 加载工作流配置并填充下拉框
+    loadRunningHubConfig().then(() => {
+        const workflowSelect = modalContent.querySelector('#rhWorkflowSelect');
+        if (workflowSelect) {
+            const workflowList = RunningHubConfigManager.getWorkflowList();
+            const lastUsedWorkflow = RunningHubConfigManager.getLastUsedWorkflow();
+
+            // 清空现有选项
+            workflowSelect.innerHTML = '';
+
+            // 添加工作流选项
+            workflowList.forEach(workflow => {
+                const option = document.createElement('option');
+                option.value = workflow.id;
+                option.textContent = `${workflow.name} (${workflow.id})`;
+                if (workflow.id === lastUsedWorkflow) {
+                    option.selected = true;
+                }
+                workflowSelect.appendChild(option);
+            });
+
+            // 添加事件监听器保存选择
+            workflowSelect.addEventListener('change', () => {
+                RunningHubConfigManager.setLastUsedWorkflow(workflowSelect.value);
+            });
+        }
+    }).catch(error => {
+        debugLog('加载工作流配置失败:', error);
+        const workflowSelect = modalContent.querySelector('#rhWorkflowSelect');
+        if (workflowSelect) {
+            workflowSelect.innerHTML = '<option value="">加载失败</option>';
+        }
+    });
+
     debugLog('尺寸检查模态框已显示');
 }
 
@@ -6873,6 +8053,15 @@ async function submitDimensionCheck(comment, selectedWorkflow = 'defaultWorkflow
             debugLog('Running Hub图片上传成功:', uploadResponse);
 
             // 图片上传成功后，调用AI应用API
+            // 获取选择的工作流
+            const workflowSelect = document.querySelector('#rhWorkflowSelect');
+            const selectedWorkflow = workflowSelect ? workflowSelect.value : 'default';
+
+            // 保存最后使用的工作流
+            if (selectedWorkflow) {
+                RunningHubConfigManager.setLastUsedWorkflow(selectedWorkflow);
+            }
+
             const taskResult = await createWorkflowTask(apiKey, comment || '1 girl in classroom', imageFileName, selectedWorkflow);
 
             // 解析AI应用任务响应
@@ -9475,48 +10664,351 @@ async function downloadViaFetch(imageUrl, fileName) {
 // Running Hub AI应用配置缓存
 let RUNNINGHUB_CONFIG = null;
 
+// Running Hub 配置管理
+const RunningHubConfigManager = {
+    // 保存配置到localStorage
+    saveConfig: function() {
+        if (!RUNNINGHUB_CONFIG) {
+            throw new Error('配置未加载');
+        }
+        try {
+            localStorage.setItem('runninghub_config', JSON.stringify(RUNNINGHUB_CONFIG));
+            debugLog('RunningHub配置已保存到localStorage');
+        } catch (error) {
+            console.error('保存RunningHub配置失败:', error);
+        }
+    },
+
+    // 从localStorage加载配置
+    loadConfigFromStorage: function() {
+        try {
+            const configStr = localStorage.getItem('runninghub_config');
+            if (configStr) {
+                const config = JSON.parse(configStr);
+                RUNNINGHUB_CONFIG = config;
+                debugLog('RunningHub配置从localStorage加载成功');
+                return true;
+            }
+        } catch (error) {
+            console.error('从localStorage加载RunningHub配置失败:', error);
+        }
+        return false;
+    },
+
+    // 导出当前配置
+    exportConfig: function() {
+        if (!RUNNINGHUB_CONFIG) {
+            throw new Error('配置未加载');
+        }
+        return JSON.stringify(RUNNINGHUB_CONFIG, null, 2);
+    },
+
+    // 导入配置（覆盖模式）
+    importConfig: function(configJson) {
+        try {
+            const config = JSON.parse(configJson);
+            this.validateConfig(config);
+            RUNNINGHUB_CONFIG = config;
+            return { success: true, message: '配置导入成功' };
+        } catch (error) {
+            return { success: false, message: '配置导入失败: ' + error.message };
+        }
+    },
+
+    // 增量导入配置（只添加新工作流）
+    importConfigIncremental: function(configJson) {
+        try {
+            const config = JSON.parse(configJson);
+            this.validateConfig(config);
+
+            // 只合并工作流，保留现有配置
+            if (config.workflows && typeof config.workflows === 'object') {
+                for (const [workflowId, workflow] of Object.entries(config.workflows)) {
+                    // 检查是否已存在同名工作流
+                    if (RUNNINGHUB_CONFIG.workflows[workflowId]) {
+                        console.warn(`工作流 ${workflowId} 已存在，跳过导入`);
+                    } else {
+                        RUNNINGHUB_CONFIG.workflows[workflowId] = workflow;
+                    }
+                }
+            }
+
+            return { success: true, message: '增量配置导入成功' };
+        } catch (error) {
+            return { success: false, message: '增量配置导入失败: ' + error.message };
+        }
+    },
+
+    // 验证配置格式
+    validateConfig: function(config) {
+        if (!config.version) {
+            throw new Error('配置缺少版本信息');
+        }
+        if (!config.workflows || typeof config.workflows !== 'object') {
+            throw new Error('配置缺少工作流信息');
+        }
+        if (!config.settings || typeof config.settings !== 'object') {
+            throw new Error('配置缺少设置信息');
+        }
+        // 验证每个工作流
+        for (const [name, workflow] of Object.entries(config.workflows)) {
+            if (!workflow.name || !workflow.webappId || !Array.isArray(workflow.nodeInfoList)) {
+                throw new Error(`工作流 ${name} 格式不正确`);
+            }
+            // 验证每个节点
+            for (const node of workflow.nodeInfoList) {
+                if (!node.nodeId || !node.fieldName || node.fieldValue === undefined) {
+                    throw new Error(`工作流 ${name} 中的节点格式不正确`);
+                }
+            }
+        }
+        return true;
+    },
+
+    // 获取工作流列表
+    getWorkflowList: function() {
+        if (!RUNNINGHUB_CONFIG || !RUNNINGHUB_CONFIG.workflows) {
+            return [];
+        }
+        return Object.keys(RUNNINGHUB_CONFIG.workflows).map(key => ({
+            id: key,
+            name: RUNNINGHUB_CONFIG.workflows[key].name,
+            description: RUNNINGHUB_CONFIG.workflows[key].description
+        }));
+    },
+
+    // 获取默认工作流
+    getDefaultWorkflow: function() {
+        if (!RUNNINGHUB_CONFIG || !RUNNINGHUB_CONFIG.settings) {
+            return 'default';
+        }
+        return RUNNINGHUB_CONFIG.settings.defaultWorkflow || 'default';
+    },
+
+    // 设置默认工作流
+    setDefaultWorkflow: function(workflowId) {
+        if (!RUNNINGHUB_CONFIG) {
+            throw new Error('配置未加载');
+        }
+        if (!RUNNINGHUB_CONFIG.settings) {
+            RUNNINGHUB_CONFIG.settings = {};
+        }
+        RUNNINGHUB_CONFIG.settings.defaultWorkflow = workflowId;
+        // 保存配置
+        this.saveConfig();
+    },
+
+    // 获取最后使用的工作流
+    getLastUsedWorkflow: function() {
+        if (!RUNNINGHUB_CONFIG || !RUNNINGHUB_CONFIG.settings) {
+            return 'default';
+        }
+        return RUNNINGHUB_CONFIG.settings.lastUsedWorkflow || 'default';
+    },
+
+    // 设置最后使用的工作流
+    setLastUsedWorkflow: function(workflowId) {
+        if (!RUNNINGHUB_CONFIG) {
+            throw new Error('配置未加载');
+        }
+        if (!RUNNINGHUB_CONFIG.settings) {
+            RUNNINGHUB_CONFIG.settings = {};
+        }
+        RUNNINGHUB_CONFIG.settings.lastUsedWorkflow = workflowId;
+        // 保存配置
+        this.saveConfig();
+    },
+
+    // 添加新工作流
+    addWorkflow: function(workflowId, workflow) {
+        if (!RUNNINGHUB_CONFIG) {
+            throw new Error('配置未加载');
+        }
+        if (!RUNNINGHUB_CONFIG.workflows) {
+            RUNNINGHUB_CONFIG.workflows = {};
+        }
+        RUNNINGHUB_CONFIG.workflows[workflowId] = workflow;
+        // 保存配置
+        this.saveConfig();
+    },
+
+    // 删除工作流
+    removeWorkflow: function(workflowId) {
+        if (!RUNNINGHUB_CONFIG || !RUNNINGHUB_CONFIG.workflows) {
+            throw new Error('配置未加载');
+        }
+        if (workflowId === 'default') {
+            throw new Error('不能删除默认工作流');
+        }
+        delete RUNNINGHUB_CONFIG.workflows[workflowId];
+
+        // 如果删除的是默认工作流，设置为default
+        if (RUNNINGHUB_CONFIG.settings && RUNNINGHUB_CONFIG.settings.defaultWorkflow === workflowId) {
+            RUNNINGHUB_CONFIG.settings.defaultWorkflow = 'default';
+        }
+
+        // 如果删除的是最后使用的工作流，设置为默认工作流
+        if (RUNNINGHUB_CONFIG.settings && RUNNINGHUB_CONFIG.settings.lastUsedWorkflow === workflowId) {
+            RUNNINGHUB_CONFIG.settings.lastUsedWorkflow = RUNNINGHUB_CONFIG.settings.defaultWorkflow || 'default';
+        }
+
+        // 保存配置
+        this.saveConfig();
+    },
+
+    // 更新工作流
+    updateWorkflow: function(workflowId, workflow) {
+        if (!RUNNINGHUB_CONFIG || !RUNNINGHUB_CONFIG.workflows) {
+            throw new Error('配置未加载');
+        }
+        RUNNINGHUB_CONFIG.workflows[workflowId] = workflow;
+        // 保存配置
+        this.saveConfig();
+    }
+};
+
+// 导出配置到文件
+function exportRunningHubConfig() {
+    try {
+        const configJson = RunningHubConfigManager.exportConfig();
+        const blob = new Blob([configJson], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'runninghub-config.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showNotification('✅ 配置导出成功', 2000);
+    } catch (error) {
+        console.error('配置导出失败:', error);
+        showNotification('❌ 配置导出失败: ' + error.message, 3000);
+    }
+}
+
+// 从文件导入配置
+function importRunningHubConfig(file) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const configJson = e.target.result;
+            const result = RunningHubConfigManager.importConfig(configJson);
+            if (result.success) {
+                showNotification('✅ ' + result.message, 2000);
+                // 保存配置
+                RunningHubConfigManager.saveConfig();
+                // 重新加载配置界面
+                const modal = document.querySelector('#rhSettingsModal');
+                if (modal) {
+                    modal.remove();
+                    showRunningHubSettings();
+                }
+            } else {
+                showNotification('❌ ' + result.message, 3000);
+            }
+        } catch (error) {
+            console.error('配置导入失败:', error);
+            showNotification('❌ 配置导入失败: ' + error.message, 3000);
+        }
+    };
+    reader.onerror = function() {
+        showNotification('❌ 文件读取失败', 3000);
+    };
+    reader.readAsText(file);
+}
+
+// 从文件增量导入配置（只添加新工作流）
+function importRunningHubConfigIncremental(file) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const configJson = e.target.result;
+            const result = RunningHubConfigManager.importConfigIncremental(configJson);
+            if (result.success) {
+                showNotification('✅ ' + result.message, 2000);
+                // 保存配置
+                RunningHubConfigManager.saveConfig();
+            } else {
+                showNotification('❌ ' + result.message, 3000);
+            }
+        } catch (error) {
+            console.error('增量配置导入失败:', error);
+            showNotification('❌ 增量配置导入失败: ' + error.message, 3000);
+        }
+    };
+    reader.onerror = function() {
+        showNotification('❌ 文件读取失败', 3000);
+    };
+    reader.readAsText(file);
+}
+
 // 加载Running Hub配置文件
 async function loadRunningHubConfig() {
     if (RUNNINGHUB_CONFIG) {
         return RUNNINGHUB_CONFIG; // 如果已加载，直接返回缓存
     }
-    
+
+    // 首先尝试从localStorage加载配置
+    if (RunningHubConfigManager.loadConfigFromStorage()) {
+        debugLog('Running Hub配置从localStorage加载成功');
+        return RUNNINGHUB_CONFIG;
+    }
+
     try {
         const configUrl = chrome.runtime.getURL('runninghub-config.json');
         const response = await fetch(configUrl);
-        
+
         if (!response.ok) {
             throw new Error(`配置文件加载失败: ${response.status}`);
         }
-        
+
         RUNNINGHUB_CONFIG = await response.json();
         debugLog('Running Hub配置加载成功:', RUNNINGHUB_CONFIG);
+        // 保存到localStorage
+        RunningHubConfigManager.saveConfig();
         return RUNNINGHUB_CONFIG;
-        
+
     } catch (error) {
         debugLog('配置文件加载失败，使用默认配置:', error);
-        
+
         // 如果配置文件加载失败，使用默认配置
         RUNNINGHUB_CONFIG = {
-            defaultWorkflow: {
-                webappId: "1967790629851922434",
-                nodeInfoList: [
-                    {
-                        nodeId: "189",
-                        fieldName: "image",
-                        fieldValue: "{IMAGE_FILE}",
-                        description: "image"
-                    },
-                    {
-                        nodeId: "191",
-                        fieldName: "prompt",
-                        fieldValue: "{PROMPT}",
-                        description: "prompt"
-                    }
-                ]
+            version: "1.0",
+            workflows: {
+                default: {
+                    name: "默认工作流",
+                    description: "默认的图像处理工作流",
+                    webappId: "1967790629851922434",
+                    nodeInfoList: [
+                        {
+                            nodeId: "189",
+                            fieldName: "image",
+                            fieldValue: "{IMAGE_FILE}",
+                            description: "image",
+                            fieldType: "image",
+                            required: true
+                        },
+                        {
+                            nodeId: "191",
+                            fieldName: "prompt",
+                            fieldValue: "{PROMPT}",
+                            description: "prompt",
+                            fieldType: "text",
+                            required: true
+                        }
+                    ]
+                }
+            },
+            settings: {
+                defaultWorkflow: "default",
+                autoSave: true,
+                lastUsedWorkflow: "default"
             }
         };
-        
+
+        // 保存默认配置到localStorage
+        RunningHubConfigManager.saveConfig();
         return RUNNINGHUB_CONFIG;
     }
 }
@@ -9884,7 +11376,7 @@ async function uploadSingleImage(base64Data, fileName, imageType, uploadTarget) 
 }
 
 // 创建Running Hub AI应用任务
-async function createWorkflowTask(apiKey, prompt, imageFileName = null, workflowName = 'defaultWorkflow') {
+async function createWorkflowTask(apiKey, prompt, imageFileName = null, workflowName = 'default') {
     const myHeaders = new Headers();
     myHeaders.append("Host", "www.runninghub.cn");
     myHeaders.append("Content-Type", "application/json");
@@ -9894,10 +11386,11 @@ async function createWorkflowTask(apiKey, prompt, imageFileName = null, workflow
 
     // 获取AI应用配置
     let appConfig;
-    if (workflowName === 'defaultWorkflow') {
-        appConfig = config.defaultWorkflow;
+    if (workflowName === 'default' || workflowName === 'defaultWorkflow') {
+        // 兼容旧的defaultWorkflow名称
+        appConfig = config.workflows.default;
     } else {
-        appConfig = config.workflows[workflowName] || config.defaultWorkflow;
+        appConfig = config.workflows[workflowName] || config.workflows.default;
     }
 
     if (!appConfig) {
