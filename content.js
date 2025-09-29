@@ -8319,7 +8319,7 @@ async function showWorkflowSelectionModal(workflowNames) {
             // 绑定事件
             const closeBtn = modalContent.querySelector('#workflowCloseBtn');
             const cancelBtn = modalContent.querySelector('#workflowCancelBtn');
-            const workflowOptions = modalContent.querySelectorAll('.workflow-option');
+            const workflowOptionElements = modalContent.querySelectorAll('.workflow-option');
 
             const closeWorkflowModal = () => {
                 if (workflowModal.parentNode) {
@@ -8331,7 +8331,7 @@ async function showWorkflowSelectionModal(workflowNames) {
             closeBtn.addEventListener('click', closeWorkflowModal);
             cancelBtn.addEventListener('click', closeWorkflowModal);
 
-            workflowOptions.forEach(option => {
+            workflowOptionElements.forEach(option => {
                 option.addEventListener('click', () => {
                     const selectedWorkflow = option.getAttribute('data-workflow');
                     if (workflowModal.parentNode) {
