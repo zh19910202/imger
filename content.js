@@ -8355,29 +8355,8 @@ async function showWorkflowSelectionModal(workflowNames) {
 
 // R键功能：手动触发图片尺寸检查
 async function manualDimensionCheck() {
-    // 检查是否有多个工作流配置
-    const workflowNames = await new Promise((resolve) => {
-        chrome.storage.sync.get(['runninghubWorkflows'], (items) => {
-            resolve(items.runninghubWorkflows || ['defaultWorkflow']);
-        });
-    });
-
-    let selectedWorkflow = 'defaultWorkflow';
-    // 如果有多个工作流，显示选择界面
-    if (workflowNames.length > 1) {
-        selectedWorkflow = await showWorkflowSelectionModal(workflowNames);
-        if (selectedWorkflow === false) {
-            return false; // 用户取消选择
-        }
-    } else {
-        // 获取默认工作流
-        const defaultWorkflow = await new Promise((resolve) => {
-            chrome.storage.sync.get(['defaultWorkflow'], (items) => {
-                resolve(items.defaultWorkflow || 'defaultWorkflow');
-            });
-        });
-        selectedWorkflow = defaultWorkflow;
-    }
+    // 直接使用默认工作流，不显示选择界面
+    const selectedWorkflow = 'defaultWorkflow';
     debugLog('手动触发图片尺寸检查');
 
     // 首先检查是否有缓存的结果可以快速显示
