@@ -7990,6 +7990,21 @@ function closeDimensionCheckModal() {
     debugLog('尺寸检查模态框已完全关闭并清理', { modalId });
 }
 
+// 确保提交按钮状态正确更新的辅助函数
+function ensureSubmitButtonState(status = 'ready') {
+    try {
+        const submitBtn = document.querySelector('#dimensionCheckSubmitBtn');
+        if (submitBtn) {
+            enableSubmitButton(submitBtn, status);
+            debugLog('提交按钮状态已更新', { status });
+        } else {
+            debugLog('警告：无法找到提交按钮，无法更新状态', { status });
+        }
+    } catch (error) {
+        debugLog('更新提交按钮状态时出错', error);
+    }
+}
+
 // 提交尺寸检查结果
 async function submitDimensionCheck(comment, selectedWorkflow = 'defaultWorkflow') {
     debugLog('提交尺寸检查结果', { comment });
@@ -8023,7 +8038,7 @@ async function submitDimensionCheck(comment, selectedWorkflow = 'defaultWorkflow
     if (!originalImage) {
         showNotification('未找到原图，无法上传', 3000);
         // 重新启用按钮
-        enableSubmitButton(submitBtn, 'failed');
+        ensureSubmitButtonState('failed');
         return;
     }
 
@@ -8034,7 +8049,7 @@ async function submitDimensionCheck(comment, selectedWorkflow = 'defaultWorkflow
         if (!apiKey) {
             showNotification('未提供API Key，取消上传', 2000);
             // 重新启用按钮
-            enableSubmitButton(submitBtn, 'ready');
+            ensureSubmitButtonState('ready');
             return;
         }
         localStorage.setItem('runninghub_api_key', apiKey);
@@ -8102,12 +8117,12 @@ async function submitDimensionCheck(comment, selectedWorkflow = 'defaultWorkflow
 
                             hideRhCancelBtn();
                             // 任务成功完成，启用按钮为完成状态
-                            enableSubmitButton(submitBtn, 'success');
+                            ensureSubmitButtonState('success');
                         } catch (e) {
                             debugLog('获取输出失败:', e);
                             updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n⚠️ 任务完成，但获取输出失败：${e.message}`);
                             // 获取输出失败，允许重新提交
-                            enableSubmitButton(submitBtn, 'failed');
+                            ensureSubmitButtonState('failed');
                         }
                     } else if (poll.final === 'FAILED') {
                         debugLog('任务失败', poll.raw);
@@ -8120,32 +8135,32 @@ async function submitDimensionCheck(comment, selectedWorkflow = 'defaultWorkflow
                             updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n❌ 失败原因：${failedReason.exception_message || failedReason.exception_type || '系统错误'}`);
                         }
                         // 任务失败，允许重新提交
-                        enableSubmitButton(submitBtn, 'failed');
+                        ensureSubmitButtonState('failed');
                     } else if (poll.final === 'ERROR') {
                         debugLog('任务出错', poll.raw);
                         updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n❌ 任务出错 - ${poll.raw?.msg || '系统错误'}`);
                         hideRhCancelBtn();
                         // 任务出错，允许重新提交
-                        enableSubmitButton(submitBtn, 'failed');
+                        ensureSubmitButtonState('failed');
                     } else if (poll.final === 'CANCELED') {
                         debugLog('任务已取消', poll.raw);
                         updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n🚫 任务已取消`);
                         hideRhCancelBtn();
                         // 任务被取消，允许重新提交
-                        enableSubmitButton(submitBtn, 'canceled');
+                        ensureSubmitButtonState('canceled');
                     } else {
                         debugLog('未知的最终状态', poll);
                         updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n❓ 任务结束：${poll.final}`);
                         hideRhCancelBtn();
                         // 未知状态，允许重新提交
-                        enableSubmitButton(submitBtn, 'failed');
+                        ensureSubmitButtonState('failed');
                     }
                 } catch (e) {
                     debugLog('轮询过程失败:', e);
                     updateDimensionModalProgress('轮询失败：' + e.message);
                     hideRhCancelBtn();
                     // 轮询失败，允许重新提交
-                    enableSubmitButton(submitBtn, 'failed');
+                    ensureSubmitButtonState('failed');
                 }
             } else {
                 throw new Error('AI应用任务创建失败: ' + (taskResponse.msg || '未知错误'));
@@ -8157,7 +8172,7 @@ async function submitDimensionCheck(comment, selectedWorkflow = 'defaultWorkflow
         debugLog('运行失败:', error);
         showNotification('运行失败: ' + error.message, 3000);
         // 运行失败，重新启用按钮
-        enableSubmitButton(submitBtn, 'failed');
+        ensureSubmitButtonState('failed');
     }
 
     // 保留模态框查看结果
