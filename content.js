@@ -7208,7 +7208,7 @@ function bindNodeRemoveEvents(dialog) {
 }
 
 // 显示尺寸检查模态框
-function showDimensionCheckModal(imageInfo, isDimensionValid) {
+function showDimensionCheckModal(imageInfo, isDimensionValid, selectedWorkflow = 'defaultWorkflow') {
     if (isDimensionCheckModalOpen) {
         return;
     }
@@ -8384,7 +8384,7 @@ async function manualDimensionCheck() {
                 height: originalImage?.height || 0,
                 name: originalImage?.name || '缓存结果'
             };
-            showDimensionCheckModal(imageInfoForModal, true);
+            showDimensionCheckModal(imageInfoForModal, true, selectedWorkflow);
             showNotification('已显示缓存的生成结果', 2000);
             return true;
         } else {
@@ -8508,7 +8508,7 @@ async function manualDimensionCheck() {
             };
 
             // 显示模态框
-            showDimensionCheckModal(imageInfoForModal, true);
+            showDimensionCheckModal(imageInfoForModal, true, selectedWorkflow);
             return true; // 返回true表示符合要求
 
         } else {
@@ -8604,7 +8604,7 @@ async function validateAndShowDimensionCheckModal(imageInfo, isDimensionValid) {
         
         if (isValid) {
             // 图片验证成功，显示模态框
-            showDimensionCheckModal(imageInfo, isDimensionValid);
+            showDimensionCheckModal(imageInfo, isDimensionValid, selectedWorkflow);
             showNotification('已重新弹出尺寸检查模态框', 1000);
         } else {
             // 图片尺寸不匹配，提示用户重新检查
