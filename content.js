@@ -7250,10 +7250,10 @@ function showDimensionCheckModal(imageInfo, isDimensionValid, selectedWorkflow =
         animation: modalSlideIn 0.3s ease-out forwards;
     `;
     
-    const statusColor = isDimensionValid ? '#059669' : '#dc2626';
-    const statusBgColor = isDimensionValid ? '#ecfdf5' : '#fef2f2';
-    const statusIcon = isDimensionValid ? '✓' : '✗';
-    const statusText = isDimensionValid ? '尺寸符合要求' : '尺寸不符合要求';
+    const statusColor = isDimensionValid ? '#059669' : '#f59e0b';
+    const statusBgColor = isDimensionValid ? '#ecfdf5' : '#fffbeb';
+    const statusIcon = isDimensionValid ? '✓' : '⚠';
+    const statusText = isDimensionValid ? '尺寸符合推荐要求' : '尺寸不符合推荐要求';
     
     modalContent.innerHTML = `
         <button id="dimensionCheckCloseBtn" style="
@@ -7351,11 +7351,10 @@ function showDimensionCheckModal(imageInfo, isDimensionValid, selectedWorkflow =
                 background: rgba(255, 255, 255, 0.7);
                 border-radius: 8px;
             ">
-                要求：长宽都必须是8的倍数
+                ${isDimensionValid ? '推荐：长宽都为8的倍数' : '推荐：长宽都为8的倍数（可继续执行）'}
             </div>
         </div>
-        
-        ${isDimensionValid ? `
+
         <div style="margin-bottom: 24px;">
             <label style="
                 display: block;
@@ -7412,10 +7411,8 @@ function showDimensionCheckModal(imageInfo, isDimensionValid, selectedWorkflow =
                 ">⚙️ 配置工作流</button>
             </div>
         </div>
-        ` : ''}
-        
+
         <div style="display: flex; gap: 12px; justify-content: center; margin-top: 8px;">
-            ${isDimensionValid ? `
             <button id="dimensionCheckSubmitBtn" style="
                 padding: 14px 28px;
                 border: none;
@@ -7429,7 +7426,6 @@ function showDimensionCheckModal(imageInfo, isDimensionValid, selectedWorkflow =
                 box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
                 min-width: 120px;
             ">提交需求</button>
-            ` : ''}
         </div>
     `;
     
@@ -7511,8 +7507,8 @@ function showDimensionCheckModal(imageInfo, isDimensionValid, selectedWorkflow =
         submitBtn.addEventListener('click', handleSubmit);
     }
 
-    // 自动提取并填入指令文本（仅当textarea为空且图片尺寸有效时）
-    if (textarea && isDimensionValid && !textarea.value.trim()) {
+    // 自动提取并填入指令文本（无论尺寸是否有效，只要textarea为空）
+    if (textarea && !textarea.value.trim()) {
         debugLog('尝试自动提取指令文本填入输入框');
         const instructionText = extractInstructionText(true);
         if (instructionText) {
