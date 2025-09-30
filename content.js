@@ -8527,28 +8527,28 @@ async function manualDimensionCheck() {
             return true; // 返回true表示符合要求
 
         } else {
-            // 检查失败的原因
+            // 检查失败的原因，但仍然弹出交互界面
             let errorMessage = '';
 
             if (!isDimensionValid) {
                 const widthStatus = isWidthValid ? '✅' : '❌';
                 const heightStatus = isHeightValid ? '✅' : '❌';
-                errorMessage += `❌ 图片尺寸不符合要求！\n` +
+                errorMessage += `⚠️ 图片尺寸不符合推荐要求\n` +
                     `宽度: ${width}px ${widthStatus} (${isWidthValid ? '是' : '不是'}8的倍数)\n` +
                     `高度: ${height}px ${heightStatus} (${isHeightValid ? '是' : '不是'}8的倍数)\n` +
-                    `要求: 长宽都必须是8的倍数\n\n`;
+                    `推荐: 长宽都为8的倍数\n\n`;
             }
 
             if (!isFileSizeValid) {
                 const sizeInMB = (fileSize / (1024 * 1024)).toFixed(2);
-                errorMessage += `❌ 图片文件大小不符合要求！\n` +
+                errorMessage += `⚠️ 图片文件大小不符合推荐要求\n` +
                     `当前大小: ${sizeInMB}MB\n` +
-                    `要求: 不超过5MB\n\n`;
+                    `推荐: 不超过5MB\n\n`;
             }
 
-            showNotification(errorMessage, 4000);
+            showNotification(errorMessage + '仍可继续执行任务', 3000);
 
-            debugLog('图片检查不符合要求', {
+            debugLog('图片检查不符合推荐要求，但仍弹出交互界面', {
                 width, height,
                 widthRemainder: width % 8,
                 heightRemainder: height % 8,
@@ -8558,7 +8558,32 @@ async function manualDimensionCheck() {
                 isFileSizeValid,
                 src: originalImage.src
             });
-            return false; // 返回false表示不符合要求
+
+            // 保存检查信息
+            lastDimensionCheckInfo = {
+                imageInfo: {
+                    src: originalImage.src,
+                    width: width,
+                    height: height,
+                    name: originalImage.name || extractFileNameFromUrl(originalImage.src) || '原图'
+                },
+                isDimensionValid: false, // 标记为不符合要求
+                width: width,
+                height: height,
+                timestamp: Date.now()
+            };
+
+            // 创建包含正确尺寸信息的图片对象
+            const imageInfoForModal = {
+                src: originalImage.src,
+                width: width,
+                height: height,
+                name: originalImage.name || extractFileNameFromUrl(originalImage.src) || '原图'
+            };
+
+            // 即使不符合要求，也显示模态框让用户自行决定
+            showDimensionCheckModal(imageInfoForModal, false, selectedWorkflow);
+            return false; // 返回false表示不符合推荐要求
         }
 
     } catch (error) {
