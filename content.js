@@ -10537,23 +10537,43 @@ async function getImageAsBase64(imageUrl) {
     if (isCrossOrigin) {
         // 对于跨域图片，使用background script代理获取（已保留原始格式）
         if (typeof chrome !== 'undefined' && chrome.runtime) {
-            return new Promise((resolve, reject) => {
-                chrome.runtime.sendMessage({
-                    action: 'fetchCOSImage',
-                    url: imageUrl
-                }, (response) => {
-                    if (chrome.runtime.lastError) {
-                        reject(new Error(chrome.runtime.lastError.message));
-                        return;
-                    }
+            // 检查扩展上下文是否仍然有效
+            try {
+                // 尝试访问扩展ID来检查上下文是否有效
+                if (!chrome.runtime.id) {
+                    throw new Error('Extension context invalidated');
+                }
 
-                    if (response && response.success && response.data && response.data.dataUrl) {
-                        resolve(response.data.dataUrl);
-                    } else {
-                        reject(new Error(response?.error || '获取图片数据失败'));
-                    }
+                return new Promise((resolve, reject) => {
+                    chrome.runtime.sendMessage({
+                        action: 'fetchCOSImage',
+                        url: imageUrl
+                    }, (response) => {
+                        // 检查是否有运行时错误
+                        if (chrome.runtime.lastError) {
+                            // 检查错误是否是由于上下文失效导致的
+                            if (chrome.runtime.lastError.message.includes('Extension context invalidated') ||
+                                chrome.runtime.lastError.message.includes('Receiving end does not exist')) {
+                                console.warn('扩展上下文已失效，无法获取图片数据:', chrome.runtime.lastError.message);
+                                reject(new Error('扩展上下文已失效，请刷新页面后重试'));
+                            } else {
+                                reject(new Error(chrome.runtime.lastError.message));
+                            }
+                            return;
+                        }
+
+                        if (response && response.success && response.data && response.data.dataUrl) {
+                            resolve(response.data.dataUrl);
+                        } else {
+                            reject(new Error(response?.error || '获取图片数据失败'));
+                        }
+                    });
                 });
-            });
+            } catch (contextError) {
+                // 上下文检查失败
+                console.warn('扩展上下文检查失败:', contextError.message);
+                throw new Error('扩展上下文已失效，请刷新页面后重试');
+            }
         } else {
             throw new Error('无法获取跨域图片数据');
         }
