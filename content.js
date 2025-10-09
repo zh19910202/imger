@@ -711,7 +711,7 @@ function handleKeydown(event) {
     else if (event.code === 'Space') {
         // 检查并关闭模态框（但不停止执行，继续执行跳过功能）
         checkAndCloseModalIfOpen('space');
-        
+
         // 如果对比页面打开，先关闭对比
         if (isComparisonModalOpen) {
             closeComparisonModal();
@@ -720,14 +720,32 @@ function handleKeydown(event) {
                 const skipButton = findButtonByText(['跳过', 'Skip', '跳過']);
                 if (skipButton) {
                     event.preventDefault(); // 阻止空格键的默认滚动行为
-                    clickButton(skipButton, '跳过');
+                    // 直接点击按钮并只显示"已跳过"提示
+                    try {
+                        console.log('点击跳过按钮:', skipButton);
+                        addButtonClickEffect(skipButton);
+                        skipButton.click();
+                        showNotification('已跳过');
+                    } catch (error) {
+                        console.error('点击跳过按钮时发生错误:', error);
+                        showNotification('跳过失败: ' + error.message);
+                    }
                 }
             }, 100);
         } else {
             const skipButton = findButtonByText(['跳过', 'Skip', '跳過']);
             if (skipButton) {
                 event.preventDefault(); // 阻止空格键的默认滚动行为
-                clickButton(skipButton, '跳过');
+                // 直接点击按钮并只显示"已跳过"提示
+                try {
+                    console.log('点击跳过按钮:', skipButton);
+                    addButtonClickEffect(skipButton);
+                    skipButton.click();
+                    showNotification('已跳过');
+                } catch (error) {
+                    console.error('点击跳过按钮时发生错误:', error);
+                    showNotification('跳过失败: ' + error.message);
+                }
             }
         }
     }
