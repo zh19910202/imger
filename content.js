@@ -41,6 +41,17 @@ let serverReturnedModifiedImage = null;
 let userUploadedImage = null;
 // RunningHub结果缓存相关
 let cachedRunningHubResults = null; // 缓存的RunningHub结果
+// 页面加载标志，用于控制是否显示系统提示
+let isPageLoading = true; // 页面是否正在加载
+let isHotkeyTriggered = false; // 是否由热键触发的系统提示
+
+// 监听页面可见性变化，用于更好地处理页面重新加载
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+        // 页面即将隐藏（可能是刷新或跳转）
+        isPageLoading = true;
+    }
+});
 // 自动发送相关变量
 let autoSendEnabled = true; // 自动发送开关
 let sentImageHashes = new Set(); // 已发送图片的哈希值，避免重复发送
@@ -61,7 +72,7 @@ let lastCacheUpdateTime = 0; // 上次缓存更新时间
 
 // 测试设备指纹读取功能
 function testDeviceFingerprint() {
-    showNotification('正在测试设备指纹...', 1500);
+    showNotification('正在测试设备指纹...', 500);
     debugLog('开始测试设备指纹读取功能');
 
     const message = {
@@ -77,14 +88,14 @@ function testDeviceFingerprint() {
         if (chrome.runtime.lastError) {
             console.error('Native Messaging 错误:', chrome.runtime.lastError.message);
             debugLog('Native Messaging 错误: ' + chrome.runtime.lastError.message);
-            showNotification('❌ 设备指纹验证失败', 2000);
+            showNotification('❌ 设备指纹验证失败', 500);
             return;
         }
 
         if (response && response.success) {
             console.log('设备指纹读取成功');
             debugLog('设备指纹读取成功');
-            showNotification('✅ 设备指纹验证成功', 2000);
+            showNotification('✅ 设备指纹验证成功', 500);
             // 设置设备验证状态为成功
             deviceVerified = true;
             // 验证卡密
@@ -92,7 +103,7 @@ function testDeviceFingerprint() {
         } else {
             console.error('设备指纹读取失败:', response);
             debugLog('设备指纹读取失败: ' + (response ? response.error : '未知错误'));
-            showNotification('❌ 设备指纹验证失败，所有热键已禁用', 3000);
+            showNotification('❌ 设备指纹验证失败，所有热键已禁用', 500);
             // 设置设备验证状态为失败
             deviceVerified = false;
             // 禁用键盘事件监听器
@@ -109,13 +120,13 @@ function testDeviceFingerprint() {
 // 验证卡密
 async function validateCardKey(figId) {
     try {
-        showNotification('正在验证卡密...', 2000);
+        showNotification('正在验证卡密...', 500);
         debugLog('开始验证卡密:', figId);
         
         // 检查cardKeyValidator是否存在
         if (typeof cardKeyValidator === 'undefined') {
             console.error('CardKeyValidator未定义');
-            showNotification('❌ 验证器未加载', 3000);
+            showNotification('❌ 验证器未加载', 500);
             return;
         }
         
@@ -127,7 +138,7 @@ async function validateCardKey(figId) {
             const successMsg = `✅ 卡密验证成功！${result.Message}`;
             console.log('卡密验证成功:', result);
             debugLog(`卡密验证成功: ${JSON.stringify(result, null, 2)}`);
-            showNotification(successMsg, 5000);
+            showNotification(successMsg, 500);
             
             // 显示剩余天数（如果有的话）
             if (result.RemainingDays !== undefined) {
@@ -140,12 +151,12 @@ async function validateCardKey(figId) {
             const errorMsg = `❌ 卡密验证失败: ${result.Message}`;
             console.error('卡密验证失败:', result);
             debugLog(`卡密验证失败: ${JSON.stringify(result, null, 2)}`);
-            showNotification(errorMsg, 5000);
+            showNotification(errorMsg, 500);
         }
     } catch (error) {
         console.error('卡密验证过程中发生错误:', error);
         debugLog(`卡密验证错误: ${error.message}`);
-        showNotification(`❌ 验证过程出错: ${error.message}`, 5000);
+        showNotification(`❌ 验证过程出错: ${error.message}`, 500);
     }
 }
 
@@ -217,7 +228,7 @@ function checkAndCloseModalIfOpen(currentKey) {
     if (isDimensionCheckModalOpen && currentKey !== 'escape' && currentKey !== 'r') {
         debugLog('检测到模态框打开，先关闭模态框', { key: currentKey });
         closeDimensionCheckModal();
-        showNotification('模态框已关闭，请重新按键执行操作', 1500);
+        showNotification('模态框已关闭，请重新按键执行操作', 500);
         return true; // 返回true表示已关闭模态框
     }
     return false; // 返回false表示没有模态框需要关闭
@@ -251,7 +262,7 @@ function initializeScript() {
         console.error('Chrome:', chrome);
         console.error('Chrome.runtime:', chrome?.runtime);
         setTimeout(() => {
-            showNotification('插件未正确加载，请刷新页面或重新安装插件', 5000);
+            showNotification('插件未正确加载，请刷新页面或重新安装插件', 500);
         }, 1000);
         return;
     }
@@ -322,6 +333,9 @@ function initializeScript() {
     // }, 2000); // 延迟2秒执行，确保插件完全初始化
 
     console.log('AnnotateFlow Assistant 初始化完成，调试模式:', debugMode ? '已启用' : '已禁用');
+
+    // 页面加载完成，允许显示系统提示
+    isPageLoading = false;
 }
 
 // 简单的字符串哈希函数，用于创建图片的唯一标识
@@ -381,7 +395,7 @@ async function autoSendImageData(forceSend = false) {
 
                 if (!originalImageLocked) {
                     debugLog("原图加载超时，取消发送");
-                    showNotification("⚠️ 原图加载超时，取消自动发送", 2000);
+                    showNotification("⚠️ 原图加载超时，取消自动发送", 500);
                     return;
                 }
 
@@ -423,7 +437,7 @@ async function autoSendImageData(forceSend = false) {
         debugLog("自动发送完成");
     } catch (error) {
         console.error("自动发送图片数据失败:", error);
-        showNotification("❌ 自动发送失败: " + error.message, 3000);
+        showNotification("❌ 自动发送失败: " + error.message, 500);
 
         // 自动模式下失败时重置时间记录和哈希记录以便重试
         if (!forceSend) {
@@ -441,11 +455,17 @@ async function autoSendImageData(forceSend = false) {
 function checkPageChange() {
     const newUrl = window.location.href;
 
-    if (currentPageUrl && currentPageUrl !== newUrl) {
+    // 区分页面跳转和页面刷新
+    const isActualPageChange = currentPageUrl && currentPageUrl !== newUrl && currentPageUrl !== '';
+
+    if (isActualPageChange) {
         debugLog('检测到页面跳转，重置原图锁定状态', {
             oldUrl: currentPageUrl.substring(0, 100) + '...',
             newUrl: newUrl.substring(0, 100) + '...'
         });
+
+        // 页面跳转时重新设置加载标志
+        isPageLoading = true;
 
         // 重置原图相关状态
         originalImageLocked = false;
@@ -508,7 +528,7 @@ function checkPageChange() {
             'canceledTimeouts': pendingComparisonTimeouts.length
         });
 
-        showNotification('页面切换，正在重新检测原图...', 2000);
+        showNotification('页面切换，正在重新检测原图...', 500);
 
         // 立即开始检测原图
         setTimeout(() => {
@@ -534,6 +554,9 @@ function checkPageChange() {
             // 将重试任务也加入管理队列
             pendingComparisonTimeouts.push(retryTimeoutId);
         });
+    } else if (!currentPageUrl) {
+        // 页面初始化时（currentPageUrl为空），只更新URL但不显示提示
+        debugLog('页面初始化，更新当前页面URL', newUrl.substring(0, 100) + '...');
     }
 
     currentPageUrl = newUrl;
@@ -631,6 +654,7 @@ function handleKeydown(event) {
 
     // 添加测试按键：按K键发送POST请求
     if (event.key === 'p' || event.key === 'P') {
+        isHotkeyTriggered = true;
         event.preventDefault();
         sendPostRequestToNativeHost(true);
         return;
@@ -639,11 +663,12 @@ function handleKeydown(event) {
     
     // 处理F1键 - 连续执行“标记无效”(X键逻辑)并自动确认弹窗（再次按F1停止）
     else if (event.key === 'F1') {
+        isHotkeyTriggered = true;
         // 检查并关闭模态框
         if (checkAndCloseModalIfOpen('f1')) {
             return; // 如果关闭了模态框，停止执行
         }
-        
+
         event.preventDefault();
         if (!f1AutoInvalidating) {
             f1AutoInvalidating = true;
@@ -689,14 +714,15 @@ function handleKeydown(event) {
     
     // 处理D键 - 下载图片
     if (key === 'd') {
+        isHotkeyTriggered = true;
         // 检查并关闭模态框
         if (checkAndCloseModalIfOpen(key)) {
             return; // 如果关闭了模态框，停止执行
         }
-        
+
         // 阻止默认行为
         event.preventDefault();
-        
+
         // 获取要下载的图片
         const imageToDownload = getImageToDownload();
         
@@ -709,6 +735,7 @@ function handleKeydown(event) {
     }
     // 处理空格键 - 点击"跳过"按钮
     else if (event.code === 'Space') {
+        isHotkeyTriggered = true;
         // 检查并关闭模态框（但不停止执行，继续执行跳过功能）
         checkAndCloseModalIfOpen('space');
 
@@ -751,6 +778,7 @@ function handleKeydown(event) {
     }
     // 处理S键 - 点击"提交并继续标注"按钮
     else if (key === 's') {
+        isHotkeyTriggered = true;
         // 检查并关闭模态框（但不停止执行，继续执行提交功能）
         checkAndCloseModalIfOpen('s');
         
@@ -775,6 +803,7 @@ function handleKeydown(event) {
     }
     // 处理A键 - 点击"上传图片"按钮
     else if (key === 'a') {
+        isHotkeyTriggered = true;
         // 检查并关闭模态框（但不停止执行，继续执行上传功能）
         checkAndCloseModalIfOpen('a');
         
@@ -788,6 +817,7 @@ function handleKeydown(event) {
     }
     // 处理F键 - 点击"查看历史"链接
     else if (key === 'f') {
+        isHotkeyTriggered = true;
         // 检查并关闭模态框（但不停止执行，继续执行查看历史功能）
         checkAndCloseModalIfOpen('f');
         
@@ -802,6 +832,7 @@ function handleKeydown(event) {
     // 处理J键 - 上传Native Host图片数据到标注平台
     // J键默认同时上传修改图和蒙版图
     else if (key === 'u') {
+        isHotkeyTriggered = true;
         // 检查并关闭模态框
         if (checkAndCloseModalIfOpen('u')) {
             return; // 如果关闭了模态框，停止执行
@@ -814,6 +845,7 @@ function handleKeydown(event) {
     
     // 处理X键 - 点击"标记无效"按钮
     else if (key === 'x') {
+        isHotkeyTriggered = true;
         // 检查并关闭模态框
         if (checkAndCloseModalIfOpen('x')) {
             return; // 如果关闭了模态框，停止执行
@@ -848,16 +880,18 @@ function handleKeydown(event) {
     }
     // 处理W键 - 智能图片对比
     else if (key === 'w') {
+        isHotkeyTriggered = true;
         // 检查并关闭模态框（但不停止执行，继续执行智能对比功能）
         checkAndCloseModalIfOpen('w');
         
         event.preventDefault();
         debugLog('手动触发智能图片对比 (W键)');
-        showNotification('启动智能图片对比...', 1000);
+        showNotification('启动智能图片对比...', 500);
         triggerSmartComparisonWithFallback();
     }
     // 处理Z键 - 切换调试模式
     else if (key === 'z') {
+        isHotkeyTriggered = true;
         // 检查并关闭模态框
         if (checkAndCloseModalIfOpen('z')) {
             return; // 如果关闭了模态框，停止执行
@@ -868,6 +902,7 @@ function handleKeydown(event) {
     }
     // 处理I键 - 手动检查所有文件输入状态
     else if (key === 'i') {
+        isHotkeyTriggered = true;
         // 检查并关闭模态框
         if (checkAndCloseModalIfOpen('i')) {
             return; // 如果关闭了模态框，停止执行
@@ -876,10 +911,11 @@ function handleKeydown(event) {
         event.preventDefault();
         debugLog('手动触发文件输入状态检查');
         checkForFileInputChanges();
-        showNotification('已手动检查文件输入状态，查看调试面板', 2000);
+        showNotification('已手动检查文件输入状态，查看调试面板', 500);
     }
     // 处理B键 - 手动重新检测原图
     else if (key === 'b') {
+        isHotkeyTriggered = true;
         // 检查并关闭模态框
         if (checkAndCloseModalIfOpen('b')) {
             return; // 如果关闭了模态框，停止执行
@@ -891,11 +927,12 @@ function handleKeydown(event) {
         originalImageLocked = false;
         originalImage = null;
         recordOriginalImages();
-        showNotification('已重新检测原图，查看调试面板', 2000);
+        showNotification('已重新检测原图，查看调试面板', 500);
     }
     // 移除：R键模式切换逻辑
     // 处理M键 - 手动打印图片状态
     else if (key === 'm') {
+        isHotkeyTriggered = true;
         // 检查并关闭模态框
         if (checkAndCloseModalIfOpen('m')) {
             return; // 如果关闭了模态框，停止执行
@@ -904,10 +941,11 @@ function handleKeydown(event) {
         event.preventDefault();
         // 已移除：revisionLog调用
         // 已移除：printRevisionModeStatus();
-        showNotification('已打印图片状态，请查看调试面板', 2000);
+        showNotification('已打印图片状态，请查看调试面板', 500);
     }
     // 处理T键 - 测试设备指纹读取
     else if (key === 't') {
+        isHotkeyTriggered = true;
         // 检查并关闭模态框
         if (checkAndCloseModalIfOpen('t')) {
             return; // 如果关闭了模态框，停止执行
@@ -918,6 +956,7 @@ function handleKeydown(event) {
     }
     // 处理I键 - 获取Native Host缓存信息
     else if (key === 'i') {
+        isHotkeyTriggered = true;
         // 检查并关闭模态框
         if (checkAndCloseModalIfOpen('i')) {
             return; // 如果关闭了模态框，停止执行
@@ -928,6 +967,7 @@ function handleKeydown(event) {
     }
     // 处理F2键 - 检查图片尺寸并显示标注界面
     else if (event.key === 'F2') {
+        isHotkeyTriggered = true;
         // 检查并关闭模态框
         if (checkAndCloseModalIfOpen('f2')) {
             return; // 如果关闭了模态框，停止执行
@@ -939,6 +979,7 @@ function handleKeydown(event) {
     }
     // 处理R键 - 手动触发图片尺寸检查
     else if (key === 'r') {
+        isHotkeyTriggered = true;
         event.preventDefault();
         debugLog('R键触发 - 手动检查图片尺寸是否为8的倍数');
         manualDimensionCheck();
@@ -1151,7 +1192,13 @@ function addDownloadEffect(img) {
 }
 
 // 显示通知
-function showNotification(message, duration = 3000) {
+function showNotification(message, duration = 500) {
+    // 只有在热键触发时才显示系统提示
+    if (!isHotkeyTriggered) {
+        // 在非热键触发场景下不显示任何系统提示
+        return;
+    }
+
     // 创建通知元素
     const notification = document.createElement('div');
     notification.textContent = message;
@@ -1169,9 +1216,9 @@ function showNotification(message, duration = 3000) {
         box-shadow: 0 2px 10px rgba(0,0,0,0.2);
         transition: opacity 0.3s ease;
     `;
-    
+
     document.body.appendChild(notification);
-    
+
     // 自动移除通知
     setTimeout(() => {
         notification.style.opacity = '0';
@@ -1181,6 +1228,9 @@ function showNotification(message, duration = 3000) {
             }
         }, 300);
     }, duration);
+
+    // 重置热键触发标志
+    isHotkeyTriggered = false;
 }
 
 // 根据文本内容查找按钮
@@ -1391,6 +1441,14 @@ function cleanup() {
     // 清理RunningHub缓存
     debugLog('清理时清除RunningHub缓存');
     clearRunningHubCache();
+
+    // 清理所有系统提示
+    const notifications = document.querySelectorAll('div[style*="position: fixed"][style*="z-index: 999999"]');
+    notifications.forEach(notification => {
+        if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+        }
+    });
 }
 
 
@@ -1785,7 +1843,7 @@ function handleImageUpload(file, inputElement) {
         originalImage = null;
         recordOriginalImages();
         
-        showNotification(`图片上传完成: ${file.name}`, 2000);
+        showNotification(`图片上传完成: ${file.name}`, 500);
         
         // 更新调试面板信息
         if (debugMode && debugPanel) {
@@ -1831,7 +1889,7 @@ function handleImageUpload(file, inputElement) {
     
     reader.onerror = (error) => {
         debugLog('FileReader读取失败', error);
-        showNotification('图片读取失败', 2000);
+        showNotification('图片读取失败', 500);
     };
     
     debugLog('开始FileReader.readAsDataURL');
@@ -1915,7 +1973,9 @@ async function parallelOriginalImageDetection(maxRetries = 3) {
         debugLog('🔧 使用网络监听结果作为原图', originalImageFromNetwork.src.substring(0, 50) + '...');
         originalImage = originalImageFromNetwork;
         originalImageLocked = true;
-        showNotification(`使用网络监听原图: ${originalImage.width}×${originalImage.height}`, 2000);
+        if (!isPageLoading) {
+            showNotification(`使用网络监听原图: ${originalImage.width}×${originalImage.height}`, 500);
+        }
 
 
         return;
@@ -1939,7 +1999,9 @@ async function parallelOriginalImageDetection(maxRetries = 3) {
                 width: img.naturalWidth,
                 height: img.naturalHeight
             });
-            showNotification(`使用COS拦截原图: ${img.naturalWidth}×${img.naturalHeight}`, 2000);
+            if (!isPageLoading) {
+                showNotification(`使用COS拦截原图: ${img.naturalWidth}×${img.naturalHeight}`, 500);
+            }
 
             // 缓存原图信息
             const cosImageInfo = {
@@ -1991,7 +2053,7 @@ async function parallelOriginalImageDetection(maxRetries = 3) {
     }
 
     debugLog('🏃 启动并行模式原图获取 (优化版)');
-    showNotification('正在多渠道并行获取原图...', 1000);
+    // showNotification('正在多渠道并行获取原图...', 500);
 
     // 增加重试机制
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -2078,7 +2140,9 @@ async function parallelOriginalImageDetection(maxRetries = 3) {
                     onOriginalImageDetected();
                 }, 100);
 
-                showNotification(`并行获取原图成功 (${bestImage.source}): ${bestImage.width}×${bestImage.height}`, 2000);
+                if (!isPageLoading) {
+                    showNotification(`并行获取原图成功 (${bestImage.source}): ${bestImage.width}×${bestImage.height}`, 500);
+                }
 
                 return; // 成功后立即返回
             } else {
@@ -2099,7 +2163,9 @@ async function parallelOriginalImageDetection(maxRetries = 3) {
 
     // 所有重试都失败了
     debugLog(`❌ 所有${maxRetries}次并行方法都失败了`);
-    showNotification('未能获取到原图，请稍后再试', 2000);
+    if (!isPageLoading) {
+        showNotification('未能获取到原图，请稍后再试', 500);
+    }
 }
 
 // 创建带超时的Promise
@@ -2474,7 +2540,9 @@ function setOriginalImageCommon(img) {
     });
 
     console.log('记录原图:', originalImage.src);
-    showNotification(`已锁定原图: ${width}×${height}`, 2000);
+    if (!isPageLoading) {
+        showNotification(`已锁定原图: ${width}×${height}`, 500);
+    }
 }
 
 // 强化的网络请求拦截和原图资源捕获系统
@@ -2997,7 +3065,9 @@ async function processNetworkOriginalImage(imageInfo) {
                 // 已移除：返修模式专用日志
                 // if (isRevisionMode) { ... }
                 
-                showNotification(`从网络请求获取原图: ${originalImage.width}×${originalImage.height}`, 2000);
+                if (!isPageLoading) {
+                    showNotification(`从网络请求获取原图: ${originalImage.width}×${originalImage.height}`, 500);
+                }
             }
         };
         
@@ -3061,7 +3131,7 @@ async function processServerModifiedImage(imageInfo) {
             // 已移除：返修模式专用日志
             // 已移除：revisionLog调用
             
-            showNotification(`检测到服务器修改图: ${serverReturnedModifiedImage.width}×${serverReturnedModifiedImage.height}`, 2000);
+            showNotification(`检测到服务器修改图: ${serverReturnedModifiedImage.width}×${serverReturnedModifiedImage.height}`, 500);
             
             // 在调试面板中显示信息
             if (debugMode && debugPanel) {
@@ -3226,7 +3296,9 @@ function performImageComparison(newImage = null) {
         // 如果快速检测失败，提示用户按B键
         if (!originalImage) {
             debugLog('快速检测失败');
-            showNotification('未找到原图，请按B键重新检测后再试', 3000);
+            if (!isPageLoading) {
+                showNotification('未找到原图，请按B键重新检测后再试', 500);
+            }
             return;
         }
     }
@@ -3252,7 +3324,7 @@ function performImageComparison(newImage = null) {
             uploadedImage: uploadedImage ? '有' : '无'
         });
         
-        showNotification('请先上传图片再进行对比', 2000);
+        showNotification('请先上传图片再进行对比', 500);
         return;
     }
     
@@ -3266,7 +3338,7 @@ function performImageComparison(newImage = null) {
     // 已移除：返修模式专用日志
     // 已移除：revisionLog调用
     
-    showNotification(`正在对比图片... (${imageSource})`, 1500);
+    showNotification(`正在对比图片... (${imageSource})`, 500);
     
     // 验证参数并创建对比界面
     debugLog('准备创建对比界面', {
@@ -3286,13 +3358,15 @@ function performImageComparison(newImage = null) {
     
     if (!originalImage) {
         debugLog('原图为空，无法创建对比界面');
-        showNotification('❌ 原图不可用，无法进行对比', 3000);
+        if (!isPageLoading) {
+            showNotification('❌ 原图不可用，无法进行对比', 500);
+        }
         return;
     }
     
     if (!modifiedImage) {
         debugLog('修改图为空，无法创建对比界面');
-        showNotification('❌ 修改图不可用，无法进行对比', 3000);
+        showNotification('❌ 修改图不可用，无法进行对比', 500);
         return;
     }
     
@@ -4217,7 +4291,7 @@ function createComparisonModal(original, uploaded, newImage) {
     isComparisonModalOpen = true;
     debugLog('对比弹窗已打开，状态已更新');
     
-    showNotification('图片对比界面已打开', 2000);
+    showNotification('图片对比界面已打开', 500);
 }
 
 // 创建单个图片显示区域
@@ -4629,13 +4703,13 @@ function toggleDebugMode() {
             debugPanel.style.display = 'block';
         }
         debugLog('调试模式已开启');
-        showNotification('调试模式已开启 (Z键切换)', 2000);
+        showNotification('调试模式已开启 (Z键切换)', 500);
     } else {
         if (debugPanel) {
             debugPanel.style.display = 'none';
         }
         console.log('调试模式已关闭');
-        showNotification('调试模式已关闭 (Z键切换)', 2000);
+        showNotification('调试模式已关闭 (Z键切换)', 500);
     }
 }
 
@@ -5395,7 +5469,9 @@ document.addEventListener('keydown', function(event) {
     if (!isInInputField(event.target) && event.key.toLowerCase() === 'n') {
         event.preventDefault();
         debugLog('手动重新检测原图 (N键)');
-        showNotification('正在重新检测原图...', 1000);
+        if (!isPageLoading) {
+            showNotification('正在重新检测原图...', 500);
+        }
         // 解锁原图，重新检测
         originalImageLocked = false;
         originalImage = null;
@@ -5463,7 +5539,9 @@ function triggerSmartComparisonWithFallback() {
             mode: 'COS原图vs上传图'
         };
         debugLog('策略2: COS原图vs用户上传', comparisonPair);
-        showNotification('📷 原图vs上传图对比', 1000);
+        if (!isPageLoading) {
+            showNotification('📷 原图vs上传图对比', 1000);
+        }
     }
     // 策略3: 现有逻辑 - 原图 vs 上传图片
     else if (originalImage && uploadedImage) {
@@ -5473,7 +5551,9 @@ function triggerSmartComparisonWithFallback() {
             mode: '页面原图vs上传图'
         };
         debugLog('策略3: 页面原图vs用户上传', comparisonPair);
-        showNotification('📋 页面原图vs上传图对比', 1000);
+        if (!isPageLoading) {
+            showNotification('📋 页面原图vs上传图对比', 1000);
+        }
     }
     // 策略4: 如果只有COS原图，与页面其他图片对比
     else if (capturedOriginalImage) {
@@ -5485,7 +5565,9 @@ function triggerSmartComparisonWithFallback() {
                 mode: '原图vs页面图片'
             };
             debugLog('策略4: 原图vs页面图片', comparisonPair);
-            showNotification('🔄 原图vs页面图片对比', 1000);
+            if (!isPageLoading) {
+                showNotification('🔄 原图vs页面图片对比', 1000);
+            }
         }
     }
     // 策略5: 页面图片互相对比（回退）
@@ -5508,7 +5590,7 @@ function triggerSmartComparisonWithFallback() {
         shouldAutoCompare = false;
     } else {
         debugLog('无可用图片进行对比');
-        showNotification('❌ 无可用图片进行对比', 2000);
+        showNotification('❌ 无可用图片进行对比', 500);
     }
 }
 
@@ -5516,7 +5598,7 @@ function triggerSmartComparisonWithFallback() {
 async function testResourceExtraction() {
     if (typeof window.resourceExtractor === 'undefined') {
         console.error('❌ ResourceExtractor未加载');
-        showNotification('资源提取器未加载', 2000);
+        showNotification('资源提取器未加载', 500);
         return;
     }
     
@@ -5529,7 +5611,7 @@ async function testResourceExtraction() {
         const summary = results.summary;
         const message = `提取完成: ${summary.uniqueResources}个独特资源 (DOM:${summary.byMethod.DOM}, Performance:${summary.byMethod.Performance}, Cache:${summary.byMethod.Cache}, Network:${summary.byMethod.Network})`;
         
-        showNotification(message, 3000);
+        showNotification(message, 500);
         
         // 显示详细结果
         if (debugMode) {
@@ -5538,7 +5620,7 @@ async function testResourceExtraction() {
         
     } catch (error) {
         console.error('❌ 资源提取失败:', error);
-        showNotification('资源提取失败: ' + error.message, 2000);
+        showNotification('资源提取失败: ' + error.message, 500);
     }
 }
 
@@ -5570,7 +5652,7 @@ function handleAutoUploadNotification(data) {
     console.log('Content script收到自动上传通知:', data);
 
     // 显示通知
-    showNotification('收到PS处理完成通知，正在自动上传图片...', 2000);
+    showNotification('收到PS处理完成通知，正在自动上传图片...', 500);
 
     // 延迟一小段时间确保数据完全存储后再执行上传
     setTimeout(() => {
@@ -5578,13 +5660,13 @@ function handleAutoUploadNotification(data) {
         uploadNativeHostImageToAnnotationPlatform()
             .then(() => {
                 debugLog('自动上传完成');
-                showNotification('✅ 图片已自动上传完成', 3000);
+                showNotification('✅ 图片已自动上传完成', 500);
                 console.log('自动上传完成');
             })
             .catch(error => {
                 console.error('自动上传失败:', error);
                 debugLog(`自动上传失败: ${error.message}`);
-                showNotification(`❌ 自动上传失败: ${error.message}`, 3000);
+                showNotification(`❌ 自动上传失败: ${error.message}`, 500);
             });
     }, 1000);
 }
@@ -5671,11 +5753,15 @@ async function updateOriginalImageFromCOS(imageUrl) {
             height: img.naturalHeight
         });
         
-        showNotification('✅ 原图已获取 (显示模式)', 2000);
+        if (!isPageLoading) {
+            showNotification('✅ 原图已获取 (显示模式)', 500);
+        }
         
     } catch (error) {
         debugLog('原图从COS加载失败', error);
-        showNotification('❌ 原图加载失败: ' + error.message, 3000);
+        if (!isPageLoading) {
+            showNotification('❌ 原图加载失败: ' + error.message, 500);
+        }
     }
 }
 
@@ -5762,7 +5848,9 @@ function triggerSmartComparison() {
     
     if (!capturedOriginalImage) {
         debugLog('无原图，跳过智能对比');
-        showNotification('⏳ 等待原图加载...', 2000);
+        if (!isPageLoading) {
+            showNotification('⏳ 等待原图加载...', 500);
+        }
         return;
     }
     
@@ -5787,7 +5875,7 @@ function triggerSmartComparison() {
     // 都没有则提示等待
     else {
         debugLog('等待对比图片');
-        showNotification('⏳ 等待对比图片...', 2000);
+        showNotification('⏳ 等待对比图片...', 500);
         return;
     }
     
@@ -5817,7 +5905,7 @@ async function showSmartComparison(comparisonPair) {
         
     } catch (error) {
         debugLog('智能对比失败', error);
-        showNotification('❌ 图片对比失败: ' + error.message, 3000);
+        showNotification('❌ 图片对比失败: ' + error.message, 500);
     }
 }
 
@@ -5909,7 +5997,7 @@ async function autoSkipToValidImageWithRKeyLogic() {
         if (checkResult === true) {
             // 找到符合要求的图片，R键逻辑已经显示了模态框
             debugLog('找到符合要求的图片，停止自动跳过');
-            showNotification(`经过${attempts}次检查，找到符合要求的图片`, 2000);
+            showNotification(`经过${attempts}次检查，找到符合要求的图片`, 500);
             return;
         }
         
@@ -5933,18 +6021,20 @@ async function autoSkipToValidImageWithRKeyLogic() {
             
             if (!originalImage) {
                 debugLog('跳过后未找到新的原图');
-                showNotification('跳过后未找到新的原图，停止自动跳过', 2000);
+                if (!isPageLoading) {
+                    showNotification('跳过后未找到新的原图，停止自动跳过', 500);
+                }
                 break;
             }
         } else {
             debugLog('未找到跳过按钮');
-            showNotification('未找到跳过按钮，停止自动跳过', 2000);
+            showNotification('未找到跳过按钮，停止自动跳过', 500);
             break;
         }
     }
     
     debugLog(`已尝试${attempts}次，未找到符合要求的图片`);
-    showNotification(`已尝试${attempts}次，未找到符合要求的图片`, 3000);
+    showNotification(`已尝试${attempts}次，未找到符合要求的图片`, 500);
 }
 
 
@@ -6350,7 +6440,7 @@ function createRunningHubSettingsModal() {
         bindSettingsModalEvents(settingsModal, fileInput);
     }).catch(error => {
         console.error('加载配置失败:', error);
-        showNotification('❌ 加载配置失败: ' + error.message, 3000);
+        showNotification('❌ 加载配置失败: ' + error.message, 500);
     });
 }
 
@@ -6435,7 +6525,7 @@ function bindSettingsModalEvents(modal, fileInput) {
     if (defaultWorkflowSelect) {
         defaultWorkflowSelect.addEventListener('change', (e) => {
             RunningHubConfigManager.setDefaultWorkflow(e.target.value);
-            showNotification('✅ 默认工作流已更新', 1500);
+            showNotification('✅ 默认工作流已更新', 500);
         });
     }
 
@@ -6454,12 +6544,12 @@ function bindSettingsModalEvents(modal, fileInput) {
             if (confirm(`确定要删除工作流 "${workflowId}" 吗？`)) {
                 try {
                     RunningHubConfigManager.removeWorkflow(workflowId);
-                    showNotification('✅ 工作流已删除', 1500);
+                    showNotification('✅ 工作流已删除', 500);
                     // 重新加载界面
                     modal.remove();
                     showRunningHubSettings();
                 } catch (error) {
-                    showNotification('❌ 删除失败: ' + error.message, 3000);
+                    showNotification('❌ 删除失败: ' + error.message, 500);
                 }
             }
         });
@@ -6719,14 +6809,14 @@ function showAddWorkflowDialog(parentModal) {
         const description = dialog.querySelector('#newWorkflowDescription').value.trim();
 
         if (!workflowId || !workflowName || !webAppId) {
-            showNotification('❌ 请填写所有必填字段', 2000);
+            showNotification('❌ 请填写所有必填字段', 500);
             return;
         }
 
         // 检查ID是否已存在
         const workflowList = RunningHubConfigManager.getWorkflowList();
         if (workflowList.some(w => w.id === workflowId)) {
-            showNotification('❌ 工作流ID已存在', 2000);
+            showNotification('❌ 工作流ID已存在', 500);
             return;
         }
 
@@ -6761,15 +6851,15 @@ function showAddWorkflowDialog(parentModal) {
                         if (validNodes) {
                             nodeInfoList = parsedJson;
                         } else {
-                            showNotification('❌ JSON节点信息不完整：每个节点必须包含nodeId、fieldName和fieldValue', 3000);
+                            showNotification('❌ JSON节点信息不完整：每个节点必须包含nodeId、fieldName和fieldValue', 500);
                             return;
                         }
                     } else {
-                        showNotification('❌ JSON格式错误：应为节点数组格式', 3000);
+                        showNotification('❌ JSON格式错误：应为节点数组格式', 500);
                         return;
                     }
                 } catch (error) {
-                    showNotification('❌ JSON格式错误：' + error.message, 3000);
+                    showNotification('❌ JSON格式错误：' + error.message, 500);
                     return;
                 }
             }
@@ -6804,13 +6894,13 @@ function showAddWorkflowDialog(parentModal) {
 
         try {
             RunningHubConfigManager.addWorkflow(workflowId, newWorkflow);
-            showNotification('✅ 工作流添加成功', 1500);
+            showNotification('✅ 工作流添加成功', 500);
             dialog.remove();
             // 重新加载设置界面
             parentModal.remove();
             showRunningHubSettings();
         } catch (error) {
-            showNotification('❌ 添加失败: ' + error.message, 3000);
+            showNotification('❌ 添加失败: ' + error.message, 500);
         }
     });
 }
@@ -6820,7 +6910,7 @@ function showEditWorkflowDialog(parentModal, workflowId) {
     // 获取工作流配置
     const workflow = RUNNINGHUB_CONFIG.workflows[workflowId];
     if (!workflow) {
-        showNotification('❌ 未找到工作流配置', 2000);
+        showNotification('❌ 未找到工作流配置', 500);
         return;
     }
 
@@ -7117,7 +7207,7 @@ function showEditWorkflowDialog(parentModal, workflowId) {
         const description = dialog.querySelector('#editWorkflowDescription').value.trim();
 
         if (!workflowIdInput || !workflowName || !webAppId) {
-            showNotification('❌ 请填写所有必填字段', 2000);
+            showNotification('❌ 请填写所有必填字段', 500);
             return;
         }
 
@@ -7152,15 +7242,15 @@ function showEditWorkflowDialog(parentModal, workflowId) {
                         if (validNodes) {
                             nodeInfoList = parsedJson;
                         } else {
-                            showNotification('❌ JSON节点信息不完整：每个节点必须包含nodeId、fieldName和fieldValue', 3000);
+                            showNotification('❌ JSON节点信息不完整：每个节点必须包含nodeId、fieldName和fieldValue', 500);
                             return;
                         }
                     } else {
-                        showNotification('❌ JSON格式错误：应为节点数组格式', 3000);
+                        showNotification('❌ JSON格式错误：应为节点数组格式', 500);
                         return;
                     }
                 } catch (error) {
-                    showNotification('❌ JSON格式错误：' + error.message, 3000);
+                    showNotification('❌ JSON格式错误：' + error.message, 500);
                     return;
                 }
             }
@@ -7200,13 +7290,13 @@ function showEditWorkflowDialog(parentModal, workflowId) {
             }
 
             RunningHubConfigManager.updateWorkflow(workflowIdInput, updatedWorkflow);
-            showNotification('✅ 工作流更新成功', 1500);
+            showNotification('✅ 工作流更新成功', 500);
             dialog.remove();
             // 重新加载设置界面
             parentModal.remove();
             showRunningHubSettings();
         } catch (error) {
-            showNotification('❌ 更新失败: ' + error.message, 3000);
+            showNotification('❌ 更新失败: ' + error.message, 500);
         }
     });
 }
@@ -7534,7 +7624,7 @@ function showDimensionCheckModal(imageInfo, isDimensionValid, selectedWorkflow =
             debugLog('指令文本已自动填入输入框', {
                 text: instructionText.substring(0, 50) + '...'
             });
-            showNotification('已自动填入页面指令', 1500);
+            showNotification('已自动填入页面指令', 500);
 
             // 添加高亮效果提示用户
             textarea.style.background = 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)';
@@ -7575,7 +7665,7 @@ function showDimensionCheckModal(imageInfo, isDimensionValid, selectedWorkflow =
         addCacheIndicator();
         addClearCacheButton();
 
-        showNotification('已恢复上次的生成结果', 2000);
+        showNotification('已恢复上次的生成结果', 500);
     }
 
     if (!cachedRunningHubResults && window._rhPollingActive && window._rhTaskIdForCancel && !window._rhCancelRequested) {
@@ -7956,7 +8046,7 @@ function addClearCacheButton() {
                 enableSubmitButton(submitBtn, 'ready');
             }
 
-            showNotification('缓存已清除，可以重新提交任务', 2000);
+            showNotification('缓存已清除，可以重新提交任务', 500);
         }
     });
 
@@ -8050,7 +8140,9 @@ async function submitDimensionCheck(comment, selectedWorkflow = 'defaultWorkflow
 
     // 检查是否有原图
     if (!originalImage) {
-        showNotification('未找到原图，无法上传', 3000);
+        if (!isPageLoading) {
+            showNotification('未找到原图，无法上传', 500);
+        }
         // 重新启用按钮
         ensureSubmitButtonState('failed');
         return;
@@ -8061,7 +8153,7 @@ async function submitDimensionCheck(comment, selectedWorkflow = 'defaultWorkflow
     if (!apiKey) {
         apiKey = prompt('请输入您的Running Hub API Key:');
         if (!apiKey) {
-            showNotification('未提供API Key，取消上传', 2000);
+            showNotification('未提供API Key，取消上传', 500);
             // 重新启用按钮
             ensureSubmitButtonState('ready');
             return;
@@ -8078,7 +8170,7 @@ async function submitDimensionCheck(comment, selectedWorkflow = 'defaultWorkflow
         const uploadResponse = JSON.parse(uploadResult);
         if (uploadResponse.code === 0) {
             const imageFileName = uploadResponse.data.fileName;
-            showNotification(`图片上传成功！正在创建AI应用任务...`, 2000);
+            showNotification(`图片上传成功！正在创建AI应用任务...`, 500);
             debugLog('Running Hub图片上传成功:', uploadResponse);
 
             // 图片上传成功后，调用AI应用API
@@ -8098,7 +8190,7 @@ async function submitDimensionCheck(comment, selectedWorkflow = 'defaultWorkflow
             if (taskResponse.code === 0) {
                 const taskId = taskResponse.data.taskId;
                 const taskStatus = taskResponse.data.taskStatus;
-                showNotification(`AI应用任务创建成功！\n任务ID: ${taskId}\n状态: ${taskStatus}${comment ? '\n需求: ' + comment : ''}`, 5000);
+                showNotification(`AI应用任务创建成功！\n任务ID: ${taskId}\n状态: ${taskStatus}${comment ? '\n需求: ' + comment : ''}`, 500);
                 debugLog('AI应用任务创建成功:', taskResponse);
 
                 // 开始轮询并展示结果
@@ -8184,7 +8276,7 @@ async function submitDimensionCheck(comment, selectedWorkflow = 'defaultWorkflow
         }
     } catch (error) {
         debugLog('运行失败:', error);
-        showNotification('运行失败: ' + error.message, 3000);
+        showNotification('运行失败: ' + error.message, 500);
         // 运行失败，重新启用按钮
         ensureSubmitButtonState('failed');
     }
@@ -8414,7 +8506,7 @@ async function manualDimensionCheck() {
                 name: originalImage?.name || '缓存结果'
             };
             showDimensionCheckModal(imageInfoForModal, true, selectedWorkflow);
-            showNotification('已显示缓存的生成结果', 2000);
+            showNotification('已显示缓存的生成结果', 500);
             return true;
         } else {
             debugLog('用户选择重新检查，清除缓存');
@@ -8442,7 +8534,9 @@ async function manualDimensionCheck() {
 
             if (!originalImage) {
                 // 如果仍然没有找到原图，显示错误信息
-                showNotification('❌ 未找到原图，请等待页面加载完成或手动检测原图(B键)', 3000);
+                if (!isPageLoading) {
+                    showNotification('❌ 未找到原图，请等待页面加载完成或手动检测原图(B键)', 500);
+                }
                 debugLog('原图检测超时，未找到原图');
                 return;
             }
@@ -8512,7 +8606,7 @@ async function manualDimensionCheck() {
 
         if (isDimensionValid && isFileSizeValid) {
             // 尺寸和文件大小都符合要求，弹出模态框
-            showNotification('✅ 图片尺寸和大小都符合要求，弹出模态框', 1500);
+            showNotification('✅ 图片尺寸和大小都符合要求，弹出模态框', 500);
 
             // 保存检查信息
             lastDimensionCheckInfo = {
@@ -8560,7 +8654,7 @@ async function manualDimensionCheck() {
                     `推荐: 不超过5MB\n\n`;
             }
 
-            showNotification(errorMessage + '仍可继续执行任务', 3000);
+            showNotification(errorMessage + '仍可继续执行任务', 500);
 
             debugLog('图片检查不符合推荐要求，但仍弹出交互界面', {
                 width, height,
@@ -8602,7 +8696,7 @@ async function manualDimensionCheck() {
 
     } catch (error) {
         debugLog('手动检查图片时出错', error);
-        showNotification('❌ 检查图片时出错: ' + error.message, 3000);
+        showNotification('❌ 检查图片时出错: ' + error.message, 500);
         return false; // 出错时返回false
     }
 }
@@ -8659,10 +8753,10 @@ async function validateAndShowDimensionCheckModal(imageInfo, isDimensionValid) {
         if (isValid) {
             // 图片验证成功，显示模态框
             showDimensionCheckModal(imageInfo, isDimensionValid, selectedWorkflow);
-            showNotification('已重新弹出尺寸检查模态框', 1000);
+            showNotification('已重新弹出尺寸检查模态框', 500);
         } else {
             // 图片尺寸不匹配，提示用户重新检查
-            showNotification('保存的图片信息已过期，请重新按F2键检查', 3000);
+            showNotification('保存的图片信息已过期，请重新按F2键检查', 500);
             lastDimensionCheckInfo = null; // 清除无效信息
         }
         
@@ -8672,14 +8766,18 @@ async function validateAndShowDimensionCheckModal(imageInfo, isDimensionValid) {
         // 图片加载失败，尝试使用当前原图
         if (originalImage && originalImage.src) {
             debugLog('图片验证失败，尝试使用当前原图');
-            showNotification('原图片资源失效，使用当前原图重新检查...', 2000);
+            if (!isPageLoading) {
+                showNotification('原图片资源失效，使用当前原图重新检查...', 500);
+            }
             
             // 重新执行F2键检查逻辑
             setTimeout(() => {
                 checkImageDimensionsAndShowModal();
             }, 500);
         } else {
-            showNotification('图片资源失效且未找到当前原图，请重新按F2键检查', 3000);
+            if (!isPageLoading) {
+                showNotification('图片资源失效且未找到当前原图，请重新按F2键检查', 500);
+            }
             lastDimensionCheckInfo = null; // 清除无效信息
         }
     }
@@ -8933,7 +9031,7 @@ function checkIfReadyForAutoSend() {
         setTimeout(() => {
             sendPostRequestToNativeHost(true).catch(error => {
                 console.error("自动发送失败:", error);
-                showNotification("❌ 自动发送失败: " + error.message, 3000);
+                showNotification("❌ 自动发送失败: " + error.message, 500);
                 // 发送失败时重置标记，以便重试
                 hasSentDataForCurrentPage = false;
             });
@@ -9955,7 +10053,7 @@ function showImageLightbox(resultImageUrl, title, metadata) {
 
     downloadBtn.addEventListener('click', () => {
         downloadImageToLocal(resultImageUrl, metadata.fileType, 0, metadata.fileName, true); // 生成结果支持自动打开
-        showNotification('开始下载生成结果...', 2000);
+        showNotification('开始下载生成结果...', 500);
     });
 
     // 如果有原图，添加下载原图按钮
@@ -9984,7 +10082,9 @@ function showImageLightbox(resultImageUrl, title, metadata) {
         downloadOriginalBtn.addEventListener('click', () => {
             const originalFileName = generateResultImageFileName(originalImage, 'jpg', 0, '原图');
             downloadImageToLocal(originalImage.src, 'jpg', 0, originalFileName, false); // 原图不自动打开
-            showNotification('开始下载原图...', 2000);
+            if (!isPageLoading) {
+                showNotification('开始下载原图...', 500);
+            }
         });
 
         // 按钮悬停效果
@@ -10245,7 +10345,7 @@ async function uploadImageToAnnotationPlatform(imageUrl, fileType, index) {
             index
         });
 
-        showNotification('正在获取生成结果图片...', 1000);
+        showNotification('正在获取生成结果图片...', 500);
 
         // 获取图片数据
         const response = await fetch(imageUrl);
@@ -10260,7 +10360,7 @@ async function uploadImageToAnnotationPlatform(imageUrl, fileType, index) {
         const fileName = generateResultImageFileName(originalImage, fileType, index, '副本');
         const file = new File([blob], fileName, { type: blob.type });
 
-        showNotification('正在查找上传位置...', 1000);
+        showNotification('正在查找上传位置...', 500);
 
         // 直接查找现有的文件输入框
         let fileInput = document.querySelector('input[type="file"]:not([style*="display: none"])');
@@ -10277,7 +10377,7 @@ async function uploadImageToAnnotationPlatform(imageUrl, fileType, index) {
         if (!fileInput) {
             // 如果还是没有，尝试触发A键功能
             debugLog('未找到文件输入框，尝试触发A键功能');
-            showNotification('正在触发上传功能...', 1000);
+            showNotification('正在触发上传功能...', 500);
 
             // 模拟A键按下
             const uploadButton = findButtonByText(['上传图片', '上传', 'Upload', '选择图片', '选择文件']);
@@ -10316,7 +10416,7 @@ async function uploadImageToAnnotationPlatform(imageUrl, fileType, index) {
         });
 
         debugLog('生成结果已直接上传到标注平台');
-        showNotification(`✅ 生成结果已上传: ${file.name}`, 3000);
+        showNotification(`✅ 生成结果已上传: ${file.name}`, 500);
 
         // 检查上传是否成功（通过检测页面变化）
         setTimeout(() => {
@@ -10327,13 +10427,13 @@ async function uploadImageToAnnotationPlatform(imageUrl, fileType, index) {
                 showNotification('📸 图片已成功上传到标注页面', 2000);
             } else {
                 debugLog('未检测到图片预览，可能需要手动检查');
-                showNotification('图片已上传，请检查页面显示', 2000);
+                showNotification('图片已上传，请检查页面显示', 500);
             }
         }, 1500);
 
     } catch (error) {
         debugLog('直接上传生成结果失败:', error);
-        showNotification('上传失败：' + error.message, 3000);
+        showNotification('上传失败：' + error.message, 500);
     }
 }
 
@@ -10438,7 +10538,7 @@ function downloadImageToLocal(imageUrl, fileType, index, customFileName = null, 
             } else if (response && response.success) {
                 debugLog('Chrome下载请求发送成功:', response);
                 const openText = autoOpen ? '（将自动打开）' : '';
-                showNotification(`✅ 开始下载: ${fileName}${openText}`, 3000);
+                showNotification(`✅ 开始下载: ${fileName}${openText}`, 500);
             } else {
                 debugLog('Chrome下载被拒绝，尝试备用方案:', response);
                 downloadViaFetch(imageUrl, fileName);
@@ -10447,7 +10547,7 @@ function downloadImageToLocal(imageUrl, fileType, index, customFileName = null, 
 
     } catch (error) {
         debugLog('下载图片失败:', error);
-        showNotification('下载失败：' + error.message, 3000);
+        showNotification('下载失败：' + error.message, 500);
     }
 }
 
@@ -10485,13 +10585,17 @@ async function sendPostRequestToNativeHost(useCachedData = true) {
                 console.log('原图数据获取成功');
             } catch (error) {
                 console.error('获取原图数据失败:', error);
-                showNotification('❌ 获取原图数据失败: ' + error.message, 3000);
+                if (!isPageLoading) {
+                    showNotification('❌ 获取原图数据失败: ' + error.message, 500);
+                }
                 return;
             }
         } else {
             // 如果没有原图，直接返回而不发送数据
             console.log('未找到原图，取消发送请求');
-            showNotification('ℹ️ 未找到原图，取消发送请求', 3000);
+            if (!isPageLoading) {
+                showNotification('ℹ️ 未找到原图，取消发送请求', 500);
+            }
             return;
         }
 
@@ -10532,14 +10636,14 @@ async function sendPostRequestToNativeHost(useCachedData = true) {
         if (response.ok) {
             const result = await response.json();
             console.log('POST请求成功:', result);
-            showNotification('✅ 图片数据发送成功', 3000);
+            showNotification('✅ 图片数据发送成功', 500);
         } else {
             console.error('POST请求失败:', response.status, response.statusText);
-            showNotification('❌ 图片数据发送失败: ' + response.status, 3000);
+            showNotification('❌ 图片数据发送失败: ' + response.status, 500);
         }
     } catch (error) {
         console.error('发送POST请求时出错:', error);
-        showNotification('❌ 发送图片数据出错: ' + error.message, 3000);
+        showNotification('❌ 发送图片数据出错: ' + error.message, 500);
     }
 }
 
@@ -10677,7 +10781,7 @@ async function downloadViaFetch(imageUrl, fileName) {
     try {
         debugLog('使用fetch下载方案', { imageUrl: imageUrl.substring(0, 50) + '...', fileName });
 
-        showNotification('正在获取图片数据...', 2000);
+        showNotification('正在获取图片数据...', 500);
 
         // 获取图片数据
         const response = await fetch(imageUrl);
@@ -10706,11 +10810,11 @@ async function downloadViaFetch(imageUrl, fileName) {
             debugLog('下载链接已清理');
         }, 100);
 
-        showNotification(`✅ 下载完成: ${fileName}`, 3000);
+        showNotification(`✅ 下载完成: ${fileName}`, 500);
 
     } catch (error) {
         debugLog('fetch下载失败:', error);
-        showNotification('下载失败：' + error.message, 3000);
+        showNotification('下载失败：' + error.message, 500);
     }
 }
 
@@ -10933,10 +11037,10 @@ function exportRunningHubConfig() {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        showNotification('✅ 配置导出成功', 2000);
+        showNotification('✅ 配置导出成功', 500);
     } catch (error) {
         console.error('配置导出失败:', error);
-        showNotification('❌ 配置导出失败: ' + error.message, 3000);
+        showNotification('❌ 配置导出失败: ' + error.message, 500);
     }
 }
 
@@ -10948,7 +11052,7 @@ function importRunningHubConfig(file) {
             const configJson = e.target.result;
             const result = RunningHubConfigManager.importConfig(configJson);
             if (result.success) {
-                showNotification('✅ ' + result.message, 2000);
+                showNotification('✅ ' + result.message, 500);
                 // 保存配置
                 RunningHubConfigManager.saveConfig();
                 // 重新加载配置界面
@@ -10958,15 +11062,15 @@ function importRunningHubConfig(file) {
                     showRunningHubSettings();
                 }
             } else {
-                showNotification('❌ ' + result.message, 3000);
+                showNotification('❌ ' + result.message, 500);
             }
         } catch (error) {
             console.error('配置导入失败:', error);
-            showNotification('❌ 配置导入失败: ' + error.message, 3000);
+            showNotification('❌ 配置导入失败: ' + error.message, 500);
         }
     };
     reader.onerror = function() {
-        showNotification('❌ 文件读取失败', 3000);
+        showNotification('❌ 文件读取失败', 500);
     };
     reader.readAsText(file);
 }
@@ -10979,19 +11083,19 @@ function importRunningHubConfigIncremental(file) {
             const configJson = e.target.result;
             const result = RunningHubConfigManager.importConfigIncremental(configJson);
             if (result.success) {
-                showNotification('✅ ' + result.message, 2000);
+                showNotification('✅ ' + result.message, 500);
                 // 保存配置
                 RunningHubConfigManager.saveConfig();
             } else {
-                showNotification('❌ ' + result.message, 3000);
+                showNotification('❌ ' + result.message, 500);
             }
         } catch (error) {
             console.error('增量配置导入失败:', error);
-            showNotification('❌ 增量配置导入失败: ' + error.message, 3000);
+            showNotification('❌ 增量配置导入失败: ' + error.message, 500);
         }
     };
     reader.onerror = function() {
-        showNotification('❌ 文件读取失败', 3000);
+        showNotification('❌ 文件读取失败', 500);
     };
     reader.readAsText(file);
 }
@@ -11069,7 +11173,7 @@ async function loadRunningHubConfig() {
 // 从Native Host获取图片数据
 async function getNativeHostImageData() {
     try {
-        showNotification('正在获取Native Host图片数据...', 2000);
+        showNotification('正在获取Native Host图片数据...', 500);
         debugLog('开始获取Native Host图片数据');
 
         let url = 'http://localhost:8888/api/external-data'
@@ -11091,16 +11195,16 @@ async function getNativeHostImageData() {
 
         // 检查是否有图片数据
         if (!imageData.original_image && !imageData.modified_image) {
-            showNotification('❌ 未找到图片数据', 3000);
+            showNotification('❌ 未找到图片数据', 500);
             return null;
         }
 
-        showNotification('✅ 图片数据获取成功！', 2000);
+        showNotification('✅ 图片数据获取成功！', 500);
         return imageData;
     } catch (error) {
         console.error('获取Native Host图片数据失败:', error);
         debugLog(`获取Native Host图片数据失败: ${error.message}`);
-        showNotification(`❌ 获取图片数据失败: ${error.message}`, 3000);
+        showNotification(`❌ 获取图片数据失败: ${error.message}`, 500);
         return null;
     }
 }
@@ -11114,7 +11218,7 @@ async function uploadNativeHostImageToAnnotationPlatform() {
             return;
         }
 
-        showNotification('正在处理图片数据...', 1000);
+        showNotification('正在处理图片数据...', 500);
 
         // 收集要上传的图片
         const imagesToUpload = [];
@@ -11148,7 +11252,7 @@ async function uploadNativeHostImageToAnnotationPlatform() {
 
         // 检查是否有图片需要上传
         if (imagesToUpload.length === 0) {
-            showNotification('❌ 未找到可上传的图片', 3000);
+            showNotification('❌ 未找到可上传的图片', 500);
             return;
         }
 
@@ -11166,7 +11270,7 @@ async function uploadNativeHostImageToAnnotationPlatform() {
                 debugLog('图片上传完成', { imageType: image.imageType });
 
                 // 显示上传成功通知
-                showNotification(`✅ ${image.imageType}上传成功！`, 2000);
+                showNotification(`✅ ${image.imageType}上传成功！`, 500);
 
                 // 如果不是最后一张图片，等待更长时间再上传下一张，确保上传操作完全完成
                 if (i < imagesToUpload.length - 1) {
@@ -11176,7 +11280,7 @@ async function uploadNativeHostImageToAnnotationPlatform() {
             } catch (error) {
                 console.error(`${image.imageType}上传失败:`, error);
                 debugLog(`${image.imageType}上传失败: ${error.message}`);
-                showNotification(`❌ ${image.imageType}上传失败: ${error.message}`, 3000);
+                showNotification(`❌ ${image.imageType}上传失败: ${error.message}`, 500);
                 // 继续上传下一张图片，不中断整个流程
             }
         }
@@ -11184,18 +11288,18 @@ async function uploadNativeHostImageToAnnotationPlatform() {
         // 显示最终结果
         if (successfulUploads > 0) {
             if (successfulUploads === imagesToUpload.length) {
-                showNotification(`✅ 成功上传所有${successfulUploads}张图片！`, 3000);
+                showNotification(`✅ 成功上传所有${successfulUploads}张图片！`, 500);
             } else {
-                showNotification(`✅ 成功上传${successfulUploads}张图片，${imagesToUpload.length - successfulUploads}张失败`, 3000);
+                showNotification(`✅ 成功上传${successfulUploads}张图片，${imagesToUpload.length - successfulUploads}张失败`, 500);
             }
         } else {
-            showNotification('❌ 所有图片上传失败', 3000);
+            showNotification('❌ 所有图片上传失败', 500);
         }
 
     } catch (error) {
         console.error('上传Native Host图片失败:', error);
         debugLog(`上传Native Host图片失败: ${error.message}`);
-        showNotification(`❌ 上传失败: ${error.message}`, 3000);
+        showNotification(`❌ 上传失败: ${error.message}`, 500);
     }
 }
 
@@ -11274,7 +11378,7 @@ async function switchToUploadTab(tabType) {
             } else {
                 // 如果没有找到标签页按钮
                 debugLog('未找到标签页按钮', { tabType });
-                showNotification(`⚠️ 未找到${tabType === 'ps' ? 'PS后图片' : '蒙版图片'}上传标签页`, 2000);
+                showNotification(`⚠️ 未找到${tabType === 'ps' ? 'PS后图片' : '蒙版图片'}上传标签页`, 500);
                 // 即使没有找到标签页也等待一下，防止后续操作出现问题
                 await new Promise(resolve => setTimeout(resolve, 1000));
             }
@@ -11387,7 +11491,7 @@ async function uploadSingleImage(base64Data, fileName, imageType, uploadTarget) 
         // 方法3: 如果仍然没有找到，尝试触发A键功能来显示文件输入框
         if (!fileInput) {
             debugLog('未找到文件输入框，尝试触发A键功能显示文件输入框');
-            showNotification('正在触发上传功能...', 1000);
+            showNotification('正在触发上传功能...', 500);
             // 模拟A键按下
             const defaultUploadButton = findButtonByText(['上传图片', '上传', 'Upload', '选择图片', '选择文件']);
             if (defaultUploadButton) {
@@ -11416,14 +11520,14 @@ async function uploadSingleImage(base64Data, fileName, imageType, uploadTarget) 
             fileInput.dispatchEvent(event);
 
             debugLog('文件上传成功', { fileName, fileSize: file.size, target: uploadTarget, imageType });
-            showNotification(`✅ ${imageType}上传成功！`, 2000);
+            showNotification(`✅ ${imageType}上传成功！`, 500);
         } else {
-            showNotification('❌ 未找到上传位置', 3000);
+            showNotification('❌ 未找到上传位置', 500);
         }
     } catch (error) {
         console.error('上传单张图片失败:', error);
         debugLog(`上传单张图片失败: ${error.message}`);
-        showNotification(`❌ ${imageType}上传失败: ${error.message}`, 3000);
+        showNotification(`❌ ${imageType}上传失败: ${error.message}`, 500);
         throw error;
     }
 }
@@ -11509,7 +11613,7 @@ function checkIfReadyForAutoSend() {
         setTimeout(() => {
             sendPostRequestToNativeHost(true).catch(error => {
                 console.error("自动发送失败:", error);
-                showNotification("❌ 自动发送失败: " + error.message, 3000);
+                showNotification("❌ 自动发送失败: " + error.message, 500);
                 // 发送失败时重置标记，以便重试
                 hasSentDataForCurrentPage = false;
             });

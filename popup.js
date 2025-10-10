@@ -184,10 +184,10 @@ function showNotification(message) {
 
   document.body.appendChild(notification);
 
-  // 3秒后移除通知
+  // 0.5秒后移除通知
   setTimeout(() => {
     if (notification.parentNode) {
       notification.parentNode.removeChild(notification);
     }
-  }, 3000);
+  }, 500);
 }
