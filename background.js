@@ -615,33 +615,31 @@ function initializeDownloadListener() {
               });
             }
 
-            // 如果明确设置了不自动打开，跳过
-            if (shouldAutoOpen === false) {
-              if (LOG_VERBOSE) console.log('此下载设置为不自动打开，跳过');
+            // 如果明确设置了自动打开行为，使用该设置
+            if (shouldAutoOpen !== undefined) {
+              if (shouldAutoOpen === true) {
+                if (LOG_VERBOSE) console.log('明确设置为自动打开图片');
+                openImageWithBestMethod(delta.id, download.filename);
+              } else {
+                if (LOG_VERBOSE) console.log('明确设置为不自动打开图片');
+              }
               downloadAutoOpenMap.delete(delta.id); // 清理映射
               return;
             }
 
-            // 获取用户的全局设置（仅当未明确设置时）
-            if (shouldAutoOpen === undefined) {
-              chrome.storage.sync.get({autoOpenImages: true}, (settings) => {
-                if (LOG_VERBOSE) console.log('使用全局自动打开设置:', settings.autoOpenImages);
+            // 如果没有明确设置，则使用用户的全局设置
+            chrome.storage.sync.get({autoOpenImages: true}, (settings) => {
+              if (LOG_VERBOSE) console.log('使用全局自动打开设置:', settings.autoOpenImages);
 
-                if (settings.autoOpenImages) {
-                  if (LOG_VERBOSE) console.log('根据全局设置自动打开图片');
-                  openImageWithBestMethod(delta.id, download.filename);
-                } else {
-                  if (LOG_VERBOSE) console.log('全局设置不自动打开图片');
-                }
+              if (settings.autoOpenImages) {
+                if (LOG_VERBOSE) console.log('根据全局设置自动打开图片');
+                openImageWithBestMethod(delta.id, download.filename);
+              } else {
+                if (LOG_VERBOSE) console.log('全局设置不自动打开图片');
+              }
 
-                downloadAutoOpenMap.delete(delta.id); // 清理映射
-              });
-            } else {
-              // 明确设置为自动打开
-              if (LOG_VERBOSE) console.log('根据特定设置自动打开图片');
-              openImageWithBestMethod(delta.id, download.filename);
               downloadAutoOpenMap.delete(delta.id); // 清理映射
-            }
+            });
           } else {
             if (LOG_VERBOSE) console.log('非图片文件，不自动打开');
             downloadAutoOpenMap.delete(delta.id); // 清理映射
