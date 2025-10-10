@@ -6070,6 +6070,19 @@ function cacheOriginalImageInfo(imageInfo) {
     }
 }
 
+// 更新指令文本缓存
+function updateInstructionTextCache(newText) {
+    if (newText && newText.trim()) {
+        const trimmedText = newText.trim();
+        cachedInstructionText = trimmedText;
+        lastCacheUpdateTime = Date.now();
+        debugLog('指令文本缓存已更新', {
+            text: trimmedText.substring(0, 50) + '...',
+            length: trimmedText.length
+        });
+    }
+}
+
 // 自动提取页面指令文本
 function extractInstructionText(useCache = true) {
     try {
@@ -7654,6 +7667,27 @@ function showDimensionCheckModal(imageInfo, isDimensionValid, selectedWorkflow =
         }
     }
 
+    // 添加文本框输入事件监听器，实时更新指令缓存
+    if (textarea) {
+        const updateCacheHandler = () => {
+            const currentText = textarea.value.trim();
+            // 只有当用户输入了有效文本时才更新缓存
+            if (currentText && currentText !== (cachedInstructionText || '')) {
+                updateInstructionTextCache(currentText);
+                debugLog('用户输入的指令已更新到缓存', {
+                    text: currentText.substring(0, 50) + '...'
+                });
+            }
+        };
+
+        // 监听输入事件和失去焦点事件
+        textarea.addEventListener('input', updateCacheHandler);
+        textarea.addEventListener('blur', updateCacheHandler);
+
+        // 保存事件处理函数引用以便清理
+        textarea._updateCacheHandler = updateCacheHandler;
+    }
+
     // 检查是否有缓存需要恢复（在事件绑定后）
     if (cachedRunningHubResults && currentPageTaskInfo) {
         debugLog('在事件绑定后恢复缓存结果', {
@@ -8100,6 +8134,14 @@ function closeDimensionCheckModal() {
 
     // 移除模态框DOM元素
     if (dimensionCheckModal.parentNode) {
+        // 清理文本框事件监听器
+        const textarea = dimensionCheckModal.querySelector('#dimensionCheckTextarea');
+        if (textarea && textarea._updateCacheHandler) {
+            textarea.removeEventListener('input', textarea._updateCacheHandler);
+            textarea.removeEventListener('blur', textarea._updateCacheHandler);
+            debugLog('文本框事件监听器已移除');
+        }
+
         dimensionCheckModal.parentNode.removeChild(dimensionCheckModal);
         debugLog('模态框DOM元素已移除');
     }
