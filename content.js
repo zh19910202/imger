@@ -1143,30 +1143,46 @@ function downloadImage(img) {
             if (!chromeRuntime || !chromeRuntime.sendMessage) {
                 throw new Error('Chrome runtime API不可用');
             }
-            
+
+            // 获取当前自动打开设置
             chromeRuntime.sendMessage({
-                action: 'downloadImage',
-                imageUrl: imageUrl,
-                pageUrl: window.location.href
-            }, (response) => {
+                action: 'checkSettings'
+            }, (settingsResponse) => {
+                let autoOpen = true; // 默认值
+
                 if (chromeRuntime.lastError) {
-                    console.error('发送消息失败:', chromeRuntime.lastError);
-                    showNotification('下载失败：无法连接到扩展后台');
-                } else if (response && response.success) {
-                    console.log('下载请求已发送');
-                    showNotification('开始下载图片...');
-                    // 添加下载效果
-                    addDownloadEffect(img);
-                    // 下载发起成功后，按你的需求将当前悬停图片标记为原图（不限制JPEG）
-                    try {
-                        recordImageAsOriginalFlexible(img);
-                    } catch (e) {
-                        console.warn('标记原图失败（宽松模式）:', e);
-                    }
-                } else {
-                    console.error('下载请求失败');
-                    showNotification('下载失败');
+                    console.error('获取设置失败:', chromeRuntime.lastError);
+                } else if (settingsResponse && settingsResponse.success) {
+                    // 使用获取到的设置
+                    autoOpen = settingsResponse.autoOpenImages;
                 }
+
+                // 发送下载请求，包含自动打开设置
+                chromeRuntime.sendMessage({
+                    action: 'downloadImage',
+                    imageUrl: imageUrl,
+                    pageUrl: window.location.href,
+                    autoOpen: autoOpen
+                }, (response) => {
+                    if (chromeRuntime.lastError) {
+                        console.error('发送消息失败:', chromeRuntime.lastError);
+                        showNotification('下载失败：无法连接到扩展后台');
+                    } else if (response && response.success) {
+                        console.log('下载请求已发送');
+                        showNotification('开始下载图片...');
+                        // 添加下载效果
+                        addDownloadEffect(img);
+                        // 下载发起成功后，按你的需求将当前悬停图片标记为原图（不限制JPEG）
+                        try {
+                            recordImageAsOriginalFlexible(img);
+                        } catch (e) {
+                            console.warn('标记原图失败（宽松模式）:', e);
+                        }
+                    } else {
+                        console.error('下载请求失败');
+                        showNotification('下载失败');
+                    }
+                });
             });
         } catch (apiError) {
             console.error('Chrome API调用异常:', apiError);
