@@ -10194,9 +10194,27 @@ function showImageLightbox(resultImageUrl, title, metadata) {
 
         downloadOriginalBtn.addEventListener('click', () => {
             const originalFileName = generateResultImageFileName(originalImage, 'jpg', 0, '原图');
-            downloadImageToLocal(originalImage.src, 'jpg', 0, originalFileName, false); // 原图不自动打开
-            if (!isPageLoading) {
-                showNotification('开始下载原图...', 500);
+            // 获取用户自动打开设置并传递给下载函数
+            if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+                chrome.runtime.sendMessage({
+                    action: 'checkSettings'
+                }, (settingsResponse) => {
+                    let autoOpen = true; // 默认值
+                    if (!chrome.runtime.lastError && settingsResponse && settingsResponse.success) {
+                        autoOpen = settingsResponse.autoOpenImages;
+                    }
+                    downloadImageToLocal(originalImage.src, 'jpg', 0, originalFileName, autoOpen);
+                    if (!isPageLoading) {
+                        const openText = autoOpen ? '（将自动打开）' : '';
+                        showNotification(`开始下载原图...${openText}`, 500);
+                    }
+                });
+            } else {
+                // 如果无法获取设置，使用默认行为
+                downloadImageToLocal(originalImage.src, 'jpg', 0, originalFileName, true);
+                if (!isPageLoading) {
+                    showNotification('开始下载原图...', 500);
+                }
             }
         });
 
