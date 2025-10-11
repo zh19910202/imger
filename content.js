@@ -7950,17 +7950,22 @@ function cacheRunningHubResults(taskId, resultsData, taskInfo) {
             taskInfo
         });
 
+        // 获取当前指令文本并保存到缓存中
+        const currentInstructionText = cachedInstructionText || extractInstructionText(false);
+
         cachedRunningHubResults = {
             ...resultsData,
             cachedAt: Date.now(),
-            pageUrl: window.location.href
+            pageUrl: window.location.href,
+            instructionText: currentInstructionText  // 保存指令文本
         };
 
         currentPageTaskInfo = {
             taskId,
             ...taskInfo,
             cachedAt: Date.now(),
-            pageUrl: window.location.href
+            pageUrl: window.location.href,
+            instructionText: currentInstructionText  // 保存指令文本
         };
 
         lastSuccessfulTaskId = taskId;
@@ -7972,7 +7977,8 @@ function cacheRunningHubResults(taskId, resultsData, taskInfo) {
 
         debugLog('RunningHub结果已缓存', {
             cachedResultsExists: !!cachedRunningHubResults,
-            taskInfo: currentPageTaskInfo
+            taskInfo: currentPageTaskInfo,
+            instructionText: currentInstructionText ? currentInstructionText.substring(0, 50) + '...' : '无'
         });
 
     } catch (error) {
@@ -8581,6 +8587,16 @@ async function manualDimensionCheck() {
 
         if (shouldViewCached) {
             debugLog('用户选择查看缓存结果');
+
+            // 如果缓存中有指令文本，先更新到全局缓存中
+            if (currentPageTaskInfo.instructionText) {
+                cachedInstructionText = currentPageTaskInfo.instructionText;
+                lastCacheUpdateTime = Date.now();
+                debugLog('已恢复缓存的指令文本', {
+                    text: cachedInstructionText.substring(0, 50) + '...'
+                });
+            }
+
             // 直接显示模态框，缓存会自动恢复
             const imageInfoForModal = {
                 src: originalImage?.src || 'cached_result',
