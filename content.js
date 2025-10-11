@@ -10142,12 +10142,12 @@ function showImageLightbox(resultImageUrl, title, metadata) {
         z-index: 10;
     `;
 
-    // 下载按钮
+    // 下载按钮 - 下载修改图（遵循用户设置）
     const downloadBtn = document.createElement('button');
     downloadBtn.innerHTML = `
         <span style="display: flex; align-items: center; gap: 8px;">
             <span>📥</span>
-            下载并打开
+            下载修改图
         </span>
     `;
     downloadBtn.style.cssText = `
@@ -10165,8 +10165,24 @@ function showImageLightbox(resultImageUrl, title, metadata) {
     `;
 
     downloadBtn.addEventListener('click', () => {
-        downloadImageToLocal(resultImageUrl, metadata.fileType, 0, metadata.fileName, true); // 生成结果支持自动打开
-        showNotification('开始下载生成结果...', 500);
+        // 获取用户自动打开设置并传递给下载函数
+        if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+            chrome.runtime.sendMessage({
+                action: 'checkSettings'
+            }, (settingsResponse) => {
+                let autoOpen = true; // 默认值
+                if (!chrome.runtime.lastError && settingsResponse && settingsResponse.success) {
+                    autoOpen = settingsResponse.autoOpenImages;
+                }
+                downloadImageToLocal(resultImageUrl, metadata.fileType, 0, metadata.fileName, autoOpen);
+                const openText = autoOpen ? '（将自动打开）' : '';
+                showNotification(`开始下载修改图...${openText}`, 500);
+            });
+        } else {
+            // 如果无法获取设置，使用默认行为
+            downloadImageToLocal(resultImageUrl, metadata.fileType, 0, metadata.fileName, true);
+            showNotification('开始下载修改图...', 500);
+        }
     });
 
     // 如果有原图，添加下载原图按钮
