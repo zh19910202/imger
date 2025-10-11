@@ -9770,12 +9770,12 @@ function renderRunningHubResultsInModal(outputsJson) {
                     });
                 });
 
-                // 下载按钮 - 使用Chrome扩展下载
+                // 下载按钮 - 使用Chrome扩展下载（遵循用户设置）
                 const downloadBtn = document.createElement('button');
                 downloadBtn.innerHTML = `
                     <span style="display: flex; align-items: center; gap: 6px;">
                         <span>📥</span>
-                        下载并打开
+                        下载图片
                     </span>
                 `;
                 downloadBtn.style.cssText = `
@@ -9792,7 +9792,21 @@ function renderRunningHubResultsInModal(outputsJson) {
                 `;
 
                 downloadBtn.addEventListener('click', () => {
-                    downloadImageToLocal(fileUrl, fileType, index, null, true); // 生成结果支持自动打开
+                    // 获取用户自动打开设置并传递给下载函数
+                    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+                        chrome.runtime.sendMessage({
+                            action: 'checkSettings'
+                        }, (settingsResponse) => {
+                            let autoOpen = true; // 默认值
+                            if (!chrome.runtime.lastError && settingsResponse && settingsResponse.success) {
+                                autoOpen = settingsResponse.autoOpenImages;
+                            }
+                            downloadImageToLocal(fileUrl, fileType, index, null, autoOpen);
+                        });
+                    } else {
+                        // 如果无法获取设置，使用默认行为
+                        downloadImageToLocal(fileUrl, fileType, index, null, true);
+                    }
                 });
 
                 // 上传图片按钮
