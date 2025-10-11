@@ -24,6 +24,7 @@ let debugPanel = null; // 调试面板元素
 let debugLogs = []; // 调试日志数组
 let deviceVerified = true; // 设备验证状态，默认为true，表示允许使用热键
 let keydownListener = null; // 键盘事件监听器引用
+let runningHubSuccessTimer = null; // RunningHub任务成功后的定时器ID
 // F1 连续无效化相关
 let f1AutoInvalidating = false;
 let f1IntervalMs = 800; // 可调整的执行间隔（毫秒）
@@ -7703,9 +7704,9 @@ function showDimensionCheckModal(imageInfo, isDimensionValid, selectedWorkflow =
         // 恢复结果显示
         renderRunningHubResultsInModal(cachedRunningHubResults);
 
-        // 恢复按钮状态
+        // 恢复按钮状态 - 直接显示重新提交状态
         if (submitBtn) {
-            enableSubmitButton(submitBtn, currentPageTaskInfo.status || 'success');
+            enableSubmitButton(submitBtn, 'failed');
         }
 
         // 隐藏取消按钮
@@ -8120,6 +8121,13 @@ function closeDimensionCheckModal() {
     // 先设置状态为关闭，防止事件处理器继续触发
     isDimensionCheckModalOpen = false;
 
+    // 清除RunningHub成功状态的定时器
+    if (runningHubSuccessTimer) {
+        clearTimeout(runningHubSuccessTimer);
+        runningHubSuccessTimer = null;
+        debugLog('已清除RunningHub成功状态定时器');
+    }
+
     // 移除ESC键监听器（使用capture参数匹配绑定时的参数）
     if (dimensionCheckModal._handleEscKey) {
         document.removeEventListener('keydown', dimensionCheckModal._handleEscKey, true);
@@ -8157,6 +8165,23 @@ function ensureSubmitButtonState(status = 'ready') {
     try {
         const submitBtn = document.querySelector('#dimensionCheckSubmitBtn');
         if (submitBtn) {
+            // 清除之前的定时器
+            if (runningHubSuccessTimer) {
+                clearTimeout(runningHubSuccessTimer);
+                runningHubSuccessTimer = null;
+            }
+
+            // 如果状态是成功，则设置定时器在稍后自动切换到重新提交状态
+            if (status === 'success') {
+                // 2秒后自动切换到重新提交状态
+                runningHubSuccessTimer = setTimeout(() => {
+                    if (submitBtn && isDimensionCheckModalOpen) {
+                        enableSubmitButton(submitBtn, 'failed');
+                        debugLog('任务完成状态自动切换为重新提交状态');
+                    }
+                }, 2000); // 2秒后切换
+            }
+
             enableSubmitButton(submitBtn, status);
             debugLog('提交按钮状态已更新', { status });
         } else {
