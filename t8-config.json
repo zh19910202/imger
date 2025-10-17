@@ -1,0 +1,36 @@
+{
+  "version": "1.0",
+  "platform": "t8",
+  "workflows": {
+    "default": {
+      "name": "T8平台工作流",
+      "description": "T8平台的图像处理工作流",
+      "parameters": {
+        "model": "nano-banana",
+        "response_format": "url",
+        "aspect_ratio": ""
+      },
+      "nodeInfoList": [
+        {
+          "fieldName": "prompt",
+          "fieldValue": "{PROMPT}",
+          "description": "处理指令",
+          "fieldType": "text",
+          "required": true
+        },
+        {
+          "fieldName": "image",
+          "fieldValue": "{IMAGE_FILE}",
+          "description": "输入图像",
+          "fieldType": "image",
+          "required": true
+        }
+      ]
+    }
+  },
+  "settings": {
+    "defaultWorkflow": "default",
+    "autoSave": true,
+    "lastUsedWorkflow": "default"
+  }
+}

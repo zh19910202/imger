@@ -52,7 +52,9 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "runninghub-config.json"
+        "runninghub-config.json",
+        "t8-config.json",
+        "platform-config.json"
       ],
       "matches": [
         "https://qlabel.tencent.com/*",

@@ -1,0 +1,21 @@
+{
+  "version": "1.0",
+  "currentPlatform": "t8",
+  "platforms": {
+    "runninghub": {
+      "configFile": "runninghub-config.json",
+      "enabled": true,
+      "name": "RunningHub平台",
+      "description": "原始的RunningHub AI平台"
+    },
+    "t8": {
+      "configFile": "t8-config.json",
+      "enabled": true,
+      "name": "T8平台",
+      "description": "T8 AI图像处理平台"
+    }
+  },
+  "settings": {
+    "autoSave": true
+  }
+}

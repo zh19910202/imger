@@ -1,5 +1,6 @@
 {
   "version": "1.0",
+  "platform": "runninghub",
   "workflows": {
     "default": {
       "name": "默认工作流",

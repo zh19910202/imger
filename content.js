@@ -6248,6 +6248,7 @@ function extractInstructionText(useCache = true) {
 
 // 显示RunningHub设置界面
 function showRunningHubSettings() {
+    debugLog('显示RunningHub设置界面，当前平台配置:', CURRENT_PLATFORM_CONFIG);
     // 首先关闭当前的尺寸检查模态框
     if (dimensionCheckModal && isDimensionCheckModalOpen) {
         closeDimensionCheckModal();
@@ -6300,10 +6301,28 @@ function createRunningHubSettingsModal() {
     `;
 
     // 加载配置
-    loadRunningHubConfig().then(() => {
+    loadCurrentPlatformConfig().then(() => {
         // 生成模态框内容
-        const workflowList = RunningHubConfigManager.getWorkflowList();
-        const defaultWorkflow = RunningHubConfigManager.getDefaultWorkflow();
+        const workflowList = getCurrentPlatformWorkflowList();
+        // 调试信息
+        debugLog('设置界面 - 当前平台配置:', CURRENT_PLATFORM_CONFIG);
+        debugLog('设置界面 - T8配置:', T8_CONFIG);
+        debugLog('设置界面 - RunningHub配置:', RUNNINGHUB_CONFIG);
+        debugLog('设置界面 - 当前工作流列表:', workflowList);
+
+        // 获取当前平台的默认工作流
+        let defaultWorkflow;
+        const currentPlatform = CURRENT_PLATFORM_CONFIG ? CURRENT_PLATFORM_CONFIG.currentPlatform : 'runninghub';
+        if (currentPlatform === 't8' && T8_CONFIG) {
+            defaultWorkflow = T8_CONFIG.settings.defaultWorkflow || 'default';
+        } else if (RUNNINGHUB_CONFIG) {
+            defaultWorkflow = RunningHubConfigManager.getDefaultWorkflow();
+        } else {
+            defaultWorkflow = 'default';
+        }
+
+        // 调试信息
+        debugLog('设置界面工作流列表:', workflowList);
 
         modalContent.innerHTML = `
             <button id="rhSettingsCloseBtn" style="
@@ -6325,7 +6344,7 @@ function createRunningHubSettingsModal() {
             ">×</button>
 
             <div style="text-align: center; margin-bottom: 24px;">
-                <h2 style="margin: 0 0 8px 0; color: #1e293b; font-weight: 700;">RunningHub 配置管理</h2>
+                <h2 style="margin: 0 0 8px 0; color: #1e293b; font-weight: 700;">AI平台管理</h2>
                 <p style="margin: 0; color: #64748b; font-size: 14px;">管理AI工作流配置</p>
             </div>
 
@@ -6376,6 +6395,28 @@ function createRunningHubSettingsModal() {
                     font-weight: 500;
                     transition: all 0.2s ease;
                 ">📤 导出配置</button>
+            </div>
+
+            <div style="margin-bottom: 24px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">当前AI平台</label>
+                <select id="rhPlatformSelect" style="
+                    width: 100%;
+                    padding: 12px;
+                    border: 2px solid #e2e8f0;
+                    border-radius: 8px;
+                    background: white;
+                    font-size: 14px;
+                    margin-bottom: 16px;
+                ">
+                    ${Object.keys(CURRENT_PLATFORM_CONFIG.platforms).map(platformId => {
+                        const platform = CURRENT_PLATFORM_CONFIG.platforms[platformId];
+                        const isSelected = platformId === CURRENT_PLATFORM_CONFIG.currentPlatform;
+                        return `<option value="${platformId}" ${isSelected ? 'selected' : ''}>
+                            ${platform.name} (${platformId})
+                        </option>`;
+                    }).join('')}
+                </select>
+                <!-- 平台切换按钮已移除，选择平台后将自动切换 -->
             </div>
 
             <div style="margin-bottom: 24px;">
@@ -6467,15 +6508,318 @@ function createRunningHubSettingsModal() {
         document.body.appendChild(settingsModal);
 
         // 绑定事件
-        bindSettingsModalEvents(settingsModal, fileInput);
+        // 关闭按钮
+        const closeBtn = modalContent.querySelector('#rhSettingsCloseBtn');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+                settingsModal.remove();
+            });
+        }
+
+        // 点击背景关闭
+        settingsModal.addEventListener('click', (e) => {
+            if (e.target === settingsModal) {
+                settingsModal.remove();
+            }
+        });
+
+        // ESC键关闭
+        const handleEscKey = (e) => {
+            if (e.key === 'Escape') {
+                settingsModal.remove();
+                document.removeEventListener('keydown', handleEscKey);
+            }
+        };
+        document.addEventListener('keydown', handleEscKey);
+
+        // 平台选择下拉菜单
+        const platformSelect = modalContent.querySelector('#rhPlatformSelect');
+        if (platformSelect) {
+            platformSelect.addEventListener('change', async () => {
+                const selectedPlatform = platformSelect.value;
+                debugLog('平台切换事件触发，选择的平台:', selectedPlatform);
+                debugLog('切换前的CURRENT_PLATFORM_CONFIG:', CURRENT_PLATFORM_CONFIG);
+
+                try {
+                    // 更新平台配置
+                    if (CURRENT_PLATFORM_CONFIG) {
+                        CURRENT_PLATFORM_CONFIG.currentPlatform = selectedPlatform;
+                        debugLog('更新后的CURRENT_PLATFORM_CONFIG:', CURRENT_PLATFORM_CONFIG);
+                        // 保存到localStorage
+                        MultiPlatformConfigManager.savePlatformConfig(CURRENT_PLATFORM_CONFIG);
+                        debugLog('保存到localStorage后的配置:', localStorage.getItem('platform_config'));
+                        showNotification(`✅ 已切换到${CURRENT_PLATFORM_CONFIG.platforms[selectedPlatform].name}平台`, 500);
+
+                        // 无缝重新加载内容，不关闭窗口
+                        await reloadPlatformContent(settingsModal, selectedPlatform);
+                    } else {
+                        debugLog('CURRENT_PLATFORM_CONFIG为空，无法切换平台');
+                        showNotification('❌ 平台配置未加载', 500);
+                    }
+                } catch (error) {
+                    debugLog('平台切换失败:', error);
+                    showNotification('❌ 平台切换失败: ' + error.message, 500);
+                }
+            });
+        }
+
+        // 添加工作流按钮
+        const addWorkflowBtn = modalContent.querySelector('#rhAddWorkflowBtn');
+        if (addWorkflowBtn) {
+            addWorkflowBtn.addEventListener('click', () => {
+                showAddWorkflowDialog(settingsModal);
+            });
+        }
+
+        // 导入配置按钮
+        const importBtn = modalContent.querySelector('#rhImportConfigBtn');
+        if (importBtn && fileInput) {
+            importBtn.addEventListener('click', () => {
+                fileInput.setAttribute('data-import-mode', 'replace');
+                fileInput.click();
+            });
+        }
+
+        // 增量导入配置按钮
+        const importIncrementalBtn = modalContent.querySelector('#rhImportConfigIncrementalBtn');
+        if (importIncrementalBtn && fileInput) {
+            importIncrementalBtn.addEventListener('click', () => {
+                fileInput.setAttribute('data-import-mode', 'incremental');
+                fileInput.click();
+            });
+        }
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                const importMode = fileInput.getAttribute('data-import-mode') || 'replace';
+                if (importMode === 'incremental') {
+                    // 增量导入
+                    importRunningHubConfigIncremental(e.target.files[0]);
+                } else {
+                    // 完全覆盖导入
+                    importRunningHubConfig(e.target.files[0]);
+                }
+                // 重新加载界面
+                setTimeout(() => {
+                    settingsModal.remove();
+                    showRunningHubSettings();
+                }, 1000);
+            }
+        });
+
+        // 导出配置按钮
+        const exportBtn = modalContent.querySelector('#rhExportConfigBtn');
+        if (exportBtn) {
+            exportBtn.addEventListener('click', exportRunningHubConfig);
+        }
+
+        // 默认工作流选择
+        const defaultWorkflowSelect = modalContent.querySelector('#rhDefaultWorkflowSelect');
+        if (defaultWorkflowSelect) {
+            defaultWorkflowSelect.addEventListener('change', (e) => {
+                // 根据当前平台设置默认工作流
+                const currentPlatform = CURRENT_PLATFORM_CONFIG ? CURRENT_PLATFORM_CONFIG.currentPlatform : 'runninghub';
+                if (currentPlatform === 't8' && T8_CONFIG) {
+                    T8_CONFIG.settings.defaultWorkflow = e.target.value;
+                    MultiPlatformConfigManager.saveSpecificPlatformConfig('t8', T8_CONFIG);
+                    showNotification('✅ 默认工作流已更新', 500);
+                } else {
+                    RunningHubConfigManager.setDefaultWorkflow(e.target.value);
+                    showNotification('✅ 默认工作流已更新', 500);
+                }
+            });
+        }
+
+        // 编辑工作流按钮
+        modalContent.querySelectorAll('.rh-edit-workflow-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const workflowId = btn.getAttribute('data-workflow-id');
+                showEditWorkflowDialog(settingsModal, workflowId);
+            });
+        });
+
+        // 删除工作流按钮
+        modalContent.querySelectorAll('.rh-delete-workflow-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const workflowId = btn.getAttribute('data-workflow-id');
+                if (confirm(`确定要删除工作流 "${workflowId}" 吗？`)) {
+                    try {
+                        // 根据当前平台删除工作流
+                        const currentPlatform = CURRENT_PLATFORM_CONFIG ? CURRENT_PLATFORM_CONFIG.currentPlatform : 'runninghub';
+                        if (currentPlatform === 't8' && T8_CONFIG) {
+                            if (workflowId === 'default') {
+                                throw new Error('不能删除默认工作流');
+                            }
+                            delete T8_CONFIG.workflows[workflowId];
+                            MultiPlatformConfigManager.saveSpecificPlatformConfig('t8', T8_CONFIG);
+                            showNotification('✅ 工作流已删除', 500);
+                        } else {
+                            RunningHubConfigManager.removeWorkflow(workflowId);
+                            showNotification('✅ 工作流已删除', 500);
+                        }
+                        // 重新加载界面
+                        settingsModal.remove();
+                        showRunningHubSettings();
+                    } catch (error) {
+                        showNotification('❌ 删除失败: ' + error.message, 500);
+                    }
+                }
+            });
+        });
+
     }).catch(error => {
         console.error('加载配置失败:', error);
         showNotification('❌ 加载配置失败: ' + error.message, 500);
     });
+
+// 绑定重新加载后的工作流控制事件
+function bindReloadedWorkflowControlEvents(modal) {
+    // 编辑工作流按钮
+    modal.querySelectorAll('.rh-edit-workflow-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const workflowId = btn.getAttribute('data-workflow-id');
+            showEditWorkflowDialog(modal, workflowId);
+        });
+    });
+
+    // 删除工作流按钮
+    modal.querySelectorAll('.rh-delete-workflow-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const workflowId = btn.getAttribute('data-workflow-id');
+            if (confirm(`确定要删除工作流 "${workflowId}" 吗？`)) {
+                try {
+                    // 根据当前平台删除工作流
+                    const currentPlatform = CURRENT_PLATFORM_CONFIG ? CURRENT_PLATFORM_CONFIG.currentPlatform : 'runninghub';
+                    if (currentPlatform === 't8' && T8_CONFIG) {
+                        if (workflowId === 'default') {
+                            throw new Error('不能删除默认工作流');
+                        }
+                        delete T8_CONFIG.workflows[workflowId];
+                        MultiPlatformConfigManager.saveSpecificPlatformConfig('t8', T8_CONFIG);
+                        showNotification('✅ 工作流已删除', 500);
+                    } else {
+                        RunningHubConfigManager.removeWorkflow(workflowId);
+                        showNotification('✅ 工作流已删除', 500);
+                    }
+                    // 重新加载内容
+                    const selectedPlatform = CURRENT_PLATFORM_CONFIG ? CURRENT_PLATFORM_CONFIG.currentPlatform : 'runninghub';
+                    reloadPlatformContent(modal, selectedPlatform);
+                } catch (error) {
+                    showNotification('❌ 删除失败: ' + error.message, 500);
+                }
+            }
+        });
+    });
 }
 
-// 绑定设置模态框事件
-function bindSettingsModalEvents(modal, fileInput) {
+// 无缝重新加载平台内容
+async function reloadPlatformContent(modal, selectedPlatform) {
+    try {
+        // 显示加载状态
+        const workflowListContainer = modal.querySelector('#rhWorkflowList');
+        const defaultWorkflowSelect = modal.querySelector('#rhDefaultWorkflowSelect');
+
+        if (workflowListContainer) {
+            workflowListContainer.innerHTML = '<div style="text-align: center; padding: 20px;">🔄 正在加载平台配置...</div>';
+        }
+
+        // 重新加载平台特定配置
+        await loadPlatformSpecificConfig(selectedPlatform, true);
+
+        // 获取新的工作流列表
+        const workflowList = getCurrentPlatformWorkflowList();
+
+        // 获取新的默认工作流
+        let defaultWorkflow;
+        if (selectedPlatform === 't8' && T8_CONFIG) {
+            defaultWorkflow = T8_CONFIG.settings.defaultWorkflow || 'default';
+        } else if (RUNNINGHUB_CONFIG) {
+            defaultWorkflow = RunningHubConfigManager.getDefaultWorkflow();
+        } else {
+            defaultWorkflow = 'default';
+        }
+
+        // 更新工作流列表
+        if (workflowListContainer) {
+            workflowListContainer.innerHTML = workflowList.map(workflow => `
+                <div class="rh-workflow-item" data-workflow-id="${workflow.id}" style="
+                    background: white;
+                    border: 1px solid #e2e8f0;
+                    border-radius: 12px;
+                    padding: 20px;
+                    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+                ">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px;">
+                        <div>
+                            <h4 style="margin: 0 0 8px 0; color: #1e293b; font-weight: 600;">
+                                ${workflow.name}
+                                ${workflow.id === 'default' ? '<span style="background: #f59e0b; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-left: 8px;">默认</span>' : ''}
+                            </h4>
+                            <p style="margin: 0; color: #64748b; font-size: 13px;">ID: ${workflow.id}</p>
+                            <p style="margin: 8px 0 0 0; color: #64748b; font-size: 14px;">${workflow.description || '无描述'}</p>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            ${workflow.id !== 'default' ? `
+                                <button class="rh-edit-workflow-btn" data-workflow-id="${workflow.id}" style="
+                                    padding: 8px 12px;
+                                    background: #3b82f6;
+                                    color: white;
+                                    border: none;
+                                    border-radius: 6px;
+                                    cursor: pointer;
+                                    font-size: 12px;
+                                ">编辑</button>
+                                <button class="rh-delete-workflow-btn" data-workflow-id="${workflow.id}" style="
+                                    padding: 8px 12px;
+                                    background: #ef4444;
+                                    color: white;
+                                    border: none;
+                                    border-radius: 6px;
+                                    cursor: pointer;
+                                    font-size: 12px;
+                                ">删除</button>
+                            ` : `
+                                <button class="rh-edit-workflow-btn" data-workflow-id="${workflow.id}" style="
+                                    padding: 8px 12px;
+                                    background: #3b82f6;
+                                    color: white;
+                                    border: none;
+                                    border-radius: 6px;
+                                    cursor: pointer;
+                                    font-size: 12px;
+                                ">编辑</button>
+                            `}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 更新默认工作流选择
+        if (defaultWorkflowSelect) {
+            defaultWorkflowSelect.innerHTML = workflowList.map(workflow =>
+                `<option value="${workflow.id}" ${workflow.id === defaultWorkflow ? 'selected' : ''}>
+                    ${workflow.name} (${workflow.id})
+                </option>`
+            ).join('');
+        }
+
+        // 重新绑定事件
+        bindReloadedWorkflowControlEvents(modal);
+
+        debugLog('平台内容重新加载完成，当前平台:', selectedPlatform);
+    } catch (error) {
+        debugLog('重新加载平台内容失败:', error);
+        showNotification('❌ 重新加载失败: ' + error.message, 500);
+
+        // 恢复错误状态
+        const workflowListContainer = modal.querySelector('#rhWorkflowList');
+        if (workflowListContainer) {
+            workflowListContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: #ef4444;">❌ 加载失败，请重新尝试</div>';
+        }
+    }
+}
+
     // 关闭按钮
     const closeBtn = modal.querySelector('#rhSettingsCloseBtn');
     if (closeBtn) {
@@ -6499,6 +6843,37 @@ function bindSettingsModalEvents(modal, fileInput) {
         }
     };
     document.addEventListener('keydown', handleEscKey);
+
+    // 平台选择下拉菜单
+    const platformSelect = modal.querySelector('#rhPlatformSelect');
+    if (platformSelect) {
+        platformSelect.addEventListener('change', async () => {
+            const selectedPlatform = platformSelect.value;
+            debugLog('平台切换事件触发，选择的平台:', selectedPlatform);
+            debugLog('切换前的CURRENT_PLATFORM_CONFIG:', CURRENT_PLATFORM_CONFIG);
+
+            try {
+                // 更新平台配置
+                if (CURRENT_PLATFORM_CONFIG) {
+                    CURRENT_PLATFORM_CONFIG.currentPlatform = selectedPlatform;
+                    debugLog('更新后的CURRENT_PLATFORM_CONFIG:', CURRENT_PLATFORM_CONFIG);
+                    // 保存到localStorage
+                    MultiPlatformConfigManager.savePlatformConfig(CURRENT_PLATFORM_CONFIG);
+                    debugLog('保存到localStorage后的配置:', localStorage.getItem('platform_config'));
+                    showNotification(`✅ 已切换到${CURRENT_PLATFORM_CONFIG.platforms[selectedPlatform].name}平台`, 500);
+
+                    // 无缝重新加载内容，不关闭窗口
+                    await reloadPlatformContent(modal, selectedPlatform);
+                } else {
+                    debugLog('CURRENT_PLATFORM_CONFIG为空，无法切换平台');
+                    showNotification('❌ 平台配置未加载', 500);
+                }
+            } catch (error) {
+                debugLog('平台切换失败:', error);
+                showNotification('❌ 平台切换失败: ' + error.message, 500);
+            }
+        });
+    }
 
     // 添加工作流按钮
     const addWorkflowBtn = modal.querySelector('#rhAddWorkflowBtn');
@@ -6554,8 +6929,16 @@ function bindSettingsModalEvents(modal, fileInput) {
     const defaultWorkflowSelect = modal.querySelector('#rhDefaultWorkflowSelect');
     if (defaultWorkflowSelect) {
         defaultWorkflowSelect.addEventListener('change', (e) => {
-            RunningHubConfigManager.setDefaultWorkflow(e.target.value);
-            showNotification('✅ 默认工作流已更新', 500);
+            // 根据当前平台设置默认工作流
+            const currentPlatform = CURRENT_PLATFORM_CONFIG ? CURRENT_PLATFORM_CONFIG.currentPlatform : 'runninghub';
+            if (currentPlatform === 't8' && T8_CONFIG) {
+                T8_CONFIG.settings.defaultWorkflow = e.target.value;
+                MultiPlatformConfigManager.saveSpecificPlatformConfig('t8', T8_CONFIG);
+                showNotification('✅ 默认工作流已更新', 500);
+            } else {
+                RunningHubConfigManager.setDefaultWorkflow(e.target.value);
+                showNotification('✅ 默认工作流已更新', 500);
+            }
         });
     }
 
@@ -6573,8 +6956,19 @@ function bindSettingsModalEvents(modal, fileInput) {
             const workflowId = btn.getAttribute('data-workflow-id');
             if (confirm(`确定要删除工作流 "${workflowId}" 吗？`)) {
                 try {
-                    RunningHubConfigManager.removeWorkflow(workflowId);
-                    showNotification('✅ 工作流已删除', 500);
+                    // 根据当前平台删除工作流
+                    const currentPlatform = CURRENT_PLATFORM_CONFIG ? CURRENT_PLATFORM_CONFIG.currentPlatform : 'runninghub';
+                    if (currentPlatform === 't8' && T8_CONFIG) {
+                        if (workflowId === 'default') {
+                            throw new Error('不能删除默认工作流');
+                        }
+                        delete T8_CONFIG.workflows[workflowId];
+                        MultiPlatformConfigManager.saveSpecificPlatformConfig('t8', T8_CONFIG);
+                        showNotification('✅ 工作流已删除', 500);
+                    } else {
+                        RunningHubConfigManager.removeWorkflow(workflowId);
+                        showNotification('✅ 工作流已删除', 500);
+                    }
                     // 重新加载界面
                     modal.remove();
                     showRunningHubSettings();
@@ -6585,6 +6979,155 @@ function bindSettingsModalEvents(modal, fileInput) {
         });
     });
 }
+
+// 绑定重新加载后的工作流控制事件
+function bindReloadedWorkflowControlEvents(modal) {
+    // 编辑工作流按钮
+    modal.querySelectorAll('.rh-edit-workflow-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const workflowId = btn.getAttribute('data-workflow-id');
+            showEditWorkflowDialog(modal, workflowId);
+        });
+    });
+
+    // 删除工作流按钮
+    modal.querySelectorAll('.rh-delete-workflow-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const workflowId = btn.getAttribute('data-workflow-id');
+            if (confirm(`确定要删除工作流 "${workflowId}" 吗？`)) {
+                try {
+                    // 根据当前平台删除工作流
+                    const currentPlatform = CURRENT_PLATFORM_CONFIG ? CURRENT_PLATFORM_CONFIG.currentPlatform : 'runninghub';
+                    if (currentPlatform === 't8' && T8_CONFIG) {
+                        if (workflowId === 'default') {
+                            throw new Error('不能删除默认工作流');
+                        }
+                        delete T8_CONFIG.workflows[workflowId];
+                        MultiPlatformConfigManager.saveSpecificPlatformConfig('t8', T8_CONFIG);
+                        showNotification('✅ 工作流已删除', 500);
+                    } else {
+                        RunningHubConfigManager.removeWorkflow(workflowId);
+                        showNotification('✅ 工作流已删除', 500);
+                    }
+                    // 重新加载内容
+                    const selectedPlatform = CURRENT_PLATFORM_CONFIG ? CURRENT_PLATFORM_CONFIG.currentPlatform : 'runninghub';
+                    reloadPlatformContent(modal, selectedPlatform);
+                } catch (error) {
+                    showNotification('❌ 删除失败: ' + error.message, 500);
+                }
+            }
+        });
+    });
+}
+
+// 无缝重新加载平台内容
+async function reloadPlatformContent(modal, selectedPlatform) {
+    try {
+        // 显示加载状态
+        const workflowListContainer = modal.querySelector('#rhWorkflowList');
+        const defaultWorkflowSelect = modal.querySelector('#rhDefaultWorkflowSelect');
+
+        if (workflowListContainer) {
+            workflowListContainer.innerHTML = '<div style="text-align: center; padding: 20px;">🔄 正在加载平台配置...</div>';
+        }
+
+        // 重新加载平台特定配置
+        await loadPlatformSpecificConfig(selectedPlatform, true);
+
+        // 获取新的工作流列表
+        const workflowList = getCurrentPlatformWorkflowList();
+
+        // 获取新的默认工作流
+        let defaultWorkflow;
+        if (selectedPlatform === 't8' && T8_CONFIG) {
+            defaultWorkflow = T8_CONFIG.settings.defaultWorkflow || 'default';
+        } else if (RUNNINGHUB_CONFIG) {
+            defaultWorkflow = RunningHubConfigManager.getDefaultWorkflow();
+        } else {
+            defaultWorkflow = 'default';
+        }
+
+        // 更新工作流列表
+        if (workflowListContainer) {
+            workflowListContainer.innerHTML = workflowList.map(workflow => `
+                <div class="rh-workflow-item" data-workflow-id="${workflow.id}" style="
+                    background: white;
+                    border: 1px solid #e2e8f0;
+                    border-radius: 12px;
+                    padding: 20px;
+                    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+                ">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px;">
+                        <div>
+                            <h4 style="margin: 0 0 8px 0; color: #1e293b; font-weight: 600;">
+                                ${workflow.name}
+                                ${workflow.id === 'default' ? '<span style="background: #f59e0b; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-left: 8px;">默认</span>' : ''}
+                            </h4>
+                            <p style="margin: 0; color: #64748b; font-size: 13px;">ID: ${workflow.id}</p>
+                            <p style="margin: 8px 0 0 0; color: #64748b; font-size: 14px;">${workflow.description || '无描述'}</p>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            ${workflow.id !== 'default' ? `
+                                <button class="rh-edit-workflow-btn" data-workflow-id="${workflow.id}" style="
+                                    padding: 8px 12px;
+                                    background: #3b82f6;
+                                    color: white;
+                                    border: none;
+                                    border-radius: 6px;
+                                    cursor: pointer;
+                                    font-size: 12px;
+                                ">编辑</button>
+                                <button class="rh-delete-workflow-btn" data-workflow-id="${workflow.id}" style="
+                                    padding: 8px 12px;
+                                    background: #ef4444;
+                                    color: white;
+                                    border: none;
+                                    border-radius: 6px;
+                                    cursor: pointer;
+                                    font-size: 12px;
+                                ">删除</button>
+                            ` : `
+                                <button class="rh-edit-workflow-btn" data-workflow-id="${workflow.id}" style="
+                                    padding: 8px 12px;
+                                    background: #3b82f6;
+                                    color: white;
+                                    border: none;
+                                    border-radius: 6px;
+                                    cursor: pointer;
+                                    font-size: 12px;
+                                ">编辑</button>
+                            `}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 更新默认工作流选择
+        if (defaultWorkflowSelect) {
+            defaultWorkflowSelect.innerHTML = workflowList.map(workflow =>
+                `<option value="${workflow.id}" ${workflow.id === defaultWorkflow ? 'selected' : ''}>
+                    ${workflow.name} (${workflow.id})
+                </option>`
+            ).join('');
+        }
+
+        // 重新绑定事件
+        bindReloadedWorkflowControlEvents(modal);
+
+        debugLog('平台内容重新加载完成，当前平台:', selectedPlatform);
+    } catch (error) {
+        debugLog('重新加载平台内容失败:', error);
+        showNotification('❌ 重新加载失败: ' + error.message, 500);
+
+        // 恢复错误状态
+        const workflowListContainer = modal.querySelector('#rhWorkflowList');
+        if (workflowListContainer) {
+            workflowListContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: #ef4444;">❌ 加载失败，请重新尝试</div>';
+        }
+    }
+}
+
 
 // 显示添加工作流对话框
 function showAddWorkflowDialog(parentModal) {
@@ -6843,8 +7386,19 @@ function showAddWorkflowDialog(parentModal) {
             return;
         }
 
-        // 检查ID是否已存在
-        const workflowList = RunningHubConfigManager.getWorkflowList();
+        // 检查ID是否已存在（支持多平台）
+        const currentPlatform = CURRENT_PLATFORM_CONFIG ? CURRENT_PLATFORM_CONFIG.currentPlatform : 'runninghub';
+        let workflowList = [];
+        if (currentPlatform === 't8' && T8_CONFIG) {
+            workflowList = Object.keys(T8_CONFIG.workflows).map(key => ({
+                id: key,
+                name: T8_CONFIG.workflows[key].name,
+                description: T8_CONFIG.workflows[key].description
+            }));
+        } else if (RUNNINGHUB_CONFIG) {
+            workflowList = RunningHubConfigManager.getWorkflowList();
+        }
+
         if (workflowList.some(w => w.id === workflowId)) {
             showNotification('❌ 工作流ID已存在', 500);
             return;
@@ -6923,7 +7477,22 @@ function showAddWorkflowDialog(parentModal) {
         };
 
         try {
-            RunningHubConfigManager.addWorkflow(workflowId, newWorkflow);
+            // 根据当前平台添加工作流
+            const currentPlatform = CURRENT_PLATFORM_CONFIG ? CURRENT_PLATFORM_CONFIG.currentPlatform : 'runninghub';
+
+            if (currentPlatform === 't8' && T8_CONFIG) {
+                // 处理T8平台的工作流
+                if (T8_CONFIG.workflows[workflowId]) {
+                    throw new Error('工作流ID已存在');
+                }
+                T8_CONFIG.workflows[workflowId] = newWorkflow;
+                // 保存到localStorage
+                MultiPlatformConfigManager.saveSpecificPlatformConfig('t8', T8_CONFIG);
+            } else {
+                // 处理RunningHub平台的工作流
+                RunningHubConfigManager.addWorkflow(workflowId, newWorkflow);
+            }
+
             showNotification('✅ 工作流添加成功', 500);
             dialog.remove();
             // 重新加载设置界面
@@ -6937,8 +7506,18 @@ function showAddWorkflowDialog(parentModal) {
 
 // 显示编辑工作流对话框
 function showEditWorkflowDialog(parentModal, workflowId) {
-    // 获取工作流配置
-    const workflow = RUNNINGHUB_CONFIG.workflows[workflowId];
+    // 获取工作流配置（支持多平台）
+    let workflow;
+    const currentPlatform = CURRENT_PLATFORM_CONFIG ? CURRENT_PLATFORM_CONFIG.currentPlatform : 'runninghub';
+    if (currentPlatform === 't8' && T8_CONFIG) {
+        workflow = T8_CONFIG.workflows[workflowId];
+    } else if (RUNNINGHUB_CONFIG) {
+        workflow = RUNNINGHUB_CONFIG.workflows[workflowId];
+    } else {
+        showNotification('❌ 配置未加载', 500);
+        return;
+    }
+
     if (!workflow) {
         showNotification('❌ 未找到工作流配置', 500);
         return;
@@ -7314,12 +7893,32 @@ function showEditWorkflowDialog(parentModal, workflowId) {
         };
 
         try {
-            // 如果ID改变了并且不是默认工作流，需要先删除旧的工作流
-            if (workflowIdInput !== workflowId && workflowId !== 'default') {
-                RunningHubConfigManager.removeWorkflow(workflowId);
+            // 根据当前平台保存工作流
+            const currentPlatform = CURRENT_PLATFORM_CONFIG ? CURRENT_PLATFORM_CONFIG.currentPlatform : 'runninghub';
+
+            if (currentPlatform === 't8' && T8_CONFIG) {
+                // 处理T8平台的工作流
+                if (workflowIdInput !== workflowId && workflowId !== 'default') {
+                    // 删除旧的工作流
+                    if (T8_CONFIG.workflows[workflowId]) {
+                        delete T8_CONFIG.workflows[workflowId];
+                    }
+                }
+
+                // 更新工作流
+                T8_CONFIG.workflows[workflowIdInput] = updatedWorkflow;
+
+                // 保存到localStorage
+                MultiPlatformConfigManager.saveSpecificPlatformConfig('t8', T8_CONFIG);
+            } else {
+                // 处理RunningHub平台的工作流
+                if (workflowIdInput !== workflowId && workflowId !== 'default') {
+                    RunningHubConfigManager.removeWorkflow(workflowId);
+                }
+
+                RunningHubConfigManager.updateWorkflow(workflowIdInput, updatedWorkflow);
             }
 
-            RunningHubConfigManager.updateWorkflow(workflowIdInput, updatedWorkflow);
             showNotification('✅ 工作流更新成功', 500);
             dialog.remove();
             // 重新加载设置界面
@@ -7763,11 +8362,26 @@ function showDimensionCheckModal(imageInfo, isDimensionValid, selectedWorkflow =
     }
 
     // 加载工作流配置并填充下拉框
-    loadRunningHubConfig().then(() => {
+    loadCurrentPlatformConfig().then(() => {
         const workflowSelect = modalContent.querySelector('#rhWorkflowSelect');
         if (workflowSelect) {
-            const workflowList = RunningHubConfigManager.getWorkflowList();
-            const lastUsedWorkflow = RunningHubConfigManager.getLastUsedWorkflow();
+            const workflowList = getCurrentPlatformWorkflowList();
+            // 调试信息
+            debugLog('当前平台配置:', CURRENT_PLATFORM_CONFIG);
+            debugLog('T8配置:', T8_CONFIG);
+            debugLog('RunningHub配置:', RUNNINGHUB_CONFIG);
+            debugLog('当前工作流列表:', workflowList);
+
+            // 获取当前平台的最后使用的工作流
+            let lastUsedWorkflow;
+            const currentPlatform = CURRENT_PLATFORM_CONFIG ? CURRENT_PLATFORM_CONFIG.currentPlatform : 'runninghub';
+            if (currentPlatform === 't8' && T8_CONFIG) {
+                lastUsedWorkflow = T8_CONFIG.settings.lastUsedWorkflow || 'default';
+            } else if (RUNNINGHUB_CONFIG) {
+                lastUsedWorkflow = RunningHubConfigManager.getLastUsedWorkflow();
+            } else {
+                lastUsedWorkflow = 'default';
+            }
 
             // 清空现有选项
             workflowSelect.innerHTML = '';
@@ -7785,8 +8399,18 @@ function showDimensionCheckModal(imageInfo, isDimensionValid, selectedWorkflow =
 
             // 添加事件监听器保存选择
             workflowSelect.addEventListener('change', () => {
-                RunningHubConfigManager.setLastUsedWorkflow(workflowSelect.value);
+                // 保存当前平台的最后使用的工作流
+                const currentPlatform = CURRENT_PLATFORM_CONFIG ? CURRENT_PLATFORM_CONFIG.currentPlatform : 'runninghub';
+                if (currentPlatform === 't8' && T8_CONFIG) {
+                    T8_CONFIG.settings.lastUsedWorkflow = workflowSelect.value;
+                    MultiPlatformConfigManager.saveSpecificPlatformConfig('t8', T8_CONFIG);
+                } else {
+                    RunningHubConfigManager.setLastUsedWorkflow(workflowSelect.value);
+                }
             });
+
+            // 调试信息
+            debugLog('工作流下拉框已更新，当前工作流列表:', workflowList);
         }
     }).catch(error => {
         debugLog('加载工作流配置失败:', error);
@@ -8267,9 +8891,19 @@ async function submitDimensionCheck(comment, selectedWorkflow = 'defaultWorkflow
             const workflowSelect = document.querySelector('#rhWorkflowSelect');
             const selectedWorkflow = workflowSelect ? workflowSelect.value : 'default';
 
-            // 保存最后使用的工作流
+            // 保存最后使用的工作流（根据当前平台）
             if (selectedWorkflow) {
-                RunningHubConfigManager.setLastUsedWorkflow(selectedWorkflow);
+                await loadCurrentPlatformConfig();
+                const currentPlatform = CURRENT_PLATFORM_CONFIG ? CURRENT_PLATFORM_CONFIG.currentPlatform : 'runninghub';
+
+                if (currentPlatform === 't8' && T8_CONFIG) {
+                    T8_CONFIG.settings.lastUsedWorkflow = selectedWorkflow;
+                    MultiPlatformConfigManager.saveSpecificPlatformConfig('t8', T8_CONFIG);
+                    debugLog('已保存T8平台最后使用的工作流', selectedWorkflow);
+                } else {
+                    RunningHubConfigManager.setLastUsedWorkflow(selectedWorkflow);
+                    debugLog('已保存RunningHub平台最后使用的工作流', selectedWorkflow);
+                }
             }
 
             const taskResult = await createWorkflowTask(apiKey, comment || '1 girl in classroom', imageFileName, selectedWorkflow);
@@ -8289,16 +8923,37 @@ async function submitDimensionCheck(comment, selectedWorkflow = 'defaultWorkflow
                 showRhCancelBtn();
 
                 try {
-                    const poll = await pollRunningHubTaskStatus(apiKey, taskId, (tick) => {
-                        updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n📊 状态: ${tick.status || 'RUNNING'}${tick.msg ? ' (' + tick.msg + ')' : ''}\n🔄 第${tick.pollCount || 0}次查询 - ${Math.round((tick.elapsed || 0) / 1000)}秒`);
-                    });
+                    // 根据当前平台选择轮询函数
+                    await loadCurrentPlatformConfig();
+                    const currentPlatform = CURRENT_PLATFORM_CONFIG ? CURRENT_PLATFORM_CONFIG.currentPlatform : 'runninghub';
+
+                    let poll;
+                    if (currentPlatform === 't8') {
+                        debugLog('使用T8平台轮询函数');
+                        poll = await pollT8TaskStatus(apiKey, taskId, (tick) => {
+                            updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n📊 状态: ${tick.status || 'PROCESSING'}${tick.msg ? ' (' + tick.msg + ')' : ''}\n🔄 第${tick.pollCount || 0}次查询 - ${Math.round((tick.elapsed || 0) / 1000)}秒`);
+                        });
+                    } else {
+                        debugLog('使用RunningHub平台轮询函数');
+                        poll = await pollRunningHubTaskStatus(apiKey, taskId, (tick) => {
+                            updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n📊 状态: ${tick.status || 'RUNNING'}${tick.msg ? ' (' + tick.msg + ')' : ''}\n🔄 第${tick.pollCount || 0}次查询 - ${Math.round((tick.elapsed || 0) / 1000)}秒`);
+                        });
+                    }
 
                     debugLog('轮询完成', poll);
 
-                    if (poll.final === 'SUCCESS') {
+                    if (poll.final === 'SUCCESS' || (currentPlatform === 't8' && poll.final === 'COMPLETED')) {
                         updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n✅ 任务成功，正在获取结果...`);
                         try {
-                            const outs = await fetchRunningHubTaskOutputs(apiKey, taskId);
+                            // 根据当前平台选择输出获取函数
+                            let outs;
+                            if (currentPlatform === 't8') {
+                                debugLog('使用T8平台输出获取函数');
+                                outs = await fetchT8TaskOutputs(apiKey, taskId);
+                            } else {
+                                debugLog('使用RunningHub平台输出获取函数');
+                                outs = await fetchRunningHubTaskOutputs(apiKey, taskId);
+                            }
                             renderRunningHubResultsInModal(outs);
                             updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n✅ 任务已完成 - 耗时${Math.round(poll.totalTime / 1000)}秒`);
 
@@ -9284,6 +9939,145 @@ function updateDimensionModalProgress(text) {
     } catch (_) {}
 }
 
+// T8平台任务轮询函数
+async function pollT8TaskStatus(apiKey, taskId, onTick) {
+    const statusUrl = 'https://ai.t8star.cn/v1/images/status'; // T8平台状态查询URL
+    // 保存到全局，供取消按钮使用
+    window._rhTaskIdForCancel = taskId;
+    window._rhApiKeyForCancel = apiKey;
+    window._rhCancelRequested = window._rhCancelRequested || false;
+
+    const headers = {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+    };
+
+    const body = JSON.stringify({ taskId });
+    const intervalMs = 3000;
+    const maxWaitMs = 210000;
+    const start = Date.now();
+
+    debugLog('开始轮询T8任务状态', { taskId, intervalMs, maxWaitMs });
+    window._rhPollingActive = true;
+    window._rhLastStatus = 'QUEUED';
+
+    // 打印轮询开始信息
+    console.log(`\n🚀 ======== T8平台 轮询开始 ========`);
+    console.log(`🕐 开始时间: ${new Date().toLocaleTimeString()}`);
+    console.log(`🆔 任务ID: ${taskId}`);
+    console.log(`⏱️ 轮询间隔: ${intervalMs}ms`);
+    console.log(`⏰ 超时时间: ${Math.round(maxWaitMs / 1000)}秒`);
+    console.log(`🔄 预计最大轮询次数: ${Math.round(maxWaitMs / intervalMs)}`);
+    console.log(`==========================================\n`);
+
+    let pollCount = 0;
+    while (true) {
+        pollCount++;
+        debugLog(`T8轮询第${pollCount}次`, { elapsed: Date.now() - start });
+
+        if (window._rhCancelRequested) {
+            debugLog('检测到取消请求，停止T8轮询');
+            window._rhPollingActive = false;
+            throw new Error('任务已取消');
+        }
+
+        const resp = await fetch(statusUrl, { method: 'POST', headers, body });
+        if (!resp.ok) {
+            debugLog('T8状态查询HTTP错误', { status: resp.status });
+            throw new Error('查询状态失败: HTTP ' + resp.status);
+        }
+
+        const data = await resp.json().catch(() => ({}));
+        const status = data?.status || data?.data?.status || 'UNKNOWN';
+        const msg = data?.message || data?.msg || '';
+
+        window._rhLastStatus = status;
+        window._rhLastMsg = msg;
+        window._rhLastPollCount = pollCount;
+
+        debugLog(`第${pollCount}次T8轮询结果`, { status, msg, rawData: data });
+
+        // 详细打印轮询状态到控制台
+        console.log(`\n======== T8任务状态轮询 #${pollCount} ========`);
+        console.log(`🕐 时间: ${new Date().toLocaleTimeString()}`);
+        console.log(`⏱️ 已耗时: ${Math.round((Date.now() - start) / 1000)}秒`);
+        console.log(`🆔 任务ID: ${taskId}`);
+        console.log(`📋 任务状态: ${status}`);
+        console.log(`💬 消息: ${msg || '无'}`);
+        console.log(`🔍 原始响应:`, data);
+
+        // T8平台状态映射
+        const statusAnalysis = {
+            'QUEUED': '🟡 任务排队中',
+            'PROCESSING': '🔵 任务执行中',
+            'COMPLETED': '🟢 任务成功完成',
+            'FAILED': '🔴 任务执行失败',
+            'CANCELLED': '🟠 任务已取消'
+        };
+
+        console.log(`📈 状态说明: ${statusAnalysis[status] || '❓ 未知状态'}`);
+
+        if (typeof onTick === 'function') {
+            onTick({ status, msg, pollCount, elapsed: Date.now() - start });
+        }
+
+        // 检查终止条件 - 任务完成、失败或出错
+        if (['COMPLETED', 'FAILED', 'CANCELLED'].includes(status)) {
+            debugLog('T8任务终止条件满足，停止轮询', {
+                finalStatus: status,
+                pollCount,
+                totalTime: Date.now() - start
+            });
+
+            // 打印轮询停止信息
+            console.log(`\n🛑 ======== T8轮询已停止 ========`);
+            console.log(`✅ 终止原因: 任务状态变为 ${status}`);
+            console.log(`📊 总轮询次数: ${pollCount}`);
+            console.log(`⏱️ 总耗时: ${Math.round((Date.now() - start) / 1000)}秒`);
+            console.log(`🆔 任务ID: ${taskId}`);
+            console.log(`📋 最终状态: ${statusAnalysis[status] || status}`);
+            console.log(`==========================================\n`);
+
+            try {
+                const btn = document.querySelector('#rh-cancel-btn');
+                if (btn) btn.style.display = 'none';
+            } catch (_) {}
+
+            window._rhPollingActive = false;
+            return { final: status, raw: data, pollCount, totalTime: Date.now() - start };
+        }
+
+        // 检查超时
+        if (Date.now() - start > maxWaitMs) {
+            debugLog('T8轮询超时，强制停止', {
+                pollCount,
+                totalTime: Date.now() - start,
+                lastStatus: status
+            });
+
+            // 打印超时停止信息
+            console.log(`\n⏰ ======== T8轮询超时停止 ========`);
+            console.log(`❌ 终止原因: 超时 (${Math.round(maxWaitMs / 1000)}秒)`);
+            console.log(`📊 总轮询次数: ${pollCount}`);
+            console.log(`📋 最后状态: ${status}`);
+            console.log(`🆔 任务ID: ${taskId}`);
+            console.log(`💡 建议: 任务可能仍在执行，请稍后手动查询`);
+            console.log(`==========================================\n`);
+
+            try {
+                const btn = document.querySelector('#rh-cancel-btn');
+                if (btn) btn.style.display = 'none';
+            } catch (_) {}
+
+            window._rhPollingActive = false;
+            throw new Error(`轮询超时，任务仍未完成。最后状态: ${status}, 轮询${pollCount}次`);
+        }
+
+        // 等待下次轮询
+        await new Promise(r => setTimeout(r, intervalMs));
+    }
+}
+
 async function pollRunningHubTaskStatus(apiKey, taskId, onTick) {
     const statusUrl = 'https://www.runninghub.cn/task/openapi/status';
     // 保存到全局，供取消按钮使用
@@ -9425,6 +10219,73 @@ async function pollRunningHubTaskStatus(apiKey, taskId, onTick) {
         // 等待下次轮询
         await new Promise(r => setTimeout(r, intervalMs));
     }
+}
+
+// T8平台输出获取函数
+async function fetchT8TaskOutputs(apiKey, taskId) {
+    debugLog('开始获取T8任务输出', { apiKey: apiKey ? `${apiKey.substring(0, 10)}...` : 'null', taskId });
+
+    const url = 'https://ai.t8star.cn/v1/images/outputs'; // T8平台输出查询URL
+    const headers = {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+    };
+
+    const body = JSON.stringify({ taskId });
+    debugLog('发送T8输出查询请求', { url, body });
+
+    const resp = await fetch(url, { method: 'POST', headers, body });
+
+    if (!resp.ok) {
+        const errorText = await resp.text();
+        debugLog('T8输出查询HTTP错误', {
+            status: resp.status,
+            statusText: resp.statusText,
+            errorText: errorText.substring(0, 200) + '...'
+        });
+        throw new Error(`获取输出失败: HTTP ${resp.status} - ${errorText}`);
+    }
+
+    const result = await resp.json();
+    debugLog('T8输出查询响应', result);
+
+    // 详细打印输出查询结果
+    console.log(`\n📥 ======== T8平台 输出查询结果 ========`);
+    console.log(`🕐 查询时间: ${new Date().toLocaleTimeString()}`);
+    console.log(`🆔 任务ID: ${taskId}`);
+    console.log(`📋 状态: ${result.status || '无'}`);
+    console.log(`💬 消息: ${result.message || '无'}`);
+    console.log(`📋 数据类型: ${typeof result.data}`);
+    console.log(`📊 数据长度: ${Array.isArray(result.data) ? result.data.length : 'N/A'}`);
+    console.log(`🔍 完整响应:`, result);
+
+    if (Array.isArray(result.data) && result.data.length > 0) {
+        console.log(`\n📸 ======== 输出项目详情 ========`);
+        result.data.forEach((item, index) => {
+            console.log(`📷 项目 #${index + 1}:`);
+            console.log(`  🔗 url: ${item.url || '无'}`);
+            console.log(`  📝 type: ${item.type || '无'}`);
+            console.log(`  ⏱️ duration: ${item.duration || '无'}秒`);
+            console.log(`  🔍 完整数据:`, item);
+        });
+        console.log(`=====================================`);
+    } else {
+        console.log(`⚠️ 无输出数据或数据为空`);
+    }
+    console.log(`==========================================\n`);
+
+    // 详细记录API返回的结构
+    debugLog('T8 API输出结构分析', {
+        status: result.status,
+        message: result.message,
+        hasData: !!result.data,
+        dataType: typeof result.data,
+        dataIsArray: Array.isArray(result.data),
+        dataLength: Array.isArray(result.data) ? result.data.length : 'N/A',
+        firstItem: Array.isArray(result.data) && result.data.length > 0 ? result.data[0] : null
+    });
+
+    return result;
 }
 
 async function fetchRunningHubTaskOutputs(apiKey, taskId) {
@@ -10966,7 +11827,9 @@ async function downloadViaFetch(imageUrl, fileName) {
 }
 
 // Running Hub AI应用配置缓存
-let RUNNINGHUB_CONFIG = null;
+let CURRENT_PLATFORM_CONFIG = null;  // 当前平台配置
+let RUNNINGHUB_CONFIG = null;        // RunningHub平台配置
+let T8_CONFIG = null;                // T8平台配置
 
 // Running Hub 配置管理
 const RunningHubConfigManager = {
@@ -11171,6 +12034,257 @@ const RunningHubConfigManager = {
     }
 };
 
+// 新的多平台配置管理器
+const MultiPlatformConfigManager = {
+    // 保存平台配置到localStorage
+    savePlatformConfig: function(config) {
+        try {
+            localStorage.setItem('platform_config', JSON.stringify(config));
+            debugLog('平台配置已保存到localStorage');
+        } catch (error) {
+            console.error('保存平台配置失败:', error);
+        }
+    },
+
+    // 从localStorage加载平台配置
+    loadPlatformConfigFromStorage: function() {
+        try {
+            const configStr = localStorage.getItem('platform_config');
+            debugLog('从localStorage读取平台配置:', configStr);
+            if (configStr) {
+                const config = JSON.parse(configStr);
+                CURRENT_PLATFORM_CONFIG = config;
+                debugLog('平台配置从localStorage加载成功:', CURRENT_PLATFORM_CONFIG);
+                return true;
+            } else {
+                debugLog('localStorage中没有平台配置');
+            }
+        } catch (error) {
+            console.error('从localStorage加载平台配置失败:', error);
+        }
+        return false;
+    },
+
+    // 保存特定平台配置到localStorage
+    saveSpecificPlatformConfig: function(platform, config) {
+        try {
+            const key = `${platform}_config`;
+            localStorage.setItem(key, JSON.stringify(config));
+            debugLog(`${platform}平台配置已保存到localStorage`);
+        } catch (error) {
+            console.error(`保存${platform}平台配置失败:`, error);
+        }
+    },
+
+    // 从localStorage加载特定平台配置
+    loadSpecificPlatformConfigFromStorage: function(platform) {
+        try {
+            const key = `${platform}_config`;
+            const configStr = localStorage.getItem(key);
+            if (configStr) {
+                const config = JSON.parse(configStr);
+                if (platform === 't8') {
+                    T8_CONFIG = config;
+                } else {
+                    RUNNINGHUB_CONFIG = config;
+                }
+                debugLog(`${platform}平台配置从localStorage加载成功`);
+                return true;
+            }
+        } catch (error) {
+            console.error(`从localStorage加载${platform}平台配置失败:`, error);
+        }
+        return false;
+    }
+};
+
+// 加载平台配置文件
+async function loadPlatformConfig(forceReload = false) {
+    // 强制清除旧的配置缓存（临时解决方案）
+    if (forceReload) {
+        CURRENT_PLATFORM_CONFIG = null;
+        localStorage.removeItem('platform_config');
+        localStorage.removeItem('runninghub_config');
+        localStorage.removeItem('t8_config');
+        debugLog('已强制清除所有配置缓存');
+    }
+
+    // 首先尝试从localStorage加载配置（总是检查localStorage以获取最新配置）
+    if (MultiPlatformConfigManager.loadPlatformConfigFromStorage()) {
+        debugLog('平台配置从localStorage加载成功:', CURRENT_PLATFORM_CONFIG);
+        return CURRENT_PLATFORM_CONFIG;
+    }
+
+    if (CURRENT_PLATFORM_CONFIG && !forceReload) {
+        debugLog('使用缓存的平台配置:', CURRENT_PLATFORM_CONFIG);
+        return CURRENT_PLATFORM_CONFIG;
+    }
+
+    try {
+        const configUrl = chrome.runtime.getURL('platform-config.json');
+        debugLog('正在从URL加载平台配置:', configUrl);
+        const response = await fetch(configUrl);
+
+        if (!response.ok) {
+            throw new Error(`平台配置文件加载失败: ${response.status}`);
+        }
+
+        CURRENT_PLATFORM_CONFIG = await response.json();
+        debugLog('平台配置加载成功:', CURRENT_PLATFORM_CONFIG);
+
+        // 保存到localStorage
+        MultiPlatformConfigManager.savePlatformConfig(CURRENT_PLATFORM_CONFIG);
+        return CURRENT_PLATFORM_CONFIG;
+
+    } catch (error) {
+        debugLog('平台配置文件加载失败:', error);
+        // 使用默认配置
+        CURRENT_PLATFORM_CONFIG = {
+            version: "1.0",
+            currentPlatform: "runninghub",
+            platforms: {
+                runninghub: {
+                    configFile: "runninghub-config.json",
+                    enabled: true,
+                    name: "RunningHub平台",
+                    description: "原始的RunningHub AI平台"
+                },
+                t8: {
+                    configFile: "t8-config.json",
+                    enabled: true,
+                    name: "T8平台",
+                    description: "T8 AI图像处理平台"
+                }
+            },
+            settings: {
+                autoSave: true
+            }
+        };
+        MultiPlatformConfigManager.savePlatformConfig(CURRENT_PLATFORM_CONFIG);
+        return CURRENT_PLATFORM_CONFIG;
+    }
+}
+
+// 加载指定平台的配置文件
+async function loadPlatformSpecificConfig(platform, forceReload = false) {
+    debugLog(`开始加载${platform}平台配置，forceReload:`, forceReload);
+
+    // 确定使用哪个配置变量和localStorage键
+    let configVar, configName, localStorageKey;
+    if (platform === 't8') {
+        configVar = T8_CONFIG;
+        configName = 'T8';
+        localStorageKey = 't8_config';
+    } else {
+        configVar = RUNNINGHUB_CONFIG;
+        configName = 'RunningHub';
+        localStorageKey = 'runninghub_config';
+    }
+
+    // 检查缓存
+    if (configVar && !forceReload) {
+        debugLog(`使用缓存的${configName}配置:`, configVar);
+        return configVar;
+    }
+
+    // 如果强制重新加载，清除缓存
+    if (forceReload) {
+        if (platform === 't8') {
+            T8_CONFIG = null;
+        } else {
+            RUNNINGHUB_CONFIG = null;
+        }
+        localStorage.removeItem(localStorageKey);
+        debugLog(`已强制清除${configName}配置缓存`);
+    }
+
+    // 首先尝试从localStorage加载配置
+    if (!forceReload) {
+        if (MultiPlatformConfigManager.loadSpecificPlatformConfigFromStorage(platform)) {
+            const config = platform === 't8' ? T8_CONFIG : RUNNINGHUB_CONFIG;
+            debugLog(`${configName}配置从localStorage加载成功:`, config);
+            return config;
+        }
+    }
+
+    try {
+        // 获取平台配置以确定配置文件名
+        await loadPlatformConfig();
+        const platformInfo = CURRENT_PLATFORM_CONFIG.platforms[platform];
+        if (!platformInfo) {
+            throw new Error(`未知平台: ${platform}`);
+        }
+
+        const configUrl = chrome.runtime.getURL(platformInfo.configFile);
+        debugLog(`正在从URL加载${configName}配置:`, configUrl);
+        const response = await fetch(configUrl);
+
+        if (!response.ok) {
+            throw new Error(`${configName}配置文件加载失败: ${response.status}`);
+        }
+
+        const config = await response.json();
+        debugLog(`${configName}配置加载成功:`, config);
+
+        // 保存到对应变量和localStorage
+        if (platform === 't8') {
+            T8_CONFIG = config;
+        } else {
+            RUNNINGHUB_CONFIG = config;
+        }
+        MultiPlatformConfigManager.saveSpecificPlatformConfig(platform, config);
+        return config;
+
+    } catch (error) {
+        debugLog(`${configName}配置文件加载失败:`, error);
+        throw error;
+    }
+}
+
+// 加载当前平台的配置
+async function loadCurrentPlatformConfig(forceReload = false) {
+    debugLog('开始加载当前平台配置，forceReload:', forceReload);
+    // 首先加载平台配置以确定当前平台
+    await loadPlatformConfig(forceReload);
+    const currentPlatform = CURRENT_PLATFORM_CONFIG.currentPlatform;
+    debugLog('当前平台:', currentPlatform);
+
+    // 加载当前平台的特定配置
+    const result = await loadPlatformSpecificConfig(currentPlatform, forceReload);
+    debugLog('当前平台配置加载完成:', result);
+    return result;
+}
+
+// 获取当前平台的工作流列表
+function getCurrentPlatformWorkflowList() {
+    // 确定当前平台
+    const currentPlatform = CURRENT_PLATFORM_CONFIG ? CURRENT_PLATFORM_CONFIG.currentPlatform : 'runninghub';
+
+    // 获取对应平台的配置
+    let config;
+    if (currentPlatform === 't8') {
+        config = T8_CONFIG;
+    } else {
+        config = RUNNINGHUB_CONFIG;
+    }
+
+    // 返回工作流列表
+    if (!config || !config.workflows) {
+        return [];
+    }
+
+    return Object.keys(config.workflows).map(key => ({
+        id: key,
+        name: config.workflows[key].name,
+        description: config.workflows[key].description
+    }));
+}
+
+// 加载Running Hub配置文件（保持向后兼容）
+async function loadRunningHubConfig(forceReload = false) {
+    return await loadPlatformSpecificConfig('runninghub', forceReload);
+}
+
 // 导出配置到文件
 function exportRunningHubConfig() {
     try {
@@ -11248,19 +12362,37 @@ function importRunningHubConfigIncremental(file) {
 }
 
 // 加载Running Hub配置文件
-async function loadRunningHubConfig() {
-    if (RUNNINGHUB_CONFIG) {
+async function loadRunningHubConfig(forceReload = false) {
+    if (RUNNINGHUB_CONFIG && !forceReload) {
+        debugLog('使用缓存的Running Hub配置:', RUNNINGHUB_CONFIG);
+        // 验证配置是否包含t8工作流
+        if (RUNNINGHUB_CONFIG && RUNNINGHUB_CONFIG.workflows && !RUNNINGHUB_CONFIG.workflows.t8) {
+            debugLog('警告: 缓存配置中缺少t8工作流');
+        }
         return RUNNINGHUB_CONFIG; // 如果已加载，直接返回缓存
     }
 
+    // 如果强制重新加载，清除缓存和localStorage
+    if (forceReload) {
+        RUNNINGHUB_CONFIG = null;
+        // 清除localStorage中的配置
+        localStorage.removeItem('runninghub_config');
+        debugLog('已强制清除RunningHub配置缓存');
+    }
+
     // 首先尝试从localStorage加载配置
-    if (RunningHubConfigManager.loadConfigFromStorage()) {
-        debugLog('Running Hub配置从localStorage加载成功');
+    if (!forceReload && RunningHubConfigManager.loadConfigFromStorage()) {
+        debugLog('Running Hub配置从localStorage加载成功:', RUNNINGHUB_CONFIG);
+        // 验证配置是否包含t8工作流
+        if (RUNNINGHUB_CONFIG && RUNNINGHUB_CONFIG.workflows && !RUNNINGHUB_CONFIG.workflows.t8) {
+            debugLog('警告: localStorage中的配置缺少t8工作流，尝试重新加载配置文件');
+        }
         return RUNNINGHUB_CONFIG;
     }
 
     try {
         const configUrl = chrome.runtime.getURL('runninghub-config.json');
+        debugLog('正在从URL加载Running Hub配置:', configUrl);
         const response = await fetch(configUrl);
 
         if (!response.ok) {
@@ -11269,6 +12401,12 @@ async function loadRunningHubConfig() {
 
         RUNNINGHUB_CONFIG = await response.json();
         debugLog('Running Hub配置加载成功:', RUNNINGHUB_CONFIG);
+        // 验证T8工作流是否存在
+        if (RUNNINGHUB_CONFIG.workflows && RUNNINGHUB_CONFIG.workflows.t8) {
+            debugLog('T8工作流已成功加载');
+        } else {
+            debugLog('警告: 加载的配置中未找到T8工作流');
+        }
         // 保存到localStorage
         RunningHubConfigManager.saveConfig();
         return RUNNINGHUB_CONFIG;
@@ -11681,12 +12819,21 @@ async function uploadSingleImage(base64Data, fileName, imageType, uploadTarget) 
 
 // 创建Running Hub AI应用任务
 async function createWorkflowTask(apiKey, prompt, imageFileName = null, workflowName = 'default') {
-    const myHeaders = new Headers();
-    myHeaders.append("Host", "www.runninghub.cn");
-    myHeaders.append("Content-Type", "application/json");
+    // 加载当前平台配置
+    await loadCurrentPlatformConfig();
+    const currentPlatform = CURRENT_PLATFORM_CONFIG ? CURRENT_PLATFORM_CONFIG.currentPlatform : 'runninghub';
 
-    // 加载配置文件
-    const config = await loadRunningHubConfig();
+    // 获取当前平台的配置
+    let config;
+    if (currentPlatform === 't8') {
+        config = T8_CONFIG;
+    } else {
+        config = RUNNINGHUB_CONFIG;
+    }
+
+    if (!config) {
+        throw new Error(`未加载${currentPlatform}平台配置`);
+    }
 
     // 获取AI应用配置
     let appConfig;
@@ -11701,38 +12848,152 @@ async function createWorkflowTask(apiKey, prompt, imageFileName = null, workflow
         throw new Error(`未找到AI应用配置: ${workflowName}`);
     }
 
-    // 深拷贝配置并替换占位符
-    const nodeInfoList = JSON.parse(JSON.stringify(appConfig.nodeInfoList));
-    nodeInfoList.forEach(node => {
-        if (node.fieldValue === "{PROMPT}") {
-            node.fieldValue = prompt;
-        } else if (node.fieldValue === "{IMAGE_FILE}" && imageFileName) {
-            node.fieldValue = imageFileName;
+    // 根据当前平台调用相应的API
+    if (currentPlatform === 't8') {
+        return await createT8WorkflowTask(apiKey, prompt, imageFileName, appConfig);
+    } else {
+        // 原有的RunningHub逻辑
+        const myHeaders = new Headers();
+        myHeaders.append("Host", "www.runninghub.cn");
+        myHeaders.append("Content-Type", "application/json");
+
+        // 深拷贝配置并替换占位符
+        const nodeInfoList = JSON.parse(JSON.stringify(appConfig.nodeInfoList));
+        nodeInfoList.forEach(node => {
+            if (node.fieldValue === "{PROMPT}") {
+                node.fieldValue = prompt;
+            } else if (node.fieldValue === "{IMAGE_FILE}" && imageFileName) {
+                node.fieldValue = imageFileName;
+            }
+        });
+
+        const raw = JSON.stringify({
+            "webappId": appConfig.webappId,
+            "apiKey": apiKey,
+            "nodeInfoList": nodeInfoList
+        });
+
+        const requestOptions = {
+            method: 'POST',
+            headers: myHeaders,
+            body: raw,
+            redirect: 'follow'
+        };
+
+        // 使用AI应用API端点
+        const response = await fetch("https://www.runninghub.cn/task/openapi/ai-app/run", requestOptions);
+
+        if (!response.ok) {
+            throw new Error(`HTTP错误: ${response.status}`);
         }
-    });
 
-    const raw = JSON.stringify({
-        "webappId": appConfig.webappId,
-        "apiKey": apiKey,
-        "nodeInfoList": nodeInfoList
-    });
-
-    const requestOptions = {
-        method: 'POST',
-        headers: myHeaders,
-        body: raw,
-        redirect: 'follow'
-    };
-
-    // 使用AI应用API端点
-    const response = await fetch("https://www.runninghub.cn/task/openapi/ai-app/run", requestOptions);
-
-    if (!response.ok) {
-        throw new Error(`HTTP错误: ${response.status}`);
+        const result = await response.text();
+        return result;
     }
+}
 
-    const result = await response.text();
-    return result;
+// 创建T8平台AI应用任务
+async function createT8WorkflowTask(apiKey, prompt, imageFileName, appConfig) {
+    debugLog('开始创建T8平台AI应用任务', {
+        apiKey: apiKey ? `${apiKey.substring(0, 10)}...` : 'null',
+        prompt: prompt ? prompt.substring(0, 50) + '...' : 'null',
+        imageFileName,
+        appConfig: appConfig ? {
+            name: appConfig.name,
+            parameters: appConfig.parameters
+        } : 'null'
+    });
+
+    try {
+        // 获取图片文件（这里需要根据实际实现获取文件对象）
+        // 注意：在实际实现中，我们需要获取真实的文件对象而不是文件名
+        // 这里假设我们有一个全局变量存储了上传的图片文件
+        const imageFile = window.lastUploadedImageFile || await getImageFileByFileName(imageFileName);
+        debugLog('获取图片文件对象', {
+            hasFile: !!imageFile,
+            fileName: imageFileName,
+            fileType: imageFile?.type || 'unknown'
+        });
+
+        const myHeaders = new Headers();
+        myHeaders.append("Authorization", `Bearer ${apiKey}`);
+        debugLog('设置请求头', {
+            hasAuth: !!apiKey
+        });
+
+        const formdata = new FormData();
+        const model = appConfig.parameters.model || "nano-banana";
+        const responseFormat = appConfig.parameters.response_format || "url";
+        const aspectRatio = appConfig.parameters.aspect_ratio || "";
+
+        formdata.append("model", model);
+        formdata.append("prompt", prompt);
+        formdata.append("image", imageFile, imageFileName);
+        formdata.append("response_format", responseFormat);
+        formdata.append("aspect_ratio", aspectRatio);
+
+        debugLog('构建表单数据', {
+            model,
+            promptLength: prompt.length,
+            hasImageFile: !!imageFile,
+            responseFormat,
+            aspectRatio
+        });
+
+        const requestOptions = {
+            method: 'POST',
+            headers: myHeaders,
+            body: formdata,
+            redirect: 'follow'
+        };
+
+        // 使用T8平台API端点
+        const apiUrl = "https://ai.t8star.cn/v1/images/edits";
+        debugLog('发送T8平台API请求', {
+            url: apiUrl,
+            method: 'POST',
+            hasBody: !!formdata
+        });
+
+        const response = await fetch(apiUrl, requestOptions);
+        debugLog('T8平台API响应', {
+            status: response.status,
+            statusText: response.statusText,
+            ok: response.ok
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            debugLog('T8平台API错误响应', {
+                status: response.status,
+                errorText: errorText.substring(0, 200) + '...'
+            });
+            throw new Error(`HTTP错误: ${response.status} - ${errorText}`);
+        }
+
+        const result = await response.text();
+        debugLog('T8平台任务创建成功', {
+            resultLength: result.length,
+            resultPreview: result.substring(0, 200) + '...'
+        });
+
+        return result;
+    } catch (error) {
+        debugLog('创建T8平台任务时发生错误', {
+            error: error.message,
+            stack: error.stack
+        });
+        throw error;
+    }
+}
+
+// 根据文件名获取图片文件对象的辅助函数
+async function getImageFileByFileName(imageFileName) {
+    // 这里需要根据实际实现来获取文件对象
+    // 可能需要从缓存或其他地方获取文件对象
+    // 这是一个占位实现，实际需要根据项目结构调整
+    console.warn("getImageFileByFileName: 需要实现获取实际文件对象的逻辑");
+    return new File([], imageFileName);
 }
 
 // 检查原图和指令是否都已就绪
