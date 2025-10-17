@@ -8861,52 +8861,85 @@ async function submitDimensionCheck(comment, selectedWorkflow = 'defaultWorkflow
         return;
     }
 
-    // 获取API Key
-    let apiKey = localStorage.getItem('runninghub_api_key');
-    if (!apiKey) {
-        apiKey = prompt('请输入您的Running Hub API Key:');
+    // 加载当前平台配置以确定使用哪个API密钥
+    await loadCurrentPlatformConfig();
+    const currentPlatform = CURRENT_PLATFORM_CONFIG ? CURRENT_PLATFORM_CONFIG.currentPlatform : 'runninghub';
+
+    // 根据当前平台获取相应的API Key
+    let apiKey;
+    if (currentPlatform === 't8') {
+        apiKey = localStorage.getItem('t8_api_key');
         if (!apiKey) {
-            showNotification('未提供API Key，取消上传', 500);
-            // 重新启用按钮
-            ensureSubmitButtonState('ready');
-            return;
+            apiKey = prompt('请输入您的T8平台 API Key:');
+            if (!apiKey) {
+                showNotification('未提供API Key，取消上传', 500);
+                // 重新启用按钮
+                ensureSubmitButtonState('ready');
+                return;
+            }
+            localStorage.setItem('t8_api_key', apiKey);
         }
-        localStorage.setItem('runninghub_api_key', apiKey);
+    } else {
+        apiKey = localStorage.getItem('runninghub_api_key');
+        if (!apiKey) {
+            apiKey = prompt('请输入您的Running Hub API Key:');
+            if (!apiKey) {
+                showNotification('未提供API Key，取消上传', 500);
+                // 重新启用按钮
+                ensureSubmitButtonState('ready');
+                return;
+            }
+            localStorage.setItem('runninghub_api_key', apiKey);
+        }
     }
 
     try {
-        showNotification('正在上传图片到Running Hub...', 0);
-        const imageFile = await convertImageToFile(originalImage);
-        const uploadResult = await uploadToRunningHub(imageFile, apiKey, comment);
+        // 根据当前平台选择不同的处理方式
+        let imageFileName;
+        if (currentPlatform === 't8') {
+            showNotification('正在处理T8平台AI任务...', 0);
+            // T8平台不需要先上传图片，而是直接使用图片文件创建任务
+            const imageFile = await convertImageToFile(originalImage);
+            // 保存图片文件引用供T8任务使用
+            window.lastUploadedImageFile = imageFile;
+            imageFileName = imageFile.name;
+        } else {
+            showNotification('正在上传图片到Running Hub...', 0);
+            const imageFile = await convertImageToFile(originalImage);
+            const uploadResult = await uploadToRunningHub(imageFile, apiKey, comment);
 
-        // 解析上传API响应
-        const uploadResponse = JSON.parse(uploadResult);
-        if (uploadResponse.code === 0) {
-            const imageFileName = uploadResponse.data.fileName;
-            showNotification(`图片上传成功！正在创建AI应用任务...`, 500);
-            debugLog('Running Hub图片上传成功:', uploadResponse);
-
-            // 图片上传成功后，调用AI应用API
-            // 获取选择的工作流
-            const workflowSelect = document.querySelector('#rhWorkflowSelect');
-            const selectedWorkflow = workflowSelect ? workflowSelect.value : 'default';
-
-            // 保存最后使用的工作流（根据当前平台）
-            if (selectedWorkflow) {
-                await loadCurrentPlatformConfig();
-                const currentPlatform = CURRENT_PLATFORM_CONFIG ? CURRENT_PLATFORM_CONFIG.currentPlatform : 'runninghub';
-
-                if (currentPlatform === 't8' && T8_CONFIG) {
-                    T8_CONFIG.settings.lastUsedWorkflow = selectedWorkflow;
-                    MultiPlatformConfigManager.saveSpecificPlatformConfig('t8', T8_CONFIG);
-                    debugLog('已保存T8平台最后使用的工作流', selectedWorkflow);
-                } else {
-                    RunningHubConfigManager.setLastUsedWorkflow(selectedWorkflow);
-                    debugLog('已保存RunningHub平台最后使用的工作流', selectedWorkflow);
-                }
+            // 解析上传API响应
+            const uploadResponse = JSON.parse(uploadResult);
+            if (uploadResponse.code === 0) {
+                imageFileName = uploadResponse.data.fileName;
+                showNotification(`图片上传成功！正在创建AI应用任务...`, 500);
+                debugLog('Running Hub图片上传成功:', uploadResponse);
+            } else {
+                throw new Error(uploadResponse.msg || '图片上传失败');
             }
+        }
 
-            const taskResult = await createWorkflowTask(apiKey, comment || '1 girl in classroom', imageFileName, selectedWorkflow);
+        // 调用AI应用API
+        // 获取选择的工作流
+        const workflowSelect = document.querySelector('#rhWorkflowSelect');
+        const selectedWorkflow = workflowSelect ? workflowSelect.value : 'default';
+
+        // 保存最后使用的工作流（根据当前平台）
+        if (selectedWorkflow) {
+            await loadCurrentPlatformConfig();
+            const currentPlatform = CURRENT_PLATFORM_CONFIG ? CURRENT_PLATFORM_CONFIG.currentPlatform : 'runninghub';
+
+            if (currentPlatform === 't8' && T8_CONFIG) {
+                T8_CONFIG.settings.lastUsedWorkflow = selectedWorkflow;
+                MultiPlatformConfigManager.saveSpecificPlatformConfig('t8', T8_CONFIG);
+                debugLog('已保存T8平台最后使用的工作流', selectedWorkflow);
+            } else {
+                RunningHubConfigManager.setLastUsedWorkflow(selectedWorkflow);
+                debugLog('已保存RunningHub平台最后使用的工作流', selectedWorkflow);
+            }
+        }
+
+        const taskResult = await createWorkflowTask(apiKey, comment || '1 girl in classroom', imageFileName, selectedWorkflow);
 
             // 解析AI应用任务响应
             const taskResponse = JSON.parse(taskResult);
