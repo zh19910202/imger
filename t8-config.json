@@ -7,7 +7,7 @@
       "description": "T8平台的图像处理工作流",
       "parameters": {
         "model": "nano-banana",
-        "response_format": "url",
+        "response_format": "b64_json",
         "aspect_ratio": ""
       },
       "nodeInfoList": [

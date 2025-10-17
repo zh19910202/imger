@@ -12883,6 +12883,9 @@ async function createWorkflowTask(apiKey, prompt, imageFileName = null, workflow
     // 根据当前平台调用相应的API
     if (currentPlatform === 't8') {
         const t8Result = await createT8WorkflowTask(apiKey, prompt, imageFileName, appConfig);
+        // 生成T8平台的任务ID
+        const taskId = 't8-task-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+
         // 将T8平台的响应格式转换为与RunningHub兼容的格式
         try {
             const parsedResult = JSON.parse(t8Result);
@@ -12890,8 +12893,9 @@ async function createWorkflowTask(apiKey, prompt, imageFileName = null, workflow
             const compatibleResponse = {
                 code: 0,
                 data: {
-                    taskId: parsedResult.data && parsedResult.data[0] ? parsedResult.data[0].url : 't8-task-' + Date.now(),
-                    taskStatus: 'PROCESSING'
+                    taskId: taskId,
+                    taskStatus: 'PROCESSING',
+                    t8Result: parsedResult  // 保存T8平台的原始结果
                 },
                 msg: '任务创建成功'
             };
@@ -12902,7 +12906,7 @@ async function createWorkflowTask(apiKey, prompt, imageFileName = null, workflow
             const compatibleResponse = {
                 code: 0,
                 data: {
-                    taskId: 't8-task-' + Date.now(),
+                    taskId: taskId,
                     taskStatus: 'PROCESSING'
                 },
                 msg: '任务创建成功'
