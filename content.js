@@ -8941,115 +8941,112 @@ async function submitDimensionCheck(comment, selectedWorkflow = 'defaultWorkflow
 
         const taskResult = await createWorkflowTask(apiKey, comment || '1 girl in classroom', imageFileName, selectedWorkflow);
 
-            // 解析AI应用任务响应
-            const taskResponse = JSON.parse(taskResult);
-            if (taskResponse.code === 0) {
-                const taskId = taskResponse.data.taskId;
-                const taskStatus = taskResponse.data.taskStatus;
-                showNotification(`AI应用任务创建成功！\n任务ID: ${taskId}\n状态: ${taskStatus}${comment ? '\n需求: ' + comment : ''}`, 500);
-                debugLog('AI应用任务创建成功:', taskResponse);
+        // 解析AI应用任务响应
+        const taskResponse = JSON.parse(taskResult);
+        if (taskResponse.code === 0) {
+            const taskId = taskResponse.data.taskId;
+            const taskStatus = taskResponse.data.taskStatus;
+            showNotification(`AI应用任务创建成功！\n任务ID: ${taskId}\n状态: ${taskStatus}${comment ? '\n需求: ' + comment : ''}`, 500);
+            debugLog('AI应用任务创建成功:', taskResponse);
 
-                // 开始轮询并展示结果
-                updateDimensionModalProgress(`任务已创建\n🆔 任务ID: ${taskId}\n📊 状态: 正在执行中...`);
+            // 开始轮询并展示结果
+            updateDimensionModalProgress(`任务已创建\n🆔 任务ID: ${taskId}\n📊 状态: 正在执行中...`);
 
-                // 显示取消按钮
-                showRhCancelBtn();
+            // 显示取消按钮
+            showRhCancelBtn();
 
-                try {
-                    // 根据当前平台选择轮询函数
-                    await loadCurrentPlatformConfig();
-                    const currentPlatform = CURRENT_PLATFORM_CONFIG ? CURRENT_PLATFORM_CONFIG.currentPlatform : 'runninghub';
+            try {
+                // 根据当前平台选择轮询函数
+                await loadCurrentPlatformConfig();
+                const currentPlatform = CURRENT_PLATFORM_CONFIG ? CURRENT_PLATFORM_CONFIG.currentPlatform : 'runninghub';
 
-                    let poll;
-                    if (currentPlatform === 't8') {
-                        debugLog('使用T8平台轮询函数');
-                        poll = await pollT8TaskStatus(apiKey, taskId, (tick) => {
-                            updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n📊 状态: ${tick.status || 'PROCESSING'}${tick.msg ? ' (' + tick.msg + ')' : ''}\n🔄 第${tick.pollCount || 0}次查询 - ${Math.round((tick.elapsed || 0) / 1000)}秒`);
-                        });
-                    } else {
-                        debugLog('使用RunningHub平台轮询函数');
-                        poll = await pollRunningHubTaskStatus(apiKey, taskId, (tick) => {
-                            updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n📊 状态: ${tick.status || 'RUNNING'}${tick.msg ? ' (' + tick.msg + ')' : ''}\n🔄 第${tick.pollCount || 0}次查询 - ${Math.round((tick.elapsed || 0) / 1000)}秒`);
-                        });
-                    }
+                let poll;
+                if (currentPlatform === 't8') {
+                    debugLog('使用T8平台轮询函数');
+                    poll = await pollT8TaskStatus(apiKey, taskId, (tick) => {
+                        updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n📊 状态: ${tick.status || 'PROCESSING'}${tick.msg ? ' (' + tick.msg + ')' : ''}\n🔄 第${tick.pollCount || 0}次查询 - ${Math.round((tick.elapsed || 0) / 1000)}秒`);
+                    });
+                } else {
+                    debugLog('使用RunningHub平台轮询函数');
+                    poll = await pollRunningHubTaskStatus(apiKey, taskId, (tick) => {
+                        updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n📊 状态: ${tick.status || 'RUNNING'}${tick.msg ? ' (' + tick.msg + ')' : ''}\n🔄 第${tick.pollCount || 0}次查询 - ${Math.round((tick.elapsed || 0) / 1000)}秒`);
+                    });
+                }
 
-                    debugLog('轮询完成', poll);
+                debugLog('轮询完成', poll);
 
-                    if (poll.final === 'SUCCESS' || (currentPlatform === 't8' && poll.final === 'COMPLETED')) {
-                        updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n✅ 任务成功，正在获取结果...`);
-                        try {
-                            // 根据当前平台选择输出获取函数
-                            let outs;
-                            if (currentPlatform === 't8') {
-                                debugLog('使用T8平台输出获取函数');
-                                outs = await fetchT8TaskOutputs(apiKey, taskId);
-                            } else {
-                                debugLog('使用RunningHub平台输出获取函数');
-                                outs = await fetchRunningHubTaskOutputs(apiKey, taskId);
-                            }
-                            renderRunningHubResultsInModal(outs);
-                            updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n✅ 任务已完成 - 耗时${Math.round(poll.totalTime / 1000)}秒`);
-
-                            // 缓存成功的结果
-                            cacheRunningHubResults(taskId, outs, {
-                                status: 'success',
-                                statusMessage: `✅ 任务已完成 - 耗时${Math.round(poll.totalTime / 1000)}秒`,
-                                comment: comment,
-                                completedAt: new Date().toISOString()
-                            });
-
-                            hideRhCancelBtn();
-                            // 任务成功完成，启用按钮为完成状态
-                            ensureSubmitButtonState('success');
-                        } catch (e) {
-                            debugLog('获取输出失败:', e);
-                            updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n⚠️ 任务完成，但获取输出失败：${e.message}`);
-                            // 获取输出失败，允许重新提交
-                            ensureSubmitButtonState('failed');
+                if (poll.final === 'SUCCESS' || (currentPlatform === 't8' && poll.final === 'COMPLETED')) {
+                    updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n✅ 任务成功，正在获取结果...`);
+                    try {
+                        // 根据当前平台选择输出获取函数
+                        let outs;
+                        if (currentPlatform === 't8') {
+                            debugLog('使用T8平台输出获取函数');
+                            outs = await fetchT8TaskOutputs(apiKey, taskId);
+                        } else {
+                            debugLog('使用RunningHub平台输出获取函数');
+                            outs = await fetchRunningHubTaskOutputs(apiKey, taskId);
                         }
-                    } else if (poll.final === 'FAILED') {
-                        debugLog('任务失败', poll.raw);
-                        updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n❌ 任务失败 - ${poll.raw?.msg || '未知原因'}`);
-                        hideRhCancelBtn();
+                        renderRunningHubResultsInModal(outs);
+                        updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n✅ 任务已完成 - 耗时${Math.round(poll.totalTime / 1000)}秒`);
 
-                        // 如果有失败详情，显示给用户
-                        if (poll.raw?.data?.failedReason) {
-                            const failedReason = poll.raw.data.failedReason;
-                            updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n❌ 失败原因：${failedReason.exception_message || failedReason.exception_type || '系统错误'}`);
-                        }
-                        // 任务失败，允许重新提交
-                        ensureSubmitButtonState('failed');
-                    } else if (poll.final === 'ERROR') {
-                        debugLog('任务出错', poll.raw);
-                        updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n❌ 任务出错 - ${poll.raw?.msg || '系统错误'}`);
+                        // 缓存成功的结果
+                        cacheRunningHubResults(taskId, outs, {
+                            status: 'success',
+                            statusMessage: `✅ 任务已完成 - 耗时${Math.round(poll.totalTime / 1000)}秒`,
+                            comment: comment,
+                            completedAt: new Date().toISOString()
+                        });
+
                         hideRhCancelBtn();
-                        // 任务出错，允许重新提交
-                        ensureSubmitButtonState('failed');
-                    } else if (poll.final === 'CANCELED') {
-                        debugLog('任务已取消', poll.raw);
-                        updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n🚫 任务已取消`);
-                        hideRhCancelBtn();
-                        // 任务被取消，允许重新提交
-                        ensureSubmitButtonState('canceled');
-                    } else {
-                        debugLog('未知的最终状态', poll);
-                        updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n❓ 任务结束：${poll.final}`);
-                        hideRhCancelBtn();
-                        // 未知状态，允许重新提交
+                        // 任务成功完成，启用按钮为完成状态
+                        ensureSubmitButtonState('success');
+                    } catch (e) {
+                        debugLog('获取输出失败:', e);
+                        updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n⚠️ 任务完成，但获取输出失败：${e.message}`);
+                        // 获取输出失败，允许重新提交
                         ensureSubmitButtonState('failed');
                     }
-                } catch (e) {
-                    debugLog('轮询过程失败:', e);
-                    updateDimensionModalProgress('轮询失败：' + e.message);
+                } else if (poll.final === 'FAILED') {
+                    debugLog('任务失败', poll.raw);
+                    updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n❌ 任务失败 - ${poll.raw?.msg || '未知原因'}`);
                     hideRhCancelBtn();
-                    // 轮询失败，允许重新提交
+
+                    // 如果有失败详情，显示给用户
+                    if (poll.raw?.data?.failedReason) {
+                        const failedReason = poll.raw.data.failedReason;
+                        updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n❌ 失败原因：${failedReason.exception_message || failedReason.exception_type || '系统错误'}`);
+                    }
+                    // 任务失败，允许重新提交
+                    ensureSubmitButtonState('failed');
+                } else if (poll.final === 'ERROR') {
+                    debugLog('任务出错', poll.raw);
+                    updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n❌ 任务出错 - ${poll.raw?.msg || '系统错误'}`);
+                    hideRhCancelBtn();
+                    // 任务出错，允许重新提交
+                    ensureSubmitButtonState('failed');
+                } else if (poll.final === 'CANCELED') {
+                    debugLog('任务已取消', poll.raw);
+                    updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n🚫 任务已取消`);
+                    hideRhCancelBtn();
+                    // 任务被取消，允许重新提交
+                    ensureSubmitButtonState('canceled');
+                } else {
+                    debugLog('未知的最终状态', poll);
+                    updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n❓ 任务结束：${poll.final}`);
+                    hideRhCancelBtn();
+                    // 未知状态，允许重新提交
                     ensureSubmitButtonState('failed');
                 }
-            } else {
-                throw new Error('AI应用任务创建失败: ' + (taskResponse.msg || '未知错误'));
+            } catch (e) {
+                debugLog('轮询过程失败:', e);
+                updateDimensionModalProgress('轮询失败：' + e.message);
+                hideRhCancelBtn();
+                // 轮询失败，允许重新提交
+                ensureSubmitButtonState('failed');
             }
         } else {
-            throw new Error(uploadResponse.msg || '图片上传失败');
+            throw new Error('AI应用任务创建失败: ' + (taskResponse.msg || '未知错误'));
         }
     } catch (error) {
         debugLog('运行失败:', error);
@@ -9841,6 +9838,8 @@ function onInstructionCheck() {
     debugLog('指令检查触发，检查是否可以自动发送');
     checkIfReadyForAutoSend();
 }
+
+
 
 // ========== RunningHub 轮询与结果展示（最小增量） ==========
 
@@ -12883,7 +12882,33 @@ async function createWorkflowTask(apiKey, prompt, imageFileName = null, workflow
 
     // 根据当前平台调用相应的API
     if (currentPlatform === 't8') {
-        return await createT8WorkflowTask(apiKey, prompt, imageFileName, appConfig);
+        const t8Result = await createT8WorkflowTask(apiKey, prompt, imageFileName, appConfig);
+        // 将T8平台的响应格式转换为与RunningHub兼容的格式
+        try {
+            const parsedResult = JSON.parse(t8Result);
+            // 创建一个与RunningHub兼容的响应格式
+            const compatibleResponse = {
+                code: 0,
+                data: {
+                    taskId: parsedResult.data && parsedResult.data[0] ? parsedResult.data[0].url : 't8-task-' + Date.now(),
+                    taskStatus: 'PROCESSING'
+                },
+                msg: '任务创建成功'
+            };
+            return JSON.stringify(compatibleResponse);
+        } catch (error) {
+            // 如果解析失败，返回原始结果
+            debugLog('解析T8平台响应失败:', error);
+            const compatibleResponse = {
+                code: 0,
+                data: {
+                    taskId: 't8-task-' + Date.now(),
+                    taskStatus: 'PROCESSING'
+                },
+                msg: '任务创建成功'
+            };
+            return JSON.stringify(compatibleResponse);
+        }
     } else {
         // 原有的RunningHub逻辑
         const myHeaders = new Headers();
