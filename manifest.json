@@ -46,7 +46,8 @@
       ],
       "js": [
         "cardkey-validator.js",
-        "content.js"
+        "content.js",
+        "appen-data-collector.js"
       ]
     }
   ],
