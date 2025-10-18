@@ -7,8 +7,8 @@
 
     // 配置参数
     const CONFIG = {
-        // 数据推送的API端点（需要替换为实际的API地址）
-        API_ENDPOINT: 'https://your-api-endpoint.com/annotation-data',
+        // 数据推送的API端点
+        API_ENDPOINT: 'http://192.168.31.79:1145/api/Task/add',
         // 最大重试次数
         MAX_RETRY_ATTEMPTS: 3,
         // 重试间隔（毫秒）
@@ -20,57 +20,68 @@
     // 全局变量
     let collectedData = {
         userId: null,
+        name: null,
         taskId: null,
-        projectName: null,
-        currentPage: window.location.href,
+        topicId: null,
+        topicUrl: null,
         startTime: Date.now(),
-        lastActivityTime: Date.now(),
-        actions: [],
-        sessionDuration: 0
+        elapsedTime: 0,
+        topicNum: 0
     };
 
     let isCollectorActive = true;
     let lastPushTime = 0;
-    let pushTimeoutId = null;
 
     // 初始化数据收集器
     function initializeDataCollector() {
         console.log('[Appen Data Collector] 初始化即时数据收集器');
 
-        // 获取用户ID
-        collectUserId();
+        // 获取用户信息
+        collectUserInfo();
 
-        // 获取任务ID和项目名称
+        // 获取任务信息
         collectTaskInfo();
+
+        // 获取主题信息
+        collectTopicInfo();
 
         // 开始监听页面活动
         attachEventListeners();
 
         // 页面卸载时推送数据
-        window.addEventListener('beforeunload', pushData);
+        window.addEventListener('beforeunload', pushDataOnSubmission);
     }
 
-    // 收集用户ID
-    function collectUserId() {
+    // 收集用户信息
+    function collectUserInfo() {
         try {
-            // 尝试从页面元素或localStorage中获取用户ID
+            // 尝试从页面元素或localStorage中获取用户ID和名称
             // 这需要根据实际页面结构调整选择器
-            const userElement = document.querySelector('.user-id, [data-user-id], #user-id');
+            const userElement = document.querySelector('.user-info, .username, [data-user], #user');
             if (userElement) {
-                collectedData.userId = userElement.textContent.trim() ||
-                                     userElement.dataset.userId ||
-                                     userElement.id;
+                const userText = userElement.textContent.trim();
+                // 尝试从文本中提取用户ID和名称
+                const userMatch = userText.match(/(\w+)\s*[-\s]*\s*(.+)/);
+                if (userMatch) {
+                    collectedData.userId = userMatch[1];
+                    collectedData.name = userMatch[2];
+                } else {
+                    collectedData.userId = userText;
+                    collectedData.name = userText;
+                }
             }
 
             // 如果页面上没有找到，尝试从localStorage或其他存储中获取
             if (!collectedData.userId) {
-                collectedData.userId = localStorage.getItem('userId') ||
-                                     sessionStorage.getItem('userId') ||
-                                     'unknown_user';
+                collectedData.userId = localStorage.getItem('userId') || 'unknown_user';
+            }
+            if (!collectedData.name) {
+                collectedData.name = localStorage.getItem('userName') || '未知用户';
             }
         } catch (error) {
-            console.warn('[Appen Data Collector] 无法收集用户ID:', error);
+            console.warn('[Appen Data Collector] 无法收集用户信息:', error);
             collectedData.userId = 'unknown_user';
+            collectedData.name = '未知用户';
         }
     }
 
@@ -83,15 +94,49 @@
                                  urlParams.get('taskId') ||
                                  extractTaskIdFromURL();
 
-            // 尝试获取项目名称
-            const projectElement = document.querySelector('.project-name, [data-project], #project');
-            if (projectElement) {
-                collectedData.projectName = projectElement.textContent.trim() ||
-                                          projectElement.dataset.project ||
-                                          projectElement.id;
+            // 尝试从页面元素获取任务相关信息
+            const taskElement = document.querySelector('.task-info, [data-task], #task');
+            if (taskElement) {
+                const taskText = taskElement.textContent.trim();
+                // 如果没有从URL中获取到taskId，则尝试从页面文本中提取
+                if (!collectedData.taskId || collectedData.taskId === 'unknown_task') {
+                    const taskMatch = taskText.match(/task[_\-]?(\w+)/i);
+                    if (taskMatch) {
+                        collectedData.taskId = taskMatch[1];
+                    }
+                }
             }
         } catch (error) {
             console.warn('[Appen Data Collector] 无法收集任务信息:', error);
+        }
+
+        // 确保taskId有默认值
+        if (!collectedData.taskId) {
+            collectedData.taskId = 'unknown_task';
+        }
+    }
+
+    // 收集主题信息
+    function collectTopicInfo() {
+        try {
+            // 尝试从页面URL获取主题ID和URL
+            collectedData.topicUrl = window.location.href;
+
+            // 从URL中提取主题ID
+            const url = new URL(collectedData.topicUrl);
+            collectedData.topicId = url.searchParams.get('topic_id') ||
+                                  url.searchParams.get('topicId') ||
+                                  extractTopicIdFromURL() ||
+                                  'unknown_topic';
+
+            // 尝试获取主题数量
+            const topicElements = document.querySelectorAll('.topic, .question, .item');
+            collectedData.topicNum = topicElements.length || 0;
+        } catch (error) {
+            console.warn('[Appen Data Collector] 无法收集主题信息:', error);
+            collectedData.topicId = 'unknown_topic';
+            collectedData.topicUrl = window.location.href;
+            collectedData.topicNum = 0;
         }
     }
 
@@ -102,56 +147,32 @@
         const taskIdMatch = url.match(/task[_\-]([a-zA-Z0-9]+)/) ||
                            url.match(/id=([a-zA-Z0-9]+)/) ||
                            url.match(/\/([a-zA-Z0-9]+)$/);
-        return taskIdMatch ? taskIdMatch[1] : 'unknown_task';
+        return taskIdMatch ? taskIdMatch[1] : null;
+    }
+
+    // 从URL中提取主题ID
+    function extractTopicIdFromURL() {
+        const url = window.location.href;
+        // 根据实际URL结构调整正则表达式
+        const topicIdMatch = url.match(/topic[_\-]([a-zA-Z0-9]+)/) ||
+                            url.match(/subject[_\-]([a-zA-Z0-9]+)/) ||
+                            url.match(/question[_\-]([a-zA-Z0-9]+)/);
+        return topicIdMatch ? topicIdMatch[1] : null;
     }
 
     // 附加事件监听器
     function attachEventListeners() {
-        // 监听键盘事件
-        document.addEventListener('keydown', function(event) {
-            recordAction('keydown', {
-                key: event.key,
-                keyCode: event.keyCode,
-                ctrlKey: event.ctrlKey,
-                altKey: event.altKey,
-                shiftKey: event.shiftKey
-            });
-        });
-
         // 监听鼠标点击事件
         document.addEventListener('click', function(event) {
-            recordAction('click', {
-                target: event.target.tagName,
-                className: event.target.className,
-                id: event.target.id,
-                x: event.clientX,
-                y: event.clientY
-            });
-
             // 检查是否点击了提交按钮
             checkForSubmission(event.target);
         });
 
         // 监听表单提交事件
         document.addEventListener('submit', function(event) {
-            recordAction('submit', {
-                formId: event.target.id,
-                formClass: event.target.className
-            });
-
             // 延迟推送数据，确保表单提交完成
             setTimeout(pushDataOnSubmission, 100);
         });
-
-        // 监听页面可见性变化
-        document.addEventListener('visibilitychange', function() {
-            recordAction('visibilityChange', {
-                hidden: document.hidden
-            });
-        });
-
-        // 定期更新会话时长
-        setInterval(updateSessionDuration, 1000);
 
         // 特别监听可能的提交按钮
         observeSubmissionButtons();
@@ -212,30 +233,6 @@
         });
     }
 
-    // 记录用户操作
-    function recordAction(actionType, details) {
-        if (!isCollectorActive) return;
-
-        const action = {
-            type: actionType,
-            timestamp: Date.now(),
-            details: details
-        };
-
-        collectedData.actions.push(action);
-        collectedData.lastActivityTime = Date.now();
-
-        // 限制操作记录数量，避免内存占用过大
-        if (collectedData.actions.length > 1000) {
-            collectedData.actions = collectedData.actions.slice(-500);
-        }
-    }
-
-    // 更新会话时长
-    function updateSessionDuration() {
-        collectedData.sessionDuration = Date.now() - collectedData.startTime;
-    }
-
     // 在标注完成时推送数据
     function pushDataOnSubmission() {
         console.log('[Appen Data Collector] 标注完成，准备推送数据');
@@ -255,26 +252,24 @@
     async function pushData() {
         if (!isCollectorActive) return;
 
-        // 检查是否有需要推送的数据
-        if (collectedData.actions.length === 0) {
-            console.log('[Appen Data Collector] 没有操作数据需要推送');
-            return;
-        }
+        // 更新耗时
+        collectedData.elapsedTime = Math.floor((Date.now() - collectedData.startTime) / 1000);
 
-        updateSessionDuration();
-
+        // 构造符合API要求的数据
         const dataToSend = {
-            ...collectedData,
-            timestamp: Date.now(),
-            userAgent: navigator.userAgent,
-            screenSize: {
-                width: screen.width,
-                height: screen.height
-            }
+            UserId: collectedData.userId || 'unknown_user',
+            Name: collectedData.name || '未知用户',
+            TaskId: collectedData.taskId || 'unknown_task',
+            TopicId: collectedData.topicId || 'unknown_topic',
+            TopicUrl: collectedData.topicUrl || window.location.href,
+            IsValid: true,  // 默认为有效
+            IsRedo: false,  // 默认为非重做
+            ElapsedTime: collectedData.elapsedTime || 0,
+            IsReplace: false,  // 默认为非替换
+            TopicNum: collectedData.topicNum || 0
         };
 
-        // 添加标注完成标记
-        dataToSend.annotationCompleted = true;
+        console.log('[Appen Data Collector] 准备推送数据:', dataToSend);
 
         let attempts = 0;
         while (attempts < CONFIG.MAX_RETRY_ATTEMPTS) {
@@ -288,9 +283,8 @@
                 });
 
                 if (response.ok) {
-                    console.log('[Appen Data Collector] 数据推送成功');
-                    // 清空已推送的操作记录
-                    collectedData.actions = [];
+                    const result = await response.json();
+                    console.log('[Appen Data Collector] 数据推送成功:', result);
                     return;
                 } else {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -313,31 +307,38 @@
     function stopDataCollection() {
         isCollectorActive = false;
         // 最后推送一次数据
-        pushData();
+        pushDataOnSubmission();
     }
 
     // 公共接口
     window.AppenDataCollector = {
         // 手动推送数据
-        pushData: pushData,
+        pushData: pushDataOnSubmission,
         // 停止数据收集
         stop: stopDataCollection,
         // 获取当前收集的数据
         getData: function() {
-            return {...collectedData, sessionDuration: Date.now() - collectedData.startTime};
+            return {
+                ...collectedData,
+                elapsedTime: Math.floor((Date.now() - collectedData.startTime) / 1000)
+            };
         },
         // 重置收集器
         reset: function() {
             collectedData = {
                 userId: collectedData.userId,
-                taskId: collectedData.taskId,
-                projectName: collectedData.projectName,
-                currentPage: window.location.href,
+                name: collectedData.name,
+                taskId: null,
+                topicId: null,
+                topicUrl: null,
                 startTime: Date.now(),
-                lastActivityTime: Date.now(),
-                actions: [],
-                sessionDuration: 0
+                elapsedTime: 0,
+                topicNum: 0
             };
+
+            // 重新收集任务和主题信息
+            collectTaskInfo();
+            collectTopicInfo();
         },
         // 手动触发标注完成推送
         submitAnnotation: pushDataOnSubmission
