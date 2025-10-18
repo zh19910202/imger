@@ -10262,10 +10262,9 @@ async function fetchT8TaskOutputs(apiKey, taskId) {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json'
     };
-
     const body = JSON.stringify({ taskId });
-    debugLog('发送T8输出查询请求', { url, body });
 
+    debugLog('发送T8输出查询请求', { url, body });
     const resp = await fetch(url, { method: 'POST', headers, body });
 
     if (!resp.ok) {
@@ -10285,39 +10284,66 @@ async function fetchT8TaskOutputs(apiKey, taskId) {
     console.log(`\n📥 ======== T8平台 输出查询结果 ========`);
     console.log(`🕐 查询时间: ${new Date().toLocaleTimeString()}`);
     console.log(`🆔 任务ID: ${taskId}`);
-    console.log(`📋 状态: ${result.status || '无'}`);
-    console.log(`💬 消息: ${result.message || '无'}`);
-    console.log(`📋 数据类型: ${typeof result.data}`);
-    console.log(`📊 数据长度: ${Array.isArray(result.data) ? result.data.length : 'N/A'}`);
-    console.log(`🔍 完整响应:`, result);
 
-    if (Array.isArray(result.data) && result.data.length > 0) {
-        console.log(`\n📸 ======== 输出项目详情 ========`);
-        result.data.forEach((item, index) => {
-            console.log(`📷 项目 #${index + 1}:`);
-            console.log(`  🔗 url: ${item.url || '无'}`);
-            console.log(`  📝 type: ${item.type || '无'}`);
-            console.log(`  ⏱️ duration: ${item.duration || '无'}秒`);
-            console.log(`  🔍 完整数据:`, item);
-        });
-        console.log(`=====================================`);
-    } else {
-        console.log(`⚠️ 无输出数据或数据为空`);
-    }
-    console.log(`==========================================\n`);
-
-    // 详细记录API返回的结构
+    // 分析T8 API输出结构
     debugLog('T8 API输出结构分析', {
-        status: result.status,
-        message: result.message,
+        created: result.created,
         hasData: !!result.data,
         dataType: typeof result.data,
         dataIsArray: Array.isArray(result.data),
         dataLength: Array.isArray(result.data) ? result.data.length : 'N/A',
-        firstItem: Array.isArray(result.data) && result.data.length > 0 ? result.data[0] : null
+        model: result.model,
+        usage: result.usage
     });
 
-    return result;
+    // 根据T8平台的实际响应格式构造兼容的输出格式
+    // T8平台返回的data字段包含base64图片数据
+    let compatibleOutputs = [];
+
+    if (Array.isArray(result.data)) {
+        // 如果data是数组，处理每个base64数据
+        compatibleOutputs = result.data.map((base64Data, index) => ({
+            nodeId: `t8-output-${index}`,
+            fileUrl: `data:image/jpeg;base64,${base64Data}`, // 将base64数据转换为data URL
+            fileType: 'image/jpeg',
+            taskCostTime: result.usage ? (result.usage.total_tokens || 0) : 0
+        }));
+    } else if (typeof result.data === 'string') {
+        // 如果data是字符串，直接使用
+        compatibleOutputs = [{
+            nodeId: 't8-output-0',
+            fileUrl: `data:image/jpeg;base64,${result.data}`, // 将base64数据转换为data URL
+            fileType: 'image/jpeg',
+            taskCostTime: result.usage ? (result.usage.total_tokens || 0) : 0
+        }];
+    } else if (result.data) {
+        // 其他情况，尝试处理data对象
+        compatibleOutputs = [{
+            nodeId: 't8-output-0',
+            fileUrl: `data:image/jpeg;base64,${result.data}`, // 尝试将data转换为字符串
+            fileType: 'image/jpeg',
+            taskCostTime: result.usage ? (result.usage.total_tokens || 0) : 0
+        }];
+    }
+
+    // 构造与RunningHub兼容的响应格式
+    const compatibleResponse = {
+        code: 0,
+        data: compatibleOutputs,
+        t8Result: result  // 保存T8平台的原始结果
+    };
+
+    debugLog('构造的兼容输出格式', compatibleResponse);
+
+    // 打印详细的输出信息
+    console.log(`📊 输出数据项数: ${compatibleOutputs.length}`);
+    console.log(`🤖 使用模型: ${result.model || 'unknown'}`);
+    if (result.usage) {
+        console.log(`🧮 Tokens使用: 总计${result.usage.total_tokens || 0} (输入${result.usage.input_tokens || result.usage.prompt_tokens || 0}, 输出${result.usage.output_tokens || result.usage.completion_tokens || 0})`);
+    }
+    console.log(`==========================================\n`);
+
+    return compatibleResponse;
 }
 
 async function fetchRunningHubTaskOutputs(apiKey, taskId) {
@@ -12977,22 +13003,31 @@ async function createT8WorkflowTask(apiKey, prompt, imageFileName, appConfig) {
             fileType: imageFile?.type || 'unknown'
         });
 
+        // 修复：只设置必要的请求头
         const myHeaders = new Headers();
         myHeaders.append("Authorization", `Bearer ${apiKey}`);
+        // 注意：不手动设置Content-Type，让浏览器自动设置multipart/form-data和boundary
+
         debugLog('设置请求头', {
             hasAuth: !!apiKey
         });
 
+        // 修复：正确构建FormData
         const formdata = new FormData();
         const model = appConfig.parameters.model || "nano-banana";
-        const responseFormat = appConfig.parameters.response_format || "url";
+        const responseFormat = appConfig.parameters.response_format || "b64_json"; // 修复：使用b64_json而不是url
         const aspectRatio = appConfig.parameters.aspect_ratio || "";
 
         formdata.append("model", model);
         formdata.append("prompt", prompt);
-        formdata.append("image", imageFile, imageFileName);
+        // 修复：确保文件对象存在再添加到FormData
+        if (imageFile) {
+            formdata.append("image", imageFile, imageFileName);
+        }
         formdata.append("response_format", responseFormat);
-        formdata.append("aspect_ratio", aspectRatio);
+        if (aspectRatio) {
+            formdata.append("aspect_ratio", aspectRatio);
+        }
 
         debugLog('构建表单数据', {
             model,
@@ -13002,6 +13037,7 @@ async function createT8WorkflowTask(apiKey, prompt, imageFileName, appConfig) {
             aspectRatio
         });
 
+        // 修复：不要手动设置Content-Type头
         const requestOptions = {
             method: 'POST',
             headers: myHeaders,
