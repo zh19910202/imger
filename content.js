@@ -173,7 +173,7 @@ function showRhCancelBtn() {
     try {
         const btn = document.querySelector('#rh-cancel-btn');
         if (btn) {
-            btn.style.display = '';
+            btn.style.display = 'block';
             btn.disabled = false;
             btn.textContent = '取消任务';
             btn.style.opacity = '1';
@@ -1949,29 +1949,29 @@ function isSupportedImageFormat(url) {
 // 从URL中提取文件名
 function extractFileNameFromUrl(url) {
     if (!url) return '未知';
-    
+
     try {
         // 从URL中提取文件名部分
         const urlParts = url.split('/');
         let fileName = urlParts[urlParts.length - 1];
-        
+
         // 去除查询参数
         if (fileName.includes('?')) {
             fileName = fileName.split('?')[0];
         }
-        
+
         // 如果没有文件名或者只是数字/ID，使用默认名称
         if (!fileName || fileName.length < 3 || /^\d+$/.test(fileName)) {
             return '原图';
         }
-        
-        // 如果文件名过长，截断显示
-        if (fileName.length > 30) {
+
+        // 对于下载文件名，不要截断，保持完整（但要限制最大长度以避免系统限制）
+        if (fileName.length > 100) {
             const extension = fileName.includes('.') ? fileName.split('.').pop() : '';
-            const baseName = fileName.substring(0, 25);
-            return extension ? `${baseName}...${extension}` : `${baseName}...`;
+            const baseName = fileName.substring(0, 95);
+            return extension ? `${baseName}.${extension}` : baseName;
         }
-        
+
         return fileName;
     } catch (error) {
         return '原图';
@@ -8318,7 +8318,35 @@ function showDimensionCheckModal(imageInfo, isDimensionValid, selectedWorkflow =
         showNotification('已恢复上次的生成结果', 500);
     }
 
-    if (!cachedRunningHubResults && window._rhPollingActive && window._rhTaskIdForCancel && !window._rhCancelRequested) {
+    // 检查是否有正在进行的任务需要恢复
+    if (window._rhTaskInProgress && !cachedRunningHubResults) {
+        debugLog('恢复正在进行的任务状态', window._rhTaskInProgress);
+
+        // 恢复任务状态显示
+        const elapsedSeconds = Math.round((Date.now() - window._rhTaskInProgress.startTime) / 1000);
+        updateDimensionModalProgress(
+            `🆔 任务ID: ${window._rhTaskInProgress.taskId}\n📊 状态: ${window._rhTaskInProgress.lastStatus || 'PROCESSING'}${window._rhTaskInProgress.lastMsg ? ' (' + window._rhTaskInProgress.lastMsg + ')' : ''}\n🔄 第${window._rhTaskInProgress.lastPollCount || 0}次查询 - ${elapsedSeconds}秒`
+        );
+
+        // 显示取消按钮
+        showRhCancelBtn();
+
+        // 恢复全局状态变量
+        window._rhTaskIdForCancel = window._rhTaskInProgress.taskId;
+        window._rhApiKeyForCancel = window._rhTaskInProgress.apiKey;
+        window._rhLastStatus = window._rhTaskInProgress.lastStatus;
+        window._rhLastMsg = window._rhTaskInProgress.lastMsg;
+        window._rhLastPollCount = window._rhTaskInProgress.lastPollCount;
+        window._rhPollingActive = true;
+        window._rhCancelRequested = false;
+
+        // 设置提交按钮为进行中状态
+        if (submitBtn) {
+            disableSubmitButton(submitBtn);
+        }
+
+        showNotification('已恢复正在进行的任务状态', 500);
+    } else if (!cachedRunningHubResults && window._rhPollingActive && window._rhTaskIdForCancel && !window._rhCancelRequested) {
         updateDimensionModalProgress(`🆔 任务ID: ${window._rhTaskIdForCancel}\n📊 状态: 正在执行中...`);
         showRhCancelBtn();
 
@@ -8784,6 +8812,26 @@ function closeDimensionCheckModal() {
         debugLog('模态框DOM元素已移除');
     }
 
+    // 保存正在进行的任务状态（如果任务正在进行中）
+    if (window._rhPollingActive && window._rhTaskIdForCancel && !window._rhCancelRequested) {
+        debugLog('保存正在进行的任务状态', {
+            taskId: window._rhTaskIdForCancel,
+            lastStatus: window._rhLastStatus,
+            lastMsg: window._rhLastMsg,
+            lastPollCount: window._rhLastPollCount
+        });
+
+        // 保存当前任务信息到临时变量，以便重新打开模态框时恢复
+        window._rhTaskInProgress = {
+            taskId: window._rhTaskIdForCancel,
+            apiKey: window._rhApiKeyForCancel,
+            lastStatus: window._rhLastStatus,
+            lastMsg: window._rhLastMsg,
+            lastPollCount: window._rhLastPollCount,
+            startTime: Date.now() - (window._rhLastPollCount * 3000) // 估算开始时间
+        };
+    }
+
     // 完全重置状态
     dimensionCheckModal = null;
 
@@ -8949,101 +8997,145 @@ async function submitDimensionCheck(comment, selectedWorkflow = 'defaultWorkflow
             showNotification(`AI应用任务创建成功！\n任务ID: ${taskId}\n状态: ${taskStatus}${comment ? '\n需求: ' + comment : ''}`, 500);
             debugLog('AI应用任务创建成功:', taskResponse);
 
-            // 开始轮询并展示结果
-            updateDimensionModalProgress(`任务已创建\n🆔 任务ID: ${taskId}\n📊 状态: 正在执行中...`);
+            // 加载当前平台配置以确定使用哪个处理逻辑
+            await loadCurrentPlatformConfig();
+            const currentPlatform = CURRENT_PLATFORM_CONFIG ? CURRENT_PLATFORM_CONFIG.currentPlatform : 'runninghub';
 
-            // 显示取消按钮
-            showRhCancelBtn();
+            // 根据平台选择不同的处理方式
+            if (currentPlatform === 't8') {
+                // T8平台：直接处理任务结果（因为不支持状态查询）
+                debugLog('T8平台直接处理任务结果');
+                updateDimensionModalProgress(`任务已创建\n🆔 任务ID: ${taskId}\n📊 状态: 正在处理...`);
 
-            try {
-                // 根据当前平台选择轮询函数
-                await loadCurrentPlatformConfig();
-                const currentPlatform = CURRENT_PLATFORM_CONFIG ? CURRENT_PLATFORM_CONFIG.currentPlatform : 'runninghub';
+                // 显示取消按钮（虽然T8不支持真正取消，但可以让用户中断等待）
+                showRhCancelBtn();
 
-                let poll;
-                if (currentPlatform === 't8') {
-                    debugLog('使用T8平台轮询函数');
-                    poll = await pollT8TaskStatus(apiKey, taskId, (tick) => {
-                        updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n📊 状态: ${tick.status || 'PROCESSING'}${tick.msg ? ' (' + tick.msg + ')' : ''}\n🔄 第${tick.pollCount || 0}次查询 - ${Math.round((tick.elapsed || 0) / 1000)}秒`);
+                try {
+                    // 保存任务信息供取消使用
+                    window._rhTaskIdForCancel = taskId;
+                    window._rhApiKeyForCancel = apiKey;
+                    window._rhCancelRequested = false;
+
+                    // 直接处理T8平台返回的任务结果
+                    const outs = await processT8TaskResultDirectly(apiKey, taskResponse.data.t8Result);
+
+                    // 检查是否已取消
+                    if (window._rhCancelRequested) {
+                        debugLog('T8任务处理完成但用户已取消');
+                        updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n🚫 任务已完成但已被取消`);
+                        hideRhCancelBtn();
+                        ensureSubmitButtonState('canceled');
+                        return;
+                    }
+
+                    renderRunningHubResultsInModal(outs);
+                    updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n✅ 任务已完成`);
+
+                    // 缓存成功的结果
+                    cacheRunningHubResults(taskId, outs, {
+                        status: 'success',
+                        statusMessage: `✅ 任务已完成`,
+                        comment: comment,
+                        completedAt: new Date().toISOString()
                     });
-                } else {
+
+                    // 任务成功完成，启用按钮为完成状态
+                    hideRhCancelBtn();
+                    ensureSubmitButtonState('success');
+                } catch (e) {
+                    debugLog('处理T8任务结果失败:', e);
+                    // 检查是否是用户取消导致的异常
+                    if (e.message === '任务已取消' || window._rhCancelRequested) {
+                        updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n🚫 任务已被用户取消`);
+                        hideRhCancelBtn();
+                        ensureSubmitButtonState('canceled');
+                        return;
+                    }
+                    updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n⚠️ 处理结果失败：${e.message}`);
+                    // 处理结果失败，允许重新提交
+                    hideRhCancelBtn();
+                    ensureSubmitButtonState('failed');
+                }
+            } else {
+                // RunningHub平台：保持原有的轮询逻辑
+                // 开始轮询并展示结果
+                updateDimensionModalProgress(`任务已创建\n🆔 任务ID: ${taskId}\n📊 状态: 正在执行中...`);
+
+                // 显示取消按钮
+                showRhCancelBtn();
+
+                try {
+                    let poll;
                     debugLog('使用RunningHub平台轮询函数');
                     poll = await pollRunningHubTaskStatus(apiKey, taskId, (tick) => {
                         updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n📊 状态: ${tick.status || 'RUNNING'}${tick.msg ? ' (' + tick.msg + ')' : ''}\n🔄 第${tick.pollCount || 0}次查询 - ${Math.round((tick.elapsed || 0) / 1000)}秒`);
                     });
-                }
 
-                debugLog('轮询完成', poll);
+                    debugLog('轮询完成', poll);
 
-                if (poll.final === 'SUCCESS' || (currentPlatform === 't8' && poll.final === 'COMPLETED')) {
-                    updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n✅ 任务成功，正在获取结果...`);
-                    try {
-                        // 根据当前平台选择输出获取函数
-                        let outs;
-                        if (currentPlatform === 't8') {
-                            debugLog('使用T8平台输出获取函数');
-                            outs = await fetchT8TaskOutputs(apiKey, taskId);
-                        } else {
+                    if (poll.final === 'SUCCESS') {
+                        updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n✅ 任务成功，正在获取结果...`);
+                        try {
                             debugLog('使用RunningHub平台输出获取函数');
-                            outs = await fetchRunningHubTaskOutputs(apiKey, taskId);
+                            const outs = await fetchRunningHubTaskOutputs(apiKey, taskId);
+                            renderRunningHubResultsInModal(outs);
+                            updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n✅ 任务已完成 - 耗时${Math.round(poll.totalTime / 1000)}秒`);
+
+                            // 缓存成功的结果
+                            cacheRunningHubResults(taskId, outs, {
+                                status: 'success',
+                                statusMessage: `✅ 任务已完成 - 耗时${Math.round(poll.totalTime / 1000)}秒`,
+                                comment: comment,
+                                completedAt: new Date().toISOString()
+                            });
+
+                            hideRhCancelBtn();
+                            // 任务成功完成，启用按钮为完成状态
+                            ensureSubmitButtonState('success');
+                        } catch (e) {
+                            debugLog('获取输出失败:', e);
+                            updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n⚠️ 任务完成，但获取输出失败：${e.message}`);
+                            // 获取输出失败，允许重新提交
+                            ensureSubmitButtonState('failed');
                         }
-                        renderRunningHubResultsInModal(outs);
-                        updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n✅ 任务已完成 - 耗时${Math.round(poll.totalTime / 1000)}秒`);
-
-                        // 缓存成功的结果
-                        cacheRunningHubResults(taskId, outs, {
-                            status: 'success',
-                            statusMessage: `✅ 任务已完成 - 耗时${Math.round(poll.totalTime / 1000)}秒`,
-                            comment: comment,
-                            completedAt: new Date().toISOString()
-                        });
-
+                    } else if (poll.final === 'FAILED') {
+                        debugLog('任务失败', poll.raw);
+                        updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n❌ 任务失败 - ${poll.raw?.msg || '未知原因'}`);
                         hideRhCancelBtn();
-                        // 任务成功完成，启用按钮为完成状态
-                        ensureSubmitButtonState('success');
-                    } catch (e) {
-                        debugLog('获取输出失败:', e);
-                        updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n⚠️ 任务完成，但获取输出失败：${e.message}`);
-                        // 获取输出失败，允许重新提交
+
+                        // 如果有失败详情，显示给用户
+                        if (poll.raw?.data?.failedReason) {
+                            const failedReason = poll.raw.data.failedReason;
+                            updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n❌ 失败原因：${failedReason.exception_message || failedReason.exception_type || '系统错误'}`);
+                        }
+                        // 任务失败，允许重新提交
+                        ensureSubmitButtonState('failed');
+                    } else if (poll.final === 'ERROR') {
+                        debugLog('任务出错', poll.raw);
+                        updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n❌ 任务出错 - ${poll.raw?.msg || '系统错误'}`);
+                        hideRhCancelBtn();
+                        // 任务出错，允许重新提交
+                        ensureSubmitButtonState('failed');
+                    } else if (poll.final === 'CANCELED') {
+                        debugLog('任务已取消', poll.raw);
+                        updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n🚫 任务已取消`);
+                        hideRhCancelBtn();
+                        // 任务被取消，允许重新提交
+                        ensureSubmitButtonState('canceled');
+                    } else {
+                        debugLog('未知的最终状态', poll);
+                        updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n❓ 任务结束：${poll.final}`);
+                        hideRhCancelBtn();
+                        // 未知状态，允许重新提交
                         ensureSubmitButtonState('failed');
                     }
-                } else if (poll.final === 'FAILED') {
-                    debugLog('任务失败', poll.raw);
-                    updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n❌ 任务失败 - ${poll.raw?.msg || '未知原因'}`);
+                } catch (e) {
+                    debugLog('轮询过程失败:', e);
+                    updateDimensionModalProgress('轮询失败：' + e.message);
                     hideRhCancelBtn();
-
-                    // 如果有失败详情，显示给用户
-                    if (poll.raw?.data?.failedReason) {
-                        const failedReason = poll.raw.data.failedReason;
-                        updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n❌ 失败原因：${failedReason.exception_message || failedReason.exception_type || '系统错误'}`);
-                    }
-                    // 任务失败，允许重新提交
-                    ensureSubmitButtonState('failed');
-                } else if (poll.final === 'ERROR') {
-                    debugLog('任务出错', poll.raw);
-                    updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n❌ 任务出错 - ${poll.raw?.msg || '系统错误'}`);
-                    hideRhCancelBtn();
-                    // 任务出错，允许重新提交
-                    ensureSubmitButtonState('failed');
-                } else if (poll.final === 'CANCELED') {
-                    debugLog('任务已取消', poll.raw);
-                    updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n🚫 任务已取消`);
-                    hideRhCancelBtn();
-                    // 任务被取消，允许重新提交
-                    ensureSubmitButtonState('canceled');
-                } else {
-                    debugLog('未知的最终状态', poll);
-                    updateDimensionModalProgress(`🆔 任务ID: ${taskId}\n❓ 任务结束：${poll.final}`);
-                    hideRhCancelBtn();
-                    // 未知状态，允许重新提交
+                    // 轮询失败，允许重新提交
                     ensureSubmitButtonState('failed');
                 }
-            } catch (e) {
-                debugLog('轮询过程失败:', e);
-                updateDimensionModalProgress('轮询失败：' + e.message);
-                hideRhCancelBtn();
-                // 轮询失败，允许重新提交
-                ensureSubmitButtonState('failed');
             }
         } else {
             throw new Error('AI应用任务创建失败: ' + (taskResponse.msg || '未知错误'));
@@ -9952,8 +10044,18 @@ function updateDimensionModalProgress(text) {
                     cancelBtn.disabled = true;
                     cancelBtn.textContent = '取消中...';
                     cancelBtn.style.opacity = '0.6';
-                    await cancelRunningHubTask(window._rhApiKeyForCancel, window._rhTaskIdForCancel);
-                    updateDimensionModalProgress(`🆔 任务ID: ${window._rhTaskIdForCancel}\n🚫 任务已申请取消，请稍候更新状态...`);
+
+                    // 根据当前平台选择取消函数
+                    await loadCurrentPlatformConfig();
+                    const currentPlatform = CURRENT_PLATFORM_CONFIG ? CURRENT_PLATFORM_CONFIG.currentPlatform : 'runninghub';
+
+                    if (currentPlatform === 't8') {
+                        await cancelT8Task(window._rhApiKeyForCancel, window._rhTaskIdForCancel);
+                        updateDimensionModalProgress(`🆔 任务ID: ${window._rhTaskIdForCancel}\n🚫 T8任务取消请求已记录（注意：T8平台不支持真正取消正在处理的任务）`);
+                    } else {
+                        await cancelRunningHubTask(window._rhApiKeyForCancel, window._rhTaskIdForCancel);
+                        updateDimensionModalProgress(`🆔 任务ID: ${window._rhTaskIdForCancel}\n🚫 任务已申请取消，请稍候更新状态...`);
+                    }
 
                     // 取消任务后，重新启用提交按钮
                     const submitBtn = document.querySelector('#dimensionCheckSubmitBtn');
@@ -9972,143 +10074,11 @@ function updateDimensionModalProgress(text) {
 }
 
 // T8平台任务轮询函数
-async function pollT8TaskStatus(apiKey, taskId, onTick) {
-    const statusUrl = 'https://ai.t8star.cn/v1/images/status'; // T8平台状态查询URL
-    // 保存到全局，供取消按钮使用
-    window._rhTaskIdForCancel = taskId;
-    window._rhApiKeyForCancel = apiKey;
-    window._rhCancelRequested = window._rhCancelRequested || false;
-
-    const headers = {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-    };
-
-    const body = JSON.stringify({ taskId });
-    const intervalMs = 3000;
-    const maxWaitMs = 210000;
-    const start = Date.now();
-
-    debugLog('开始轮询T8任务状态', { taskId, intervalMs, maxWaitMs });
-    window._rhPollingActive = true;
-    window._rhLastStatus = 'QUEUED';
-
-    // 打印轮询开始信息
-    console.log(`\n🚀 ======== T8平台 轮询开始 ========`);
-    console.log(`🕐 开始时间: ${new Date().toLocaleTimeString()}`);
-    console.log(`🆔 任务ID: ${taskId}`);
-    console.log(`⏱️ 轮询间隔: ${intervalMs}ms`);
-    console.log(`⏰ 超时时间: ${Math.round(maxWaitMs / 1000)}秒`);
-    console.log(`🔄 预计最大轮询次数: ${Math.round(maxWaitMs / intervalMs)}`);
-    console.log(`==========================================\n`);
-
-    let pollCount = 0;
-    while (true) {
-        pollCount++;
-        debugLog(`T8轮询第${pollCount}次`, { elapsed: Date.now() - start });
-
-        if (window._rhCancelRequested) {
-            debugLog('检测到取消请求，停止T8轮询');
-            window._rhPollingActive = false;
-            throw new Error('任务已取消');
-        }
-
-        const resp = await fetch(statusUrl, { method: 'POST', headers, body });
-        if (!resp.ok) {
-            debugLog('T8状态查询HTTP错误', { status: resp.status });
-            throw new Error('查询状态失败: HTTP ' + resp.status);
-        }
-
-        const data = await resp.json().catch(() => ({}));
-        const status = data?.status || data?.data?.status || 'UNKNOWN';
-        const msg = data?.message || data?.msg || '';
-
-        window._rhLastStatus = status;
-        window._rhLastMsg = msg;
-        window._rhLastPollCount = pollCount;
-
-        debugLog(`第${pollCount}次T8轮询结果`, { status, msg, rawData: data });
-
-        // 详细打印轮询状态到控制台
-        console.log(`\n======== T8任务状态轮询 #${pollCount} ========`);
-        console.log(`🕐 时间: ${new Date().toLocaleTimeString()}`);
-        console.log(`⏱️ 已耗时: ${Math.round((Date.now() - start) / 1000)}秒`);
-        console.log(`🆔 任务ID: ${taskId}`);
-        console.log(`📋 任务状态: ${status}`);
-        console.log(`💬 消息: ${msg || '无'}`);
-        console.log(`🔍 原始响应:`, data);
-
-        // T8平台状态映射
-        const statusAnalysis = {
-            'QUEUED': '🟡 任务排队中',
-            'PROCESSING': '🔵 任务执行中',
-            'COMPLETED': '🟢 任务成功完成',
-            'FAILED': '🔴 任务执行失败',
-            'CANCELLED': '🟠 任务已取消'
-        };
-
-        console.log(`📈 状态说明: ${statusAnalysis[status] || '❓ 未知状态'}`);
-
-        if (typeof onTick === 'function') {
-            onTick({ status, msg, pollCount, elapsed: Date.now() - start });
-        }
-
-        // 检查终止条件 - 任务完成、失败或出错
-        if (['COMPLETED', 'FAILED', 'CANCELLED'].includes(status)) {
-            debugLog('T8任务终止条件满足，停止轮询', {
-                finalStatus: status,
-                pollCount,
-                totalTime: Date.now() - start
-            });
-
-            // 打印轮询停止信息
-            console.log(`\n🛑 ======== T8轮询已停止 ========`);
-            console.log(`✅ 终止原因: 任务状态变为 ${status}`);
-            console.log(`📊 总轮询次数: ${pollCount}`);
-            console.log(`⏱️ 总耗时: ${Math.round((Date.now() - start) / 1000)}秒`);
-            console.log(`🆔 任务ID: ${taskId}`);
-            console.log(`📋 最终状态: ${statusAnalysis[status] || status}`);
-            console.log(`==========================================\n`);
-
-            try {
-                const btn = document.querySelector('#rh-cancel-btn');
-                if (btn) btn.style.display = 'none';
-            } catch (_) {}
-
-            window._rhPollingActive = false;
-            return { final: status, raw: data, pollCount, totalTime: Date.now() - start };
-        }
-
-        // 检查超时
-        if (Date.now() - start > maxWaitMs) {
-            debugLog('T8轮询超时，强制停止', {
-                pollCount,
-                totalTime: Date.now() - start,
-                lastStatus: status
-            });
-
-            // 打印超时停止信息
-            console.log(`\n⏰ ======== T8轮询超时停止 ========`);
-            console.log(`❌ 终止原因: 超时 (${Math.round(maxWaitMs / 1000)}秒)`);
-            console.log(`📊 总轮询次数: ${pollCount}`);
-            console.log(`📋 最后状态: ${status}`);
-            console.log(`🆔 任务ID: ${taskId}`);
-            console.log(`💡 建议: 任务可能仍在执行，请稍后手动查询`);
-            console.log(`==========================================\n`);
-
-            try {
-                const btn = document.querySelector('#rh-cancel-btn');
-                if (btn) btn.style.display = 'none';
-            } catch (_) {}
-
-            window._rhPollingActive = false;
-            throw new Error(`轮询超时，任务仍未完成。最后状态: ${status}, 轮询${pollCount}次`);
-        }
-
-        // 等待下次轮询
-        await new Promise(r => setTimeout(r, intervalMs));
-    }
-}
+// T8平台不支持状态查询，此函数已废弃
+// async function pollT8TaskStatus(apiKey, taskId, onTick) {
+//     // 此函数已移除，因为T8平台不支持状态查询
+//     // T8平台现在直接处理任务结果而不是轮询状态
+// }
 
 async function pollRunningHubTaskStatus(apiKey, taskId, onTick) {
     const statusUrl = 'https://www.runninghub.cn/task/openapi/status';
@@ -10346,6 +10316,109 @@ async function fetchT8TaskOutputs(apiKey, taskId) {
     return compatibleResponse;
 }
 
+// T8平台直接处理任务结果函数（用于不支持状态查询的场景）
+async function processT8TaskResultDirectly(apiKey, taskResult) {
+    debugLog('开始直接处理T8任务结果', {
+        apiKey: apiKey ? `${apiKey.substring(0, 10)}...` : 'null',
+        resultType: typeof taskResult,
+        resultLength: typeof taskResult === 'string' ? taskResult.length : 'N/A'
+    });
+
+    try {
+        // 解析任务结果
+        const result = typeof taskResult === 'string' ? JSON.parse(taskResult) : taskResult;
+        debugLog('解析T8任务结果', result);
+
+        // 详细打印任务结果
+        console.log(`\n📥 ======== T8平台 直接任务结果 ========`);
+        console.log(`🕐 处理时间: ${new Date().toLocaleTimeString()}`);
+
+        // 分析T8 API任务结果结构
+        debugLog('T8 API任务结果结构分析', {
+            created: result.created,
+            hasData: !!result.data,
+            dataType: typeof result.data,
+            dataIsArray: Array.isArray(result.data),
+            dataLength: Array.isArray(result.data) ? result.data.length : 'N/A',
+            model: result.model,
+            usage: result.usage
+        });
+
+        // 根据T8平台的实际响应格式构造兼容的输出格式
+        // T8平台返回的data字段包含对象数组，每个对象有b64_json字段
+        let compatibleOutputs = [];
+
+        if (Array.isArray(result.data)) {
+            // 如果data是数组，处理每个base64数据
+            for (let index = 0; index < result.data.length; index++) {
+                const item = result.data[index];
+
+                // 检查是否已取消
+                if (window._rhCancelRequested) {
+                    debugLog('T8任务处理过程中检测到取消请求');
+                    throw new Error('任务已取消');
+                }
+
+                // T8平台的base64数据在b64_json字段中
+                const base64Data = item.b64_json || item.data || item;
+                compatibleOutputs.push({
+                    nodeId: `t8-output-${index}`,
+                    fileUrl: `data:image/jpeg;base64,${base64Data}`, // 将base64数据转换为data URL
+                    fileType: 'image/jpeg',
+                    taskCostTime: result.usage ? (result.usage.total_tokens || 0) : 0
+                });
+
+                // 在处理大量数据时，允许UI更新
+                if (index % 10 === 0) {
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                }
+            }
+        } else if (typeof result.data === 'string') {
+            // 如果data是字符串，直接使用
+            compatibleOutputs = [{
+                nodeId: 't8-output-0',
+                fileUrl: `data:image/jpeg;base64,${result.data}`, // 将base64数据转换为data URL
+                fileType: 'image/jpeg',
+                taskCostTime: result.usage ? (result.usage.total_tokens || 0) : 0
+            }];
+        } else if (result.data && typeof result.data === 'object') {
+            // 如果data是对象，检查是否有b64_json字段
+            const base64Data = result.data.b64_json || result.data.data || JSON.stringify(result.data);
+            compatibleOutputs = [{
+                nodeId: 't8-output-0',
+                fileUrl: `data:image/jpeg;base64,${base64Data}`, // 将base64数据转换为data URL
+                fileType: 'image/jpeg',
+                taskCostTime: result.usage ? (result.usage.total_tokens || 0) : 0
+            }];
+        }
+
+        // 构造与RunningHub兼容的响应格式
+        const compatibleResponse = {
+            code: 0,
+            data: compatibleOutputs,
+            t8Result: result  // 保存T8平台的原始结果
+        };
+
+        debugLog('构造的兼容输出格式', compatibleResponse);
+
+        // 打印详细的结果信息
+        console.log(`📊 结果数据项数: ${compatibleOutputs.length}`);
+        console.log(`🤖 使用模型: ${result.model || 'unknown'}`);
+        if (result.usage) {
+            console.log(`🧮 Tokens使用: 总计${result.usage.total_tokens || 0} (输入${result.usage.input_tokens || result.usage.prompt_tokens || 0}, 输出${result.usage.output_tokens || result.usage.completion_tokens || 0})`);
+        }
+        console.log(`==========================================\n`);
+
+        return compatibleResponse;
+    } catch (error) {
+        debugLog('直接处理T8任务结果失败', {
+            error: error.message,
+            stack: error.stack
+        });
+        throw new Error(`处理任务结果失败: ${error.message}`);
+    }
+}
+
 async function fetchRunningHubTaskOutputs(apiKey, taskId) {
     debugLog('开始获取任务输出', { apiKey: apiKey.substring(0, 10) + '...', taskId });
 
@@ -10424,6 +10497,17 @@ async function cancelRunningHubTask(apiKey, taskId) {
         throw new Error(data?.msg || '取消失败');
     }
     return data;
+}
+
+// T8平台取消任务函数
+async function cancelT8Task(apiKey, taskId) {
+    // T8平台不支持真正的任务取消，这里只是设置取消标志
+    // 在实际处理中，我们无法真正取消已经开始的T8任务
+    window._rhCancelRequested = true;
+    debugLog('T8平台任务取消请求（仅设置标志）', { taskId });
+
+    // 返回模拟的成功响应
+    return { code: 0, msg: '取消请求已记录' };
 }
 
 function renderRunningHubResultsInModal(outputsJson) {
@@ -10618,7 +10702,7 @@ function renderRunningHubResultsInModal(outputsJson) {
                         fileType,
                         nodeId,
                         taskCostTime,
-                        fileName: generateResultImageFileName(originalImage, fileType, index, '副本')
+                        fileName: generateResultImageFileName(originalImage, fileType, index, '副本', null)
                     });
                 });
 
@@ -10685,7 +10769,7 @@ function renderRunningHubResultsInModal(outputsJson) {
                         fileType,
                         nodeId,
                         taskCostTime,
-                        fileName: generateResultImageFileName(originalImage, fileType, index, '副本')
+                        fileName: generateResultImageFileName(originalImage, fileType, index, '副本', null)
                     });
                 });
 
@@ -11128,7 +11212,7 @@ function showImageLightbox(resultImageUrl, title, metadata) {
         `;
 
         downloadOriginalBtn.addEventListener('click', () => {
-            const originalFileName = generateResultImageFileName(originalImage, 'jpg', 0, '原图');
+            const originalFileName = generateResultImageFileName(originalImage, 'jpg', 0, '原图', null);
             // 获取用户自动打开设置并传递给下载函数
             if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
                 chrome.runtime.sendMessage({
@@ -11423,7 +11507,7 @@ async function uploadImageToAnnotationPlatform(imageUrl, fileType, index) {
         debugLog('图片数据获取成功', { size: blob.size, type: blob.type });
 
         // 创建File对象 - 使用智能文件名
-        const fileName = generateResultImageFileName(originalImage, fileType, index, '副本');
+        const fileName = generateResultImageFileName(originalImage, fileType, index, '副本', null);
         const file = new File([blob], fileName, { type: blob.type });
 
         showNotification('正在查找上传位置...', 500);
@@ -11503,10 +11587,32 @@ async function uploadImageToAnnotationPlatform(imageUrl, fileType, index) {
     }
 }
 
-// 生成RunningHub结果图的智能文件名
-function generateResultImageFileName(originalImageInfo, fileType, index = 0, suffix = '副本') {
+// 获取当前平台配置
+function getCurrentPlatform() {
     try {
-        let baseName = 'runninghub-result';
+        // 首先尝试加载当前平台配置
+        if (typeof loadCurrentPlatformConfig === 'function') {
+            // 这是一个异步函数，但我们只需要同步获取当前配置
+            // 直接使用已加载的配置
+        }
+
+        // 获取当前平台
+        const currentPlatform = CURRENT_PLATFORM_CONFIG ? CURRENT_PLATFORM_CONFIG.currentPlatform : 'runninghub';
+        return currentPlatform;
+    } catch (error) {
+        debugLog('获取当前平台失败，使用默认平台:', error);
+        return 'runninghub';
+    }
+}
+
+// 生成AI处理结果图的智能文件名（支持RunningHub和T8平台）
+function generateResultImageFileName(originalImageInfo, fileType, index = 0, suffix = '副本', platform = null) {
+    // 如果没有指定平台，自动检测当前平台
+    if (!platform) {
+        platform = getCurrentPlatform();
+    }
+    try {
+        let baseName = `${platform}-result`;
 
         // 尝试从原图获取文件名
         if (originalImageInfo && originalImageInfo.src) {
@@ -11519,7 +11625,7 @@ function generateResultImageFileName(originalImageInfo, fileType, index = 0, suf
         }
 
         // 如果baseName仍是默认值，尝试其他方式
-        if (baseName === 'runninghub-result') {
+        if (baseName === `${platform}-result`) {
             if (originalImageInfo && originalImageInfo.name) {
                 baseName = originalImageInfo.name.replace(/\.[^/.]+$/, '');
             } else if (originalImageInfo && originalImageInfo.element && originalImageInfo.element.alt) {
@@ -11530,28 +11636,48 @@ function generateResultImageFileName(originalImageInfo, fileType, index = 0, suf
         // 清理文件名，移除特殊字符
         baseName = baseName.replace(/[<>:"/\\|?*\x00-\x1f]/g, '').trim();
 
+        // 确保baseName不以点号开头或结尾
+        baseName = baseName.replace(/^\.+|\.+$/g, '').trim();
+
         // 确保文件名不为空
         if (!baseName || baseName.length < 1) {
             baseName = 'image';
         }
 
         // 生成最终文件名
-        const timestamp = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+        const now = new Date();
+        const timestamp = now.toISOString().split('T')[0]; // YYYY-MM-DD
+        const timeString = now.toTimeString().split(' ')[0].replace(/:/g, ''); // HHMMSS
         const extension = fileType || 'png';
 
         let finalName;
-        if (index > 0) {
-            finalName = `${baseName}_${suffix}_${index + 1}_${timestamp}.${extension}`;
+        if (platform === 't8') {
+            // T8平台使用edit后缀命名规则
+            if (index > 0) {
+                finalName = `${baseName}_edit_${index + 1}_${timestamp}_${timeString}.${extension}`;
+            } else {
+                finalName = `${baseName}_edit_${timestamp}_${timeString}.${extension}`;
+            }
         } else {
-            finalName = `${baseName}_${suffix}_${timestamp}.${extension}`;
+            // RunningHub平台保持原有命名规则
+            if (index > 0) {
+                finalName = `${baseName}_${suffix}_${index + 1}_${timestamp}_${timeString}.${extension}`;
+            } else {
+                finalName = `${baseName}_${suffix}_${timestamp}_${timeString}.${extension}`;
+            }
         }
+
+        // 确保文件名不包含路径分隔符
+        finalName = finalName.replace(/[\/\\]/g, '_');
 
         debugLog('生成结果图文件名', {
             originalSrc: originalImageInfo?.src?.substring(0, 50) + '...',
             baseName,
             suffix,
             index,
+            platform,
             timestamp,
+            timeString,
             extension,
             finalName
         });
@@ -11561,7 +11687,8 @@ function generateResultImageFileName(originalImageInfo, fileType, index = 0, suf
     } catch (error) {
         debugLog('生成文件名失败，使用默认名称:', error);
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
-        return `runninghub-result-${timestamp}-${index + 1}.${fileType || 'png'}`;
+        const timeString = new Date().toTimeString().split(' ')[0].replace(/:/g, '');
+        return `${platform}-result-${timestamp}-${timeString}-${index + 1}.${fileType || 'png'}`;
     }
 }
 
@@ -11576,7 +11703,24 @@ function downloadImageToLocal(imageUrl, fileType, index, customFileName = null, 
         });
 
         // 生成智能文件名
-        const fileName = customFileName || generateResultImageFileName(originalImage, fileType, index, '副本');
+        let fileName = customFileName || generateResultImageFileName(originalImage, fileType, index, '副本', null);
+        debugLog('下载文件名生成详情', { customFileName, fileName, originalImageInfo: originalImage });
+
+        // 确保文件名格式正确，不包含路径分隔符
+        if (fileName) {
+            // 移除路径分隔符，确保只是一个文件名
+            fileName = fileName.replace(/[\/\\]/g, '_');
+            // 移除开头和结尾的点号
+            fileName = fileName.replace(/^\.+|\.+$/g, '').trim();
+            // 确保文件名不为空
+            if (!fileName || fileName.length < 1) {
+                fileName = `image_${Date.now()}.${fileType || 'png'}`;
+            }
+            // 确保文件名有扩展名
+            if (!fileName.includes('.')) {
+                fileName = `${fileName}.${fileType || 'png'}`;
+            }
+        }
 
         debugLog('生成的文件名', fileName);
 
