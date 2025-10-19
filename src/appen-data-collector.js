@@ -778,9 +778,9 @@
         isTargetPage: isTargetPage,
         // 获取认证cookie
         getAuthCookies: function() {
-            // 只在appen域名下允许获取cookie
-            if (!window.location.href.includes('ui.appen.com.cn')) {
-                console.log('[Appen Data Collector] 当前不在appen域名下，无法获取cookie');
+            // 只在目标页面允许获取cookie
+            if (!isTargetPage()) {
+                console.log('[Appen Data Collector] 当前不是目标页面，无法获取cookie');
                 return Promise.resolve(null);
             }
             return getAuthCookies();
