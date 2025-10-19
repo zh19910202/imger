@@ -889,7 +889,7 @@ async function downloadImageWithCustomName(imageUrl, pageUrl, customFilename, au
 // 处理来自popup和content script的消息
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (LOG_VERBOSE) console.log('收到消息:', request);
-  
+
   if (request.action === "downloadImage") {
     // 支持自定义文件名和自动打开控制
     const filename = request.filename || null;
@@ -952,7 +952,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   } else if (request.action === "send_native_message") {
     // 处理发送到 Native Host 的消息
     if (LOG_VERBOSE) console.log('转发消息到 Native Host:', request.nativeMessage);
-    
+
     if (!nativePort) {
       // 尝试连接 Native Host
       initializeNativeMessaging()
@@ -969,6 +969,23 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     } else {
       sendNativeMessage(request.nativeMessage, sendResponse);
     }
+    return true; // 保持消息通道开放
+  } else if (request.action === "getAppenCookies") {
+    // 获取Appen认证cookie
+    getAppenCookies(request.url || "https://ui.appen.com.cn")
+      .then((cookies) => {
+        sendResponse({
+          success: true,
+          cookies: cookies
+        });
+      })
+      .catch((error) => {
+        console.error('获取Appen cookie失败:', error);
+        sendResponse({
+          success: false,
+          error: error.message
+        });
+      });
     return true; // 保持消息通道开放
   }
 });
@@ -1022,6 +1039,41 @@ function sendNativeMessage(message, sendResponse) {
       success: false,
       error: '发送消息失败: ' + error.message
     });
+  }
+}
+
+// 获取Appen认证cookie
+async function getAppenCookies(url) {
+  try {
+    console.log('[Background] 开始获取Appen cookie，URL:', url);
+
+    // 使用chrome.cookies API获取cookie
+    const cookies = await chrome.cookies.getAll({
+      url: url
+    });
+
+    console.log('[Background] 获取到的所有cookie:', cookies);
+
+    // 过滤出我们需要的cookie
+    const authCookies = {
+      authorization: null,
+      appenAuthSession: null
+    };
+
+    cookies.forEach(cookie => {
+      if (cookie.name === 'Authorization' || cookie.name === 'authorization') {
+        authCookies.authorization = cookie.value;
+      } else if (cookie.name === '_appen_auth_session') {
+        authCookies.appenAuthSession = cookie.value;
+      }
+    });
+
+    console.log('[Background] 提取的认证cookie:', authCookies);
+
+    return authCookies;
+  } catch (error) {
+    console.error('[Background] 获取Appen cookie时出错:', error);
+    throw error;
   }
 }
 

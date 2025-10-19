@@ -34,15 +34,19 @@
     let lastPushTime = 0;
 
     // 初始化数据收集器
-    function initializeDataCollector() {
+    async function initializeDataCollector() {
         console.log('[Appen Data Collector] 初始化即时数据收集器');
 
         // 检查是否在appen域名下，如果是则获取cookie
         if (window.location.href.includes('ui.appen.com.cn')) {
             console.log('[Appen Data Collector] 检测到appen域名，获取认证cookie');
-            const authCookies = getAuthCookies();
-            if (authCookies) {
-                collectedData.authCookies = authCookies;
+            try {
+                const authCookies = await getAuthCookies();
+                if (authCookies) {
+                    collectedData.authCookies = authCookies;
+                }
+            } catch (error) {
+                console.warn('[Appen Data Collector] 获取认证cookie失败:', error);
             }
         }
 
@@ -530,18 +534,23 @@
         });
 
         // 获取cookie按钮事件
-        document.getElementById('get-cookies-btn').addEventListener('click', function() {
-            const cookies = getAuthCookies();
-            if (cookies) {
-                const cookieJson = JSON.stringify(cookies, null, 2);
-                navigator.clipboard.writeText(cookieJson).then(() => {
-                    alert('Cookie数据已复制到剪贴板！\n\n' + cookieJson);
-                }).catch(err => {
-                    console.error('复制失败:', err);
-                    alert('复制失败，请查看控制台输出\n\n' + cookieJson);
-                });
-            } else {
-                alert('未能获取到认证cookie，请检查控制台日志');
+        document.getElementById('get-cookies-btn').addEventListener('click', async function() {
+            try {
+                const cookies = await getAuthCookies();
+                if (cookies) {
+                    const cookieJson = JSON.stringify(cookies, null, 2);
+                    navigator.clipboard.writeText(cookieJson).then(() => {
+                        alert('Cookie数据已复制到剪贴板！\n\n' + cookieJson);
+                    }).catch(err => {
+                        console.error('复制失败:', err);
+                        alert('复制失败，请查看控制台输出\n\n' + cookieJson);
+                    });
+                } else {
+                    alert('未能获取到认证cookie，请检查控制台日志');
+                }
+            } catch (error) {
+                console.error('获取cookie失败:', error);
+                alert('获取cookie失败: ' + error.message);
             }
         });
 
@@ -568,7 +577,7 @@
     }
 
     // 获取指定的cookie值
-    function getAuthCookies() {
+    async function getAuthCookies() {
         try {
             // 检查是否在正确的域名下
             if (!window.location.href.includes('ui.appen.com.cn')) {
@@ -576,43 +585,32 @@
                 return null;
             }
 
-            // 获取所有cookie
-            const cookies = document.cookie;
-            console.log('[Appen Data Collector] 所有cookie:', cookies);
+            console.log('[Appen Data Collector] 尝试通过background script获取cookie');
 
-            // 解析cookie
-            const cookieObj = {};
-            if (cookies) {
-                cookies.split(';').forEach(cookie => {
-                    const [name, value] = cookie.trim().split('=');
-                    if (name && value) {
-                        cookieObj[name] = decodeURIComponent(value);
+            // 通过background script获取cookie（使用chrome.cookies API）
+            return new Promise((resolve, reject) => {
+                chrome.runtime.sendMessage({
+                    action: "getAppenCookies",
+                    url: window.location.href
+                }, (response) => {
+                    if (chrome.runtime.lastError) {
+                        console.error('[Appen Data Collector] 与background script通信失败:', chrome.runtime.lastError);
+                        reject(chrome.runtime.lastError);
+                        return;
+                    }
+
+                    if (response.success) {
+                        console.log('[Appen Data Collector] 通过background script获取的cookie:', response.cookies);
+                        resolve(response.cookies);
+                    } else {
+                        console.error('[Appen Data Collector] background script获取cookie失败:', response.error);
+                        reject(new Error(response.error));
                     }
                 });
-            }
-
-            // 提取所需的cookie值
-            const authCookies = {
-                authorization: cookieObj['Authorization'] || cookieObj['authorization'] || null,
-                appenAuthSession: cookieObj['_appen_auth_session'] || null
-            };
-
-            // 记录找到的cookie键（用于调试）
-            const cookieKeys = Object.keys(cookieObj);
-            console.log('[Appen Data Collector] 所有cookie键:', cookieKeys);
-
-            // 检查是否找到了我们需要的cookie
-            if (!authCookies.authorization) {
-                console.warn('[Appen Data Collector] 未找到Authorization cookie');
-            }
-            if (!authCookies.appenAuthSession) {
-                console.warn('[Appen Data Collector] 未找到_appen_auth_session cookie');
-            }
-
-            console.log('[Appen Data Collector] 提取的认证cookie:', authCookies);
-            return authCookies;
+            });
         } catch (error) {
             console.warn('[Appen Data Collector] 获取cookie时出错:', error);
+            console.error('[Appen Data Collector] 错误详情:', error.stack);
             return null;
         }
     }
@@ -773,7 +771,9 @@
         // 检查是否为目标页面
         isTargetPage: isTargetPage,
         // 获取认证cookie
-        getAuthCookies: getAuthCookies
+        getAuthCookies: function() {
+            return getAuthCookies();
+        }
     };
 
     // 定期检查URL变化
