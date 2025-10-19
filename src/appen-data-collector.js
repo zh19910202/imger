@@ -37,10 +37,13 @@
     async function initializeDataCollector() {
         console.log('[Appen Data Collector] 初始化即时数据收集器');
 
-        // 检查是否在appen域名下，如果是则获取cookie
-        if (window.location.href.includes('ui.appen.com.cn')) {
-            console.log('[Appen Data Collector] 检测到appen域名，获取认证cookie');
+        // 检查是否为特定目标页面
+        if (isTargetPage()) {
+            console.log('[Appen Data Collector] 检测到目标页面，执行特定操作');
+
+            // 在目标页面上获取认证cookie
             try {
+                console.log('[Appen Data Collector] 获取认证cookie');
                 const authCookies = await getAuthCookies();
                 if (authCookies) {
                     collectedData.authCookies = authCookies;
@@ -48,11 +51,7 @@
             } catch (error) {
                 console.warn('[Appen Data Collector] 获取认证cookie失败:', error);
             }
-        }
 
-        // 检查是否为特定目标页面
-        if (isTargetPage()) {
-            console.log('[Appen Data Collector] 检测到目标页面，执行特定操作');
             // 在目标页面上提取响应元素
             setTimeout(extractResponseElements, 2000); // 等待页面加载完成
         }
@@ -767,11 +766,23 @@
         // 手动触发标注完成推送
         submitAnnotation: pushDataOnSubmission,
         // 手动提取响应元素
-        extractResponseElements: extractResponseElements,
+        extractResponseElements: function() {
+            // 只在目标页面允许提取响应元素
+            if (!isTargetPage()) {
+                console.log('[Appen Data Collector] 当前不是目标页面，无法提取响应元素');
+                return null;
+            }
+            return extractResponseElements();
+        },
         // 检查是否为目标页面
         isTargetPage: isTargetPage,
         // 获取认证cookie
         getAuthCookies: function() {
+            // 只在appen域名下允许获取cookie
+            if (!window.location.href.includes('ui.appen.com.cn')) {
+                console.log('[Appen Data Collector] 当前不在appen域名下，无法获取cookie');
+                return Promise.resolve(null);
+            }
             return getAuthCookies();
         }
     };
@@ -793,9 +804,22 @@
     }
 
     // URL变化时的处理函数
-    function onUrlChange() {
+    async function onUrlChange() {
         if (isTargetPage() && !collectedData.responseElements) {
-            console.log('[Appen Data Collector] 检测到目标页面URL变化，开始提取响应元素');
+            console.log('[Appen Data Collector] 检测到目标页面URL变化，开始提取响应元素和获取cookie');
+
+            // 获取认证cookie
+            try {
+                console.log('[Appen Data Collector] 获取认证cookie');
+                const authCookies = await getAuthCookies();
+                if (authCookies) {
+                    collectedData.authCookies = authCookies;
+                }
+            } catch (error) {
+                console.warn('[Appen Data Collector] 获取认证cookie失败:', error);
+            }
+
+            // 提取响应元素
             setTimeout(extractResponseElements, 1000); // 等待页面加载完成
         }
     }
