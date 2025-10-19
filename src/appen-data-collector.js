@@ -14,13 +14,14 @@
         // 重试间隔（毫秒）
         RETRY_DELAY: 5000,
         // 防抖延迟（毫秒），避免短时间内重复推送
-        DEBOUNCE_DELAY: 2000
+        DEBOUNCE_DELAY: 2000,
+        // 特定URL模式匹配
+        TARGET_URL_PATTERN: /^https:\/\/ui\.appen\.com\.cn\/ssr\/v3\/annotation-task-start\?.*$/
     };
 
     // 全局变量
     let collectedData = {
         userId: null,
-        name: null,
         taskId: null,
         topicId: null,
         topicUrl: null,
@@ -35,6 +36,13 @@
     // 初始化数据收集器
     function initializeDataCollector() {
         console.log('[Appen Data Collector] 初始化即时数据收集器');
+
+        // 检查是否为特定目标页面
+        if (isTargetPage()) {
+            console.log('[Appen Data Collector] 检测到目标页面，执行特定操作');
+            // 在目标页面上提取响应元素
+            setTimeout(extractResponseElements, 2000); // 等待页面加载完成
+        }
 
         // 等待账户元素加载，然后获取用户信息
         waitForAccountElement();
@@ -98,7 +106,6 @@
                         
                         console.log(`[Appen Data Collector] ✓ 找到用户ID: ${spanText}`);
                         collectedData.userId = spanText;
-                        collectedData.name = spanText;
                         return;
                     }
                 }
@@ -108,16 +115,13 @@
                 console.log('[Appen Data Collector] ✗ 未找到账户元素');
             }
 
-            // 备选方案：使用默认值
             collectedData.userId = 'unknown_user';
-            collectedData.name = '未知用户';
             console.warn('[Appen Data Collector] 使用默认值');
             
         } catch (error) {
             console.warn('[Appen Data Collector] 无法收集用户信息:', error);
             console.error(error);
             collectedData.userId = 'unknown_user';
-            collectedData.name = '未知用户';
         }
     }
 
@@ -328,7 +332,6 @@
         // 构造符合API要求的数据（使用camelCase）
         const dataToSend = {
             userId: collectedData.userId || 'unknown_user',
-            name: collectedData.name || '未知用户',
             taskId: collectedData.taskId || 'unknown_task',
             topicId: collectedData.topicId || 'unknown_topic',
             topicUrl: collectedData.topicUrl || window.location.href,
@@ -435,7 +438,6 @@
                     font-size: 14px;
                 ">
                     <div><strong style="color: #333;">用户ID:</strong> <span style="color: #0066cc;">${escapeHtml(collectedData.userId || 'N/A')}</span></div>
-                    <div><strong style="color: #333;">用户名:</strong> <span style="color: #0066cc;">${escapeHtml(collectedData.name || 'N/A')}</span></div>
                     <div><strong style="color: #333;">任务ID:</strong> <span style="color: #0066cc;">${escapeHtml(collectedData.taskId || 'N/A')}</span></div>
                     <div><strong style="color: #333;">题目ID:</strong> <span style="color: #0066cc;">${escapeHtml(collectedData.topicId || 'N/A')}</span></div>
                     <div><strong style="color: #333;">题目URL:</strong> <span style="color: #0066cc; word-break: break-all;">${escapeHtml(collectedData.topicUrl || 'N/A')}</span></div>
@@ -482,7 +484,6 @@
         document.getElementById('copy-data-btn').addEventListener('click', function() {
             const dataToSend = {
                 userId: collectedData.userId || 'unknown_user',
-                name: collectedData.name || '未知用户',
                 taskId: collectedData.taskId || 'unknown_task',
                 topicId: collectedData.topicId || 'unknown_topic',
                 topicUrl: collectedData.topicUrl || window.location.href,
@@ -525,6 +526,125 @@
         return text.toString().replace(/[&<>"']/g, m => map[m]);
     }
 
+    // 检查是否为特定目标页面
+    function isTargetPage() {
+        const currentUrl = window.location.href;
+        return CONFIG.TARGET_URL_PATTERN.test(currentUrl);
+    }
+
+    // 从目标页面提取响应元素
+    function extractResponseElements() {
+        if (!isTargetPage()) {
+            console.log('[Appen Data Collector] 当前页面不是目标页面，跳过元素提取');
+            return null;
+        }
+
+        console.log('[Appen Data Collector] 在目标页面上，开始提取响应元素...');
+
+        // 提取URL参数
+        const urlParams = new URLSearchParams(window.location.search);
+        const jobId = urlParams.get('jobId');
+        const jobType = urlParams.get('jobType');
+        const taskId = urlParams.get('taskId');
+        const projectId = urlParams.get('projectId');
+        const title = urlParams.get('title');
+
+        // 创建响应元素数据对象
+        const responseElements = {
+            jobId: jobId || 'unknown',
+            jobType: jobType || 'unknown',
+            taskId: taskId || 'unknown',
+            projectId: projectId || 'unknown',
+            title: decodeURIComponent(title || 'unknown'),
+            url: window.location.href,
+            timestamp: new Date().toISOString()
+        };
+
+        // 尝试提取页面上的其他元素
+        try {
+            // 提取页面标题
+            const titleElement = document.querySelector('title');
+            if (titleElement) {
+                responseElements.pageTitle = titleElement.textContent.trim();
+            }
+
+            // 提取可能的任务相关信息
+            const taskElements = document.querySelectorAll('[class*="task"], [id*="task"], [data-task]');
+            taskElements.forEach((element, index) => {
+                const key = `taskElement_${index}`;
+                responseElements[key] = {
+                    tagName: element.tagName,
+                    className: element.className,
+                    id: element.id,
+                    textContent: element.textContent.trim().substring(0, 100)
+                };
+            });
+
+            // 提取可能的响应按钮或操作元素
+            const responseButtons = document.querySelectorAll('button, [role="button"]');
+            responseButtons.forEach((button, index) => {
+                const buttonText = button.textContent.trim() || button.getAttribute('aria-label') || '';
+                if (buttonText) {
+                    const key = `responseButton_${index}`;
+                    responseElements[key] = {
+                        text: buttonText,
+                        className: button.className,
+                        id: button.id
+                    };
+                }
+            });
+
+            // 特别提取标注相关的元素
+            const annotationElements = document.querySelectorAll('[class*="annotation"], [class*="label"], [data-annotation]');
+            annotationElements.forEach((element, index) => {
+                const key = `annotationElement_${index}`;
+                responseElements[key] = {
+                    tagName: element.tagName,
+                    className: element.className,
+                    id: element.id,
+                    textContent: element.textContent.trim().substring(0, 100)
+                };
+            });
+
+            // 查找提交按钮
+            const submitButtons = document.querySelectorAll('button[type="submit"], button[class*="submit"], button[id*="submit"]');
+            if (submitButtons.length > 0) {
+                responseElements.submitButtons = [];
+                submitButtons.forEach((button, index) => {
+                    responseElements.submitButtons.push({
+                        text: button.textContent.trim(),
+                        className: button.className,
+                        id: button.id
+                    });
+                });
+            }
+
+            // 查找表单元素
+            const forms = document.querySelectorAll('form');
+            if (forms.length > 0) {
+                responseElements.forms = [];
+                forms.forEach((form, index) => {
+                    responseElements.forms.push({
+                        className: form.className,
+                        id: form.id,
+                        action: form.action,
+                        method: form.method
+                    });
+                });
+            }
+
+        } catch (error) {
+            console.warn('[Appen Data Collector] 提取页面元素时出错:', error);
+        }
+
+        console.log('[Appen Data Collector] 提取的响应元素:', responseElements);
+
+        // 将提取的数据存储到全局变量中，以便后续使用
+        collectedData.responseElements = responseElements;
+
+        return responseElements;
+    }
+
     // 停止数据收集
     function stopDataCollection() {
         isCollectorActive = false;
@@ -549,7 +669,6 @@
         reset: function() {
             collectedData = {
                 userId: collectedData.userId,
-                name: collectedData.name,
                 taskId: null,
                 topicId: null,
                 topicUrl: null,
@@ -563,14 +682,46 @@
             collectTopicInfo();
         },
         // 手动触发标注完成推送
-        submitAnnotation: pushDataOnSubmission
+        submitAnnotation: pushDataOnSubmission,
+        // 手动提取响应元素
+        extractResponseElements: extractResponseElements,
+        // 检查是否为目标页面
+        isTargetPage: isTargetPage
     };
+
+    // 定期检查URL变化
+    function watchUrlChanges() {
+        let lastUrl = location.href;
+
+        new MutationObserver(() => {
+            const url = location.href;
+            if (url !== lastUrl) {
+                lastUrl = url;
+                onUrlChange();
+            }
+        }).observe(document, { subtree: true, childList: true });
+
+        // 定期检查URL变化（备用方案）
+        setInterval(onUrlChange, 1000);
+    }
+
+    // URL变化时的处理函数
+    function onUrlChange() {
+        if (isTargetPage() && !collectedData.responseElements) {
+            console.log('[Appen Data Collector] 检测到目标页面URL变化，开始提取响应元素');
+            setTimeout(extractResponseElements, 1000); // 等待页面加载完成
+        }
+    }
 
     // 页面加载完成后初始化
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initializeDataCollector);
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeDataCollector();
+            watchUrlChanges();
+        });
     } else {
         initializeDataCollector();
+        watchUrlChanges();
     }
 
 })();

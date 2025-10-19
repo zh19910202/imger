@@ -21,7 +21,6 @@
 | 参数名 | 类型 | 必填 | 说明 | 示例值 |
 |--------|------|------|------|--------|
 | userId | string | 是 | 用户ID，最大长度50 | test_user_001 |
-| name | string | 是 | 用户姓名，最大长度50 | 张三 |
 | taskId | string | 是 | 任务ID，最大长度50 | task_001 |
 | topicId | string | 是 | 题目ID，最大长度50 | topic_001 |
 | topicUrl | string | 是 | 题目URL | https://example.com/topic/1 |
@@ -39,7 +38,6 @@
 ```json
 {
   "userId": "test_user_001",
-  "name": "张三",
   "taskId": "task_001",
   "topicId": "topic_001",
   "topicUrl": "https://example.com/topic/1",
@@ -119,7 +117,6 @@ fetch('http://192.168.31.79:1145/api/Task/add', {
   },
   body: JSON.stringify({
     userId: "test_user_001",
-    name: "张三",
     taskId: "task_001",
     topicId: "topic_001",
     topicUrl: "https://example.com/topic/1",
@@ -143,7 +140,6 @@ curl -X POST http://192.168.31.79:1145/api/Task/add \
   -H "Content-Type: application/json" \
   -d '{
     "userId": "test_user_001",
-    "name": "张三",
     "taskId": "task_001",
     "topicId": "topic_001",
     "topicUrl": "https://example.com/topic/1",
@@ -161,7 +157,7 @@ curl -X POST http://192.168.31.79:1145/api/Task/add \
 ### 注意事项
 
 1. 所有参数除 `updateTime` 外均为必填项，请确保传递完整的参数
-2. 所有字符串字段（userId、name、taskId、topicId）最大长度为50个字符
+2. 所有字符串字段（userId、taskId、topicId）最大长度为50个字符
 3. `topicNum` 范围为 0-3
 4. `elapsedTime` 单位为秒
 5. `updateTime` 为可选参数，采用 ISO 8601 格式，默认使用当前 UTC 时间
