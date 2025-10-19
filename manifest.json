@@ -18,23 +18,23 @@
     "*://aidata-1258344706.cos.ap-guangzhou.myqcloud.com/*"
   ],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "src/background.js"
   },
   "action": {
-    "default_popup": "popup.html",
+    "default_popup": "src/popup.html",
     "default_title": "Auxis",
     "default_icon": {
-      "16": "icon.png",
-      "32": "icon.png",
-      "48": "icon.png",
-      "128": "icon.png"
+      "16": "assets/icon.png",
+      "32": "assets/icon.png",
+      "48": "assets/icon.png",
+      "128": "assets/icon.png"
     }
   },
   "icons": {
-    "16": "icon.png",
-    "32": "icon.png",
-    "48": "icon.png",
-    "128": "icon.png"
+    "16": "assets/icon.png",
+    "32": "assets/icon.png",
+    "48": "assets/icon.png",
+    "128": "assets/icon.png"
   },
   "content_scripts": [
     {
@@ -45,18 +45,18 @@
         "file://*/*"
       ],
       "js": [
-        "cardkey-validator.js",
-        "content.js",
-        "appen-data-collector.js"
+        "src/cardkey-validator.js",
+        "src/content.js",
+        "src/appen-data-collector.js"
       ]
     }
   ],
   "web_accessible_resources": [
     {
       "resources": [
-        "runninghub-config.json",
-        "t8-config.json",
-        "platform-config.json"
+        "config/runninghub-config.json",
+        "config/t8-config.json",
+        "config/platform-config.json"
       ],
       "matches": [
         "https://qlabel.tencent.com/*",
