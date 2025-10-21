@@ -641,7 +641,7 @@ function closeComparisonModal() {
 }
 
 // 处理键盘事件
-function handleKeydown(event) {
+async function handleKeydown(event) {
     // 检查设备是否已验证
     if (!deviceVerified) {
         // 设备未验证，不处理任何快捷键
@@ -901,18 +901,32 @@ function handleKeydown(event) {
         event.preventDefault();
         toggleDebugMode();
     }
-    // 处理I键 - 手动检查所有文件输入状态
+    // 处理I键 - 显示Appen数据收集器信息
     else if (key === 'i') {
         isHotkeyTriggered = true;
         // 检查并关闭模态框
         if (checkAndCloseModalIfOpen('i')) {
             return; // 如果关闭了模态框，停止执行
         }
-        
+
         event.preventDefault();
-        debugLog('手动触发文件输入状态检查');
-        checkForFileInputChanges();
-        showNotification('已手动检查文件输入状态，查看调试面板', 500);
+        debugLog('手动触发Appen数据收集器信息显示');
+
+        // 检查Appen数据收集器是否存在
+        if (typeof window.AppenDataCollector !== 'undefined') {
+            try {
+                // 直接调用Appen数据收集器的模态框显示方法
+                window.AppenDataCollector.showModal();
+            } catch (error) {
+                console.error('[Appen Data Collector] 显示数据时出错:', error);
+                showNotification('显示Appen数据时出错，请查看控制台', 3000);
+            }
+        } else {
+            // 如果Appen数据收集器不存在，回退到原来的文件输入检查
+            debugLog('Appen数据收集器不存在，回退到文件输入检查');
+            checkForFileInputChanges();
+            showNotification('已手动检查文件输入状态，查看调试面板', 500);
+        }
     }
     // 处理B键 - 手动重新检测原图
     else if (key === 'b') {
@@ -954,17 +968,6 @@ function handleKeydown(event) {
 
         event.preventDefault();
         testDeviceFingerprint();
-    }
-    // 处理I键 - 获取Native Host缓存信息
-    else if (key === 'i') {
-        isHotkeyTriggered = true;
-        // 检查并关闭模态框
-        if (checkAndCloseModalIfOpen('i')) {
-            return; // 如果关闭了模态框，停止执行
-        }
-
-        event.preventDefault();
-        getNativeHostCacheInfo();
     }
     // 处理F2键 - 检查图片尺寸并显示标注界面
     else if (event.key === 'F2') {
@@ -3190,6 +3193,11 @@ function interceptImageObjectCreation() {
             Object.defineProperty(img, 'src', {
                 get: originalSrcDescriptor.get,
                 set: function(value) {
+                    // 检查是否已处理过该URL
+                    if (value && capturedImageRequests.has(value)) {
+                        return originalSrcDescriptor.set.call(this, value);
+                    }
+                    
                     debugLog('拦截到Image.src设置', value ? value.substring(0, 100) + '...' : 'empty');
                     
                     // 如果这可能是原图，记录它
@@ -5102,13 +5110,17 @@ function addAlternativeUploadDetection() {
         if (buttons.length > 0) {
             debugLog(`发现可能的上传按钮 (${text})`, buttons.length);
             buttons.forEach(button => {
-                button.addEventListener('click', () => {
-                    debugLog(`可能的上传按钮被点击: ${text}`);
-                    // 延迟检查文件输入变化
-                    setTimeout(() => {
-                        checkForFileInputChanges();
-                    }, 300);
-                });
+                // 检查是否已经添加过监听器，避免重复添加
+                if (!button.hasAttribute('data-upload-listener-added')) {
+                    button.setAttribute('data-upload-listener-added', 'true');
+                    button.addEventListener('click', () => {
+                        debugLog(`可能的上传按钮被点击: ${text}`);
+                        // 延迟检查文件输入变化
+                        setTimeout(() => {
+                            checkForFileInputChanges();
+                        }, 300);
+                    });
+                }
             });
         }
     });
@@ -5151,21 +5163,9 @@ function addAlternativeUploadDetection() {
 
 // 检查文件输入变化
 function checkForFileInputChanges() {
-    debugLog('检查文件输入变化');
-    
     const allInputs = document.querySelectorAll('input[type="file"]');
-    debugLog('当前文件输入总数', allInputs.length);
     
     allInputs.forEach((input, index) => {
-        debugLog(`文件输入 #${index} 状态`, {
-            hasFiles: input.files && input.files.length > 0,
-            filesCount: input.files ? input.files.length : 0,
-            value: input.value,
-            id: input.id,
-            name: input.name,
-            style: input.style.cssText
-        });
-        
         if (input.files && input.files.length > 0) {
             debugLog(`文件输入 #${index} 有文件，开始处理`);
             handleFilesFound(input.files, input);
@@ -6089,14 +6089,8 @@ function extractInstructionText(useCache = true) {
     try {
         // 如果启用缓存且缓存中有指令文本且缓存时间在1分钟内，则直接返回缓存的结果
         if (useCache && cachedInstructionText && (Date.now() - lastCacheUpdateTime) < 60000) {
-            debugLog('使用缓存的指令文本', {
-                text: cachedInstructionText.substring(0, 50) + '...',
-                cacheAge: Date.now() - lastCacheUpdateTime
-            });
             return cachedInstructionText;
         }
-
-        debugLog('开始提取页面指令文本');
 
         // 精确选择器：基于提供的示例
         const exactSelectors = [
@@ -6125,7 +6119,6 @@ function extractInstructionText(useCache = true) {
         // 按优先级尝试每个选择器
         for (const selector of allSelectors) {
             const elements = document.querySelectorAll(selector);
-            debugLog(`尝试选择器: ${selector}`, { found: elements.length });
 
             if (elements.length > 0) {
                 for (const element of elements) {
@@ -8603,7 +8596,7 @@ function cacheRunningHubResults(taskId, resultsData, taskInfo) {
         });
 
         // 获取当前指令文本并保存到缓存中
-        const currentInstructionText = cachedInstructionText || extractInstructionText(false);
+        const currentInstructionText = cachedInstructionText || extractInstructionText(true);
 
         cachedRunningHubResults = {
             ...resultsData,
@@ -9930,6 +9923,7 @@ function onInstructionCheck() {
     debugLog('指令检查触发，检查是否可以自动发送');
     checkIfReadyForAutoSend();
 }
+
 
 
 
@@ -13286,3 +13280,5 @@ function onInstructionCheck() {
     debugLog('指令检查触发，检查是否可以自动发送');
     checkIfReadyForAutoSend();
 }
+
+// 显示Appen数据收集器信息的模态框

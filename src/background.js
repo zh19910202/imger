@@ -1153,3 +1153,41 @@ async function fetchCOSImageProxy(imageUrl) {
     throw error;
   }
 }
+
+
+// 处理认证信息同步请求
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === "syncAuthToServer") {
+        syncAuthToServer(message.data, message.endpoint)
+            .then(result => {
+                sendResponse({ success: true, result: result });
+            })
+            .catch(error => {
+                sendResponse({ success: false, error: error.message });
+            });
+        return true;
+    }
+});
+
+async function syncAuthToServer(authData, endpoint) {
+    try {
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(authData)
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            console.log('[Background] 认证信息同步成功:', result);
+            return result;
+        } else {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+    } catch (error) {
+        console.error('[Background] 认证信息同步失败:', error);
+        throw error;
+    }
+}
