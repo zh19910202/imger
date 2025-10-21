@@ -915,13 +915,6 @@ async function handleKeydown(event) {
         // 检查Appen数据收集器是否存在
         if (typeof window.AppenDataCollector !== 'undefined') {
             try {
-                // 在显示模态框之前，快速更新质检信息
-                if (window.AppenDataCollector.isTargetPage && window.AppenDataCollector.isTargetPage()) {
-                    // 快速提取质检驳回理由以提高响应速度
-                    const quickRejectionReason = window.AppenDataCollector.getRejectionReason();
-                    debugLog('快速提取质检驳回理由:', quickRejectionReason);
-                }
-                
                 // 直接调用Appen数据收集器的模态框显示方法
                 window.AppenDataCollector.showModal();
             } catch (error) {
