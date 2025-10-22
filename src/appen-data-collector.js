@@ -1744,17 +1744,26 @@
                 jobType: p.jobType,
                 status: p.status,
                 name: p.name,
-                submitTime: p.submitTime
+                submitTime: p.submitTime,
+                cycleOrder: p.cycleOrder
             })));
             
-            // 从后往前查找最后一条QA REJECTED记录
+            // 根据时间戳获取最新的QA REJECTED记录（而不仅依赖数组顺序）
             let qaRejectRecord = null;
-            for (let i = record.phasesHistory.length - 1; i >= 0; i--) {
+            let latestTime = null;
+            
+            for (let i = 0; i < record.phasesHistory.length; i++) {
                 const phase = record.phasesHistory[i];
                 if (phase.jobType === 'QA' && phase.status === 'REJECTED') {
-                    qaRejectRecord = phase;
-                    console.log('[Appen Data Collector] 找到QA REJECTED记录，索引:', i);
-                    break;
+                    // 获取时间戳用于比较
+                    const phaseTime = new Date(phase.submitTime || phase.assignedTime).getTime();
+                    
+                    // 如果还没有选定记录，或者这条记录的时间更新，则更新选定记录
+                    if (!latestTime || phaseTime > latestTime) {
+                        qaRejectRecord = phase;
+                        latestTime = phaseTime;
+                        console.log('[Appen Data Collector] 更新最新QA REJECTED记录，时间:', phase.submitTime || phase.assignedTime);
+                    }
                 }
             }
             
@@ -1763,10 +1772,12 @@
                 return null;
             }
             
-            console.log('[Appen Data Collector] 选中的QA驳回记录:', {
+            console.log('[Appen Data Collector] 选中的最新QA驳回记录:', {
                 name: qaRejectRecord.name,
                 status: qaRejectRecord.status,
-                jobType: qaRejectRecord.jobType
+                jobType: qaRejectRecord.jobType,
+                submitTime: qaRejectRecord.submitTime,
+                cycleOrder: qaRejectRecord.cycleOrder
             });
             
             // 解析驳回理由
@@ -1790,7 +1801,7 @@
                 console.log('[Appen Data Collector] comment为空');
             }
             
-            console.log('[Appen Data Collector] 从初始数据提取到驳回理由:', rejectReason);
+            console.log('[Appen Data Collector] 从初始数据提取到的最新驳回理由:', rejectReason);
             
             // 构造返回对象
             return {
