@@ -1107,7 +1107,19 @@
                     margin-bottom: 15px;
                     border-left: 4px solid #4CAF50;
                 ">
-                    <div style="font-weight: bold; color: #2e7d32; margin-bottom: 10px; font-size: 15px;">✓ 标注完成统计</div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <div style="font-weight: bold; color: #2e7d32; font-size: 15px;">✓ 标注完成统计</div>
+                        <button id="clear-completion-stats-btn" style="
+                            background: #f44336;
+                            color: white;
+                            border: none;
+                            padding: 5px 10px;
+                            border-radius: 4px;
+                            cursor: pointer;
+                            font-weight: bold;
+                            font-size: 12px;
+                        ">清0</button>
+                    </div>
                     <div><strong style="color: #333;">总有效完成次数:</strong> <span id="total-completions-display" style="color: #0066cc; font-weight: bold; font-size: 16px;">${completionStats.totalValidCompletions || 0}</span></div>
                     <div style="margin-top: 10px; font-size: 13px; color: #555;">
                         <div style="margin-bottom: 5px;"><strong>各页面完成详情:</strong></div>
@@ -1358,6 +1370,16 @@
             alert('lastTopicId 已设置为: ' + newValue + '\n计时器已重置');
             
             input.value = '';
+        });
+
+        // 清除标注完成统计按钮事件
+        document.getElementById('clear-completion-stats-btn').addEventListener('click', async function() {
+            if (confirm('确定要清除所有标注完成统计吗？')) {
+                await clearCompletionStats();
+                alert('标注完成统计已清除！');
+                // 重新显示模态框以更新显示
+                showDataModal();
+            }
         });
 
         console.log('[Appen Data Collector] 数据展示模态窗口已显示，按i键关闭');
@@ -3348,3 +3370,34 @@
     }
 
 })();
+
+    // 清除标注完成统计
+    async function clearCompletionStats() {
+        completionStats = {
+            totalValidCompletions: 0,
+            perPage: {}
+        };
+
+        syncCollectedDataWithCompletionStats();
+
+        if (!chrome || !chrome.storage) {
+            return Promise.resolve(false);
+        }
+
+        return new Promise((resolve) => {
+            try {
+                chrome.storage.local.remove([COMPLETION_STORAGE_KEY], () => {
+                    if (chrome.runtime && chrome.runtime.lastError) {
+                        console.warn('[Appen Data Collector] 清除标注完成统计失败:', chrome.runtime.lastError);
+                        resolve(false);
+                    } else {
+                        console.log('[Appen Data Collector] 标注完成统计已清除');
+                        resolve(true);
+                    }
+                });
+            } catch (error) {
+                console.warn('[Appen Data Collector] 清除标注完成统计异常:', error);
+                resolve(false);
+            }
+        });
+    }
