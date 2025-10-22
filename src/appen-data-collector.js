@@ -1835,6 +1835,37 @@
             if (initialDataResult) {
                 responseElements.qualityCheckRecord = initialDataResult;
                 console.log('[Appen Data Collector] 质检记录提取完成 (来自初始数据)');
+                
+                // 输出最新的驳回理由信息
+                console.log('\n========== 【最新质检驳回信息】 ==========');
+                console.log('| 数据来源: 初始化数据 (最准确)');
+                console.log('| 用户ID:', collectedData.userId || 'N/A');
+                console.log('| 任务ID:', collectedData.taskId || 'N/A');
+                console.log('| 题目ID:', collectedData.topicId || 'N/A');
+                console.log('| 质检状态: REJECTED (驳回)');
+                console.log('| 操作人:', initialDataResult.latestRecord.operator || 'N/A');
+                console.log('| 操作时间:', initialDataResult.latestRecord.operateTime || 'N/A');
+                console.log('| 驳回理由:', initialDataResult.latestRecord.comment || 'N/A');
+                console.log('| 检测时间:', new Date().toISOString());
+                console.log('=========================================\n');
+                
+                // 输出完整JSON格式
+                const latestQAData = {
+                    userId: collectedData.userId || 'N/A',
+                    taskId: collectedData.taskId || 'N/A',
+                    topicId: collectedData.topicId || 'N/A',
+                    qualityCheck: {
+                        status: 'Rejected',
+                        statusDetail: initialDataResult.latestRecord.action,
+                        rejectionReason: initialDataResult.latestRecord.comment,
+                        operator: initialDataResult.latestRecord.operator,
+                        operateTime: initialDataResult.latestRecord.operateTime,
+                        dataSource: 'INITIAL_DATA',
+                        timestamp: new Date().toISOString()
+                    }
+                };
+                console.log('[Appen Data Collector] 完整QA数据JSON:', JSON.stringify(latestQAData, null, 2));
+                
                 return;
             }
             
