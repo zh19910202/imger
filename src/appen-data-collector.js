@@ -140,6 +140,37 @@
         collectedData.pageCompletionCounts = { ...completionStats.perPage };
     }
 
+    // 清除标注完成统计
+    async function clearCompletionStats() {
+        completionStats = {
+            totalValidCompletions: 0,
+            perPage: {}
+        };
+
+        syncCollectedDataWithCompletionStats();
+
+        if (!chrome || !chrome.storage) {
+            return Promise.resolve(false);
+        }
+
+        return new Promise((resolve) => {
+            try {
+                chrome.storage.local.remove([COMPLETION_STORAGE_KEY], () => {
+                    if (chrome.runtime && chrome.runtime.lastError) {
+                        console.warn('[Appen Data Collector] 清除标注完成统计失败:', chrome.runtime.lastError);
+                        resolve(false);
+                    } else {
+                        console.log('[Appen Data Collector] 标注完成统计已清除');
+                        resolve(true);
+                    }
+                });
+            } catch (error) {
+                console.warn('[Appen Data Collector] 清除标注完成统计异常:', error);
+                resolve(false);
+            }
+        });
+    }
+
     async function loadCompletionStats() {
         if (!chrome || !chrome.storage) {
             syncCollectedDataWithCompletionStats();
@@ -3370,34 +3401,3 @@
     }
 
 })();
-
-    // 清除标注完成统计
-    async function clearCompletionStats() {
-        completionStats = {
-            totalValidCompletions: 0,
-            perPage: {}
-        };
-
-        syncCollectedDataWithCompletionStats();
-
-        if (!chrome || !chrome.storage) {
-            return Promise.resolve(false);
-        }
-
-        return new Promise((resolve) => {
-            try {
-                chrome.storage.local.remove([COMPLETION_STORAGE_KEY], () => {
-                    if (chrome.runtime && chrome.runtime.lastError) {
-                        console.warn('[Appen Data Collector] 清除标注完成统计失败:', chrome.runtime.lastError);
-                        resolve(false);
-                    } else {
-                        console.log('[Appen Data Collector] 标注完成统计已清除');
-                        resolve(true);
-                    }
-                });
-            } catch (error) {
-                console.warn('[Appen Data Collector] 清除标注完成统计异常:', error);
-                resolve(false);
-            }
-        });
-    }
