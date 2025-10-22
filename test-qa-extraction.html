@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>质检驳回理由提取测试</title>
+    <style>
+        .ant-popover {
+            display: block;
+            position: relative;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin: 10px;
+            background: #f9f9f9;
+        }
+        .ant-popover-hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>质检驳回理由提取测试</h1>
+
+    <!-- 模拟的质检弹窗 -->
+    <div class="ant-popover ant-popover-hidden" id="test-popover">
+        <div class="h-10 px-3">
+            被 QA1 Rejected 请修订
+        </div>
+        <div class="popover-content">
+            <div>标注 (用户ID wxgqy1758710123)</div>
+            <div>质检1 已驳回 (用户ID wxea91755523786)</div>
+            <div style="color: red; font-weight: bold;">融合度、歧字</div>
+            <div>打回 已驳回 (用户ID lihanbing01)</div>
+            <div>PM Turn Back From 2 To 1</div>
+        </div>
+    </div>
+
+    <button onclick="testExtraction()">测试驳回理由提取</button>
+
+    <div id="result"></div>
+
+    <script>
+        // 模拟改进后的提取函数
+        function testExtraction() {
+            const qualityCheckPopover = document.getElementById('test-popover');
+            if (!qualityCheckPopover) {
+                document.getElementById('result').innerHTML = '未找到质检弹窗';
+                return;
+            }
+
+            // 移除隐藏类以显示弹窗
+            qualityCheckPopover.classList.remove('ant-popover-hidden');
+
+            // 使用改进后的逻辑提取驳回理由
+            let comment = '';
+
+            // 查找所有可能包含驳回理由的元素
+            const allTextElements = qualityCheckPopover.querySelectorAll('div');
+            console.log('文本元素总数:', allTextElements.length);
+
+            // 收集所有可能的驳回理由文本
+            const rejectionReasons = [];
+
+            for (const element of allTextElements) {
+                const text = element.textContent.trim();
+                // 收集长度适中且看起来像驳回理由的文本
+                if (text.length > 1 && text.length < 200) {
+                    // 包含具体问题描述关键词的文本
+                    const problemKeywords = [
+                        '融合度', '歧字', '错别字', '标点', '格式', '位置', '框选',
+                        '标注', '漏标', '误标', '重复', '缺失', '错误', '不准',
+                        '不完整', '不准确', '不合理', '不规范', '不清晰', '不一致'
+                    ];
+
+                    const hasProblemKeyword = problemKeywords.some(keyword => text.includes(keyword));
+
+                    // 如果包含明确的问题描述关键词，或者是一般性描述但不包含状态关键词
+                    const excludeStatusKeywords = [
+                        'QA1', 'QA2', 'Rejected', 'Approved', '驳回', '通过',
+                        'Quality', 'Check', 'Record', '记录', 'Status', '状态',
+                        'Type', '类型', 'Action', '操作', 'Operator', '操作人',
+                        'Time', '时间'
+                    ];
+
+                    const hasExcludeKeyword = excludeStatusKeywords.some(keyword =>
+                        text.includes(keyword) && !text.includes('融合度') && !text.includes('歧字')
+                    );
+
+                    // 如果包含问题关键词，或者不包含排除关键词且文本长度合适
+                    if (hasProblemKeyword || (!hasExcludeKeyword && text.length > 2)) {
+                        // 进一步过滤，排除只有状态词的文本
+                        if (!['QA1', 'QA2', 'Rejected', 'Approved', '驳回', '通过'].includes(text)) {
+                            rejectionReasons.push({
+                                text: text,
+                                element: element,
+                                position: Array.from(allTextElements).indexOf(element)
+                            });
+                            console.log('发现可能的驳回理由:', text);
+                        }
+                    }
+                }
+            }
+
+            // 优先选择最后出现的驳回理由（通常是最后一条QA的驳回理由）
+            if (rejectionReasons.length > 0) {
+                // 按位置排序，取最后一条
+                rejectionReasons.sort((a, b) => b.position - a.position);
+                comment = rejectionReasons[0].text;
+                console.log('选择最后一条驳回理由:', comment);
+            }
+
+            // 如果仍然没有找到，尝试查找包含具体问题描述的文本
+            if (!comment) {
+                const walker = document.createTreeWalker(
+                    qualityCheckPopover,
+                    NodeFilter.SHOW_TEXT,
+                    null,
+                    false
+                );
+
+                const textNodes = [];
+                let node;
+                while (node = walker.nextNode()) {
+                    textNodes.push(node);
+                }
+
+                console.log('文本节点数量:', textNodes.length);
+
+                // 从后往前查找，优先获取最后一条记录中的具体理由
+                for (let i = textNodes.length - 1; i >= 0; i--) {
+                    const text = textNodes[i].textContent.trim();
+                    if (text.length > 1 && text.length < 200) {
+                        // 包含具体问题描述关键词的文本
+                        const problemKeywords = [
+                            '融合度', '歧字', '错别字', '标点', '格式', '位置', '框选',
+                            '标注', '漏标', '误标', '重复', '缺失', '错误', '不准',
+                            '不完整', '不准确', '不合理', '不规范', '不清晰', '不一致'
+                        ];
+
+                        const hasProblemKeyword = problemKeywords.some(keyword => text.includes(keyword));
+
+                        if (hasProblemKeyword ||
+                            (text.length > 2 &&
+                             !['QA1', 'QA2', 'Rejected', 'Approved', '驳回', '通过'].includes(text))) {
+                            comment = text;
+                            console.log('从文本节点中提取驳回理由:', comment);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // 显示结果
+            document.getElementById('result').innerHTML = `
+                <h2>提取结果</h2>
+                <p><strong>提取到的驳回理由:</strong> ${comment || '未提取到'}</p>
+                <p><strong>是否正确:</strong> ${comment.includes('融合度') && comment.includes('歧字') ? '✅ 正确' : '❌ 错误'}</p>
+            `;
+
+            // 恢复隐藏状态
+            qualityCheckPopover.classList.add('ant-popover-hidden');
+        }
+    </script>
+</body>
+</html>

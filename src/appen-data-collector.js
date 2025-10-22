@@ -332,6 +332,8 @@
                 extractResponseElements();
                 // 附加用户选择状态监听器
                 setTimeout(attachUserSelectionListeners, 500);
+                // 自动触发质检详情加载
+                setTimeout(autoTriggerQualityCheckDetails, 1000);
             }, 2000); // 等待页面加载完成
         }
 
@@ -621,6 +623,52 @@
         observeSubmissionButtons();
     }
 
+    // 自动触发质检详情加载
+    function autoTriggerQualityCheckDetails() {
+        try {
+            console.log('[Appen Data Collector] 开始自动触发质检详情加载');
+
+            // 查找质检详情显示按钮（向下箭头图标）
+            const qualityCheckTriggerElements = document.querySelectorAll('.anticon-down, [aria-label="down"], [data-icon="down"]');
+
+            // 查找包含质检状态信息的元素
+            const qualityCheckStatusElements = document.querySelectorAll('.h-10.px-3, [class*="reject"], [class*="驳回"]');
+
+            console.log('[Appen Data Collector] 找到质检触发元素数量:', qualityCheckTriggerElements.length);
+            console.log('[Appen Data Collector] 找到质检状态元素数量:', qualityCheckStatusElements.length);
+
+            // 如果找到了质检触发元素，模拟点击第一个
+            if (qualityCheckTriggerElements.length > 0) {
+                const firstTrigger = qualityCheckTriggerElements[0];
+                console.log('[Appen Data Collector] 模拟点击质检详情触发元素:', firstTrigger);
+
+                // 创建并派发点击事件
+                const clickEvent = new MouseEvent('click', {
+                    view: window,
+                    bubbles: true,
+                    cancelable: true
+                });
+                firstTrigger.dispatchEvent(clickEvent);
+
+                // 等待一段时间让内容加载，然后再次点击收起
+                setTimeout(() => {
+                    console.log('[Appen Data Collector] 模拟再次点击收起质检详情');
+                    firstTrigger.dispatchEvent(clickEvent);
+                }, 1000);
+            } else if (qualityCheckStatusElements.length > 0) {
+                // 如果没有找到触发元素但找到了状态元素，说明可能已经展开
+                console.log('[Appen Data Collector] 检测到质检状态元素，尝试直接提取信息');
+                if (collectedData.responseElements) {
+                    extractQualityCheckRecords(collectedData.responseElements);
+                }
+            } else {
+                console.log('[Appen Data Collector] 未找到质检相关信息元素');
+            }
+        } catch (error) {
+            console.warn('[Appen Data Collector] 自动触发质检详情加载时出错:', error);
+        }
+    }
+
     // 检查是否点击了提交按钮
     function checkForSubmission(element) {
         // 检查元素是否为提交按钮
@@ -783,8 +831,8 @@
             if (isTargetPage() && collectedData.responseElements) {
                 console.log('[Appen Data Collector] 显示模态框前立即检测最新状态');
                 detectUserSelectionStatus(collectedData.responseElements);
-                // 重新提取质检记录信息
-                console.log('[Appen Data Collector] 显示模态框前立即提取质检记录');
+                // 直接提取质检记录（现已优化为从初始数据提取，无需触发面板）
+                console.log('[Appen Data Collector] 显示模态框前提取质检记录');
                 extractQualityCheckRecords(collectedData.responseElements);
             }
 
@@ -1106,7 +1154,72 @@
         return isMatch;
     }
 
-    // 获取指定的cookie值
+    // 输出所有质检驳回信息到控制台
+    function logAllQualityCheckInfo() {
+        try {
+            console.log('\n========== 【开始输出所有质检驳回信息】 ==========');
+            
+            if (!collectedData) {
+                console.log('错误: collectedData 未初始化');
+                return;
+            }
+
+            // 基本信息
+            console.log('【基本信息】');
+            console.log('  用户ID:', collectedData.userId || 'N/A');
+            console.log('  任务ID:', collectedData.taskId || 'N/A');
+            console.log('  题目ID:', collectedData.topicId || 'N/A');
+            console.log('  页面URL:', collectedData.topicUrl || 'N/A');
+            
+            // 质检记录信息
+            if (collectedData.responseElements && collectedData.responseElements.qualityCheckRecord) {
+                const qcRecord = collectedData.responseElements.qualityCheckRecord;
+                console.log('\n【质检记录信息】');
+                console.log('  是否有驳回记录:', qcRecord.hasRecord ? '是' : '否');
+                
+                if (qcRecord.latestRecord) {
+                    console.log('  状态类型:', qcRecord.latestRecord.type || 'N/A');
+                    console.log('  状态详情:', qcRecord.latestRecord.action || 'N/A');
+                    console.log('  驳回理由:', qcRecord.latestRecord.comment || 'N/A');
+                    console.log('  操作人:', qcRecord.latestRecord.operator || 'N/A');
+                    console.log('  操作时间:', qcRecord.latestRecord.operateTime || 'N/A');
+                }
+                
+                console.log('  检测时间:', qcRecord.timestamp || 'N/A');
+            } else {
+                console.log('\n【质检记录信息】');
+                console.log('  未检测到质检驳回信息');
+            }
+
+            // 用户选择状态
+            if (collectedData.responseElements && collectedData.responseElements.userSelectionStatus) {
+                const uss = collectedData.responseElements.userSelectionStatus;
+                console.log('\n【用户选择状态】');
+                console.log('  是否有效:', uss.isValid !== null ? (uss.isValid ? '有效' : '无效') : 'N/A');
+                console.log('  编辑轮次:', uss.editRounds || 'N/A');
+                console.log('  题目数量:', uss.topicCount || 'N/A');
+            }
+
+            // 完整JSON输出
+            console.log('\n【完整数据JSON】');
+            const fullData = {
+                userId: collectedData.userId || 'N/A',
+                taskId: collectedData.taskId || 'N/A',
+                topicId: collectedData.topicId || 'N/A',
+                topicUrl: collectedData.topicUrl || 'N/A',
+                qualityCheck: collectedData.responseElements?.qualityCheckRecord || null,
+                userSelection: collectedData.responseElements?.userSelectionStatus || null,
+                extractTime: new Date().toISOString()
+            };
+            console.log(JSON.stringify(fullData, null, 2));
+            
+            console.log('========== 【质检驳回信息输出完成】 ==========\n');
+        } catch (error) {
+            console.error('[Appen Data Collector] 输出质检信息时出错:', error);
+        }
+    }
+
+
     async function getAuthCookies() {
         try {
             // 检查是否在正确的域名下
@@ -1563,43 +1676,178 @@
         }
     }
 
+    // 从初始化数据中直接提取质检驳回理由（最优方案）
+    function extractQualityCheckFromInitialData() {
+        try {
+            console.log('[Appen Data Collector] 尝试从初始数据提取质检驳回理由');
+            
+            // 获取页面初始化的数据
+            if (!window.__INITIAL_DATA__) {
+                console.log('[Appen Data Collector] __INITIAL_DATA__ 未找到');
+                return null;
+            }
+            
+            const data = window.__INITIAL_DATA__;
+            
+            // 检查数据结构
+            if (!data.taskMessage?.taskRows?.[0]?.records?.[0]) {
+                console.log('[Appen Data Collector] 任务数据结构不完整');
+                return null;
+            }
+            
+            const record = data.taskMessage.taskRows[0].records[0];
+            
+            // 获取阶段历史
+            if (!record.phasesHistory || record.phasesHistory.length === 0) {
+                console.log('[Appen Data Collector] phasesHistory 未找到或为空');
+                return null;
+            }
+            
+            // 从后往前查找最后一条QA REJECTED记录
+            let qaRejectRecord = null;
+            for (let i = record.phasesHistory.length - 1; i >= 0; i--) {
+                const phase = record.phasesHistory[i];
+                if (phase.jobType === 'QA' && phase.status === 'REJECTED') {
+                    qaRejectRecord = phase;
+                    break;
+                }
+            }
+            
+            if (!qaRejectRecord) {
+                console.log('[Appen Data Collector] 未找到QA驳回记录');
+                return null;
+            }
+            
+            console.log('[Appen Data Collector] 找到QA驳回记录');
+            
+            // 解析驳回理由
+            let rejectReason = '';
+            if (qaRejectRecord.comment) {
+                try {
+                    // 尝试解析JSON格式的comment
+                    const commentJson = JSON.parse(qaRejectRecord.comment);
+                    if (commentJson.description?.blocks?.[0]?.text) {
+                        rejectReason = commentJson.description.blocks[0].text;
+                    }
+                } catch (e) {
+                    // 如果不是JSON，直接使用原始值
+                    rejectReason = qaRejectRecord.comment;
+                }
+            }
+            
+            console.log('[Appen Data Collector] 从初始数据提取到驳回理由:', rejectReason);
+            
+            // 构造返回对象
+            return {
+                hasRecord: true,
+                dataSource: 'INITIAL_DATA',
+                timestamp: new Date().toISOString(),
+                latestRecord: {
+                    type: 'REJECTED',
+                    action: `被 ${qaRejectRecord.name || 'QA'} Rejected 请修订`,
+                    comment: rejectReason,
+                    operator: qaRejectRecord.name || 'QA',
+                    operateTime: qaRejectRecord.submitTime || qaRejectRecord.assignedTime,
+                    jobType: qaRejectRecord.jobType,
+                    cycleOrder: qaRejectRecord.cycleOrder
+                }
+            };
+            
+        } catch (error) {
+            console.warn('[Appen Data Collector] 从初始数据提取质检驳回理由时出错:', error);
+            return null;
+        }
+    }
+
     // 提取质检记录信息
     function extractQualityCheckRecords(responseElements) {
         try {
             console.log('[Appen Data Collector] 开始提取质检记录信息');
-
-            // 使用 XPath 直接定位到质检弹窗
-            const xpathResult = document.evaluate(
-                '/html/body/div[3]/div',
-                document,
-                null,
-                XPathResult.FIRST_ORDERED_NODE_TYPE,
-                null
-            );
-            const qualityCheckPopover = xpathResult.singleNodeValue;
             
-            if (!qualityCheckPopover) {
-                console.log('[Appen Data Collector] 未找到质检弹窗');
+            // 步骤1：优先从初始化数据提取（最稳定、最快）
+            const initialDataResult = extractQualityCheckFromInitialData();
+            if (initialDataResult) {
+                responseElements.qualityCheckRecord = initialDataResult;
+                console.log('[Appen Data Collector] 质检记录提取完成 (来自初始数据)');
                 return;
+            }
+            
+            // 步骤2：备用方案 - 从DOM中提取
+            console.log('[Appen Data Collector] 初始数据提取失败，使用备用DOM方案');
+
+            // 使用更灵活的方式查找质检弹窗，优先查找可见的，然后查找隐藏的
+            const qualityCheckPopover = document.querySelector('.ant-popover.custom-popover-with-lefter-arrow') ||
+                                      document.querySelector('.ant-popover:not(.ant-popover-hidden)') ||
+                                      document.querySelector('.ant-popover');
+
+            if (!qualityCheckPopover) {
+                console.log('[Appen Data Collector] 未找到质检弹窗，尝试查找隐藏的质检详情面板');
+                // 如果常规方式没找到，尝试查找隐藏的质检详情面板
+                const hiddenQualityCheckPanel = document.querySelector('.ant-popover-hidden.custom-popover-with-lefter-arrow') ||
+                                               document.querySelector('.ant-popover-hidden.w-full.md\\:w-96') ||
+                                               document.querySelector('.ant-popover-hidden');
+
+                if (hiddenQualityCheckPanel) {
+                    console.log('[Appen Data Collector] 找到隐藏的质检详情面板，临时显示以提取信息');
+                    // 保存原始状态
+                    const originalClasses = Array.from(hiddenQualityCheckPanel.classList);
+                    const hadHiddenClass = hiddenQualityCheckPanel.classList.contains('ant-popover-hidden');
+
+                    // 临时显示隐藏的面板
+                    if (hadHiddenClass) {
+                        hiddenQualityCheckPanel.classList.remove('ant-popover-hidden');
+                        console.log('[Appen Data Collector] 已移除 ant-popover-hidden 类，面板显示');
+                    }
+
+                    // 等待 DOM 渲染后提取内容
+                    setTimeout(() => {
+                        try {
+                            extractQualityCheckRecordsContent(responseElements);
+                        } finally {
+                            // 恢复原始状态
+                            if (hadHiddenClass) {
+                                // 先清空所有class，再恢复原始class
+                                hiddenQualityCheckPanel.className = '';
+                                originalClasses.forEach(cls => {
+                                    hiddenQualityCheckPanel.classList.add(cls);
+                                });
+                                console.log('[Appen Data Collector] 已恢复面板隐藏状态');
+                            }
+                        }
+                    }, 500); // 等待 DOM 更新
+                    return;
+                } else {
+                    console.log('[Appen Data Collector] 未找到任何质检弹窗或面板');
+                    responseElements.qualityCheckRecord = null;
+                    return;
+                }
             }
 
             console.log('[Appen Data Collector] 找到质检弹窗');
-            
+
             // 保存原始状态
             const hadHiddenClass = qualityCheckPopover.classList.contains('ant-popover-hidden');
             console.log('[Appen Data Collector] 弹窗原始状态 - 隐藏:', hadHiddenClass);
-            
+
             // 如果弹窗隐藏了，移除 ant-popover-hidden 类以显示
             if (hadHiddenClass) {
                 qualityCheckPopover.classList.remove('ant-popover-hidden');
                 console.log('[Appen Data Collector] 已移除 ant-popover-hidden 类，弹窗显示');
             }
-            
+
             // 等待 DOM 渲染后提取内容
             setTimeout(() => {
-                extractQualityCheckRecordsContent(responseElements, qualityCheckPopover, hadHiddenClass);
+                try {
+                    extractQualityCheckRecordsContent(responseElements);
+                } finally {
+                    // 恢复原始状态
+                    if (hadHiddenClass) {
+                        qualityCheckPopover.classList.add('ant-popover-hidden');
+                        console.log('[Appen Data Collector] 已恢复 ant-popover-hidden 类，弹窗隐藏');
+                    }
+                }
             }, 500); // 等待 DOM 更新
-            
+
         } catch (error) {
             console.warn('[Appen Data Collector] 提取质检记录时出错:', error);
             responseElements.qualityCheckRecord = {
@@ -1752,42 +2000,71 @@
                     }
 
                     console.log('[Appen Data Collector] 开始查找质检记录详情');
-                    
-                    // 提取驳回理由 - 简化逻辑
+
+                    // 提取驳回理由 - 改进逻辑，确保获取到最后一条驳回理由
                     let comment = '';
-                    
-                    // 尝试多种方法提取驳回理由
-                    
-                    // 方法1: 查找包含特定属性的元素
-                    const candidateElements = qualityCheckPopover.querySelectorAll('[data-text="true"], [data-testid*="comment"], [class*="comment"], p, div, span');
-                    console.log('[Appen Data Collector] 候选元素数量:', candidateElements.length);
-                    
-                    for (const element of candidateElements) {
+
+                    // 查找所有可能包含驳回理由的元素
+                    const allTextElements = qualityCheckPopover.querySelectorAll('div, span, p');
+                    console.log('[Appen Data Collector] 文本元素总数:', allTextElements.length);
+
+                    // 收集所有可能的驳回理由文本
+                    const rejectionReasons = [];
+
+                    for (const element of allTextElements) {
                         const text = element.textContent.trim();
-                        // 过滤条件：长度适中且不包含状态相关关键词
-                        if (text.length > 5 && text.length < 500 && 
-                            !text.includes('Rejected') && !text.includes('Approved') &&
-                            !text.includes('驳回') && !text.includes('通过') &&
-                            !text.includes('Quality') && !text.includes('Check') &&
-                            !text.includes('Record') && !text.includes('记录') &&
-                            !text.includes('Status') && !text.includes('状态') &&
-                            !text.includes('Type') && !text.includes('类型') &&
-                            !text.includes('Action') && !text.includes('操作') &&
-                            !text.includes('Operator') && !text.includes('操作人') &&
-                            !text.includes('Time') && !text.includes('时间') &&
-                            !text.includes(':') && !text.includes('：')) {
-                            comment = text;
-                            console.log('[Appen Data Collector] 从候选元素中提取驳回理由:', comment);
-                            console.log('[Appen Data Collector] 元素信息:', {
-                                tagName: element.tagName,
-                                className: element.className,
-                                attributes: Array.from(element.attributes).map(attr => `${attr.name}=${attr.value}`)
-                            });
-                            break;
+                        // 收集长度适中且看起来像驳回理由的文本
+                        if (text.length > 1 && text.length < 200) {
+                            // 包含具体问题描述关键词的文本
+                            const problemKeywords = [
+                                '融合度', '歧字', '错别字', '标点', '格式', '位置', '框选',
+                                '标注', '漏标', '误标', '重复', '缺失', '错误', '不准',
+                                '不完整', '不准确', '不合理', '不规范', '不清晰', '不一致'
+                            ];
+
+                            const hasProblemKeyword = problemKeywords.some(keyword => text.includes(keyword));
+
+                            // 如果包含明确的问题描述关键词，或者是一般性描述但不包含状态关键词
+                            const excludeStatusKeywords = [
+                                'QA1', 'QA2', 'Rejected', 'Approved', '驳回', '通过',
+                                'Quality', 'Check', 'Record', '记录', 'Status', '状态',
+                                'Type', '类型', 'Action', '操作', 'Operator', '操作人',
+                                'Time', '时间'
+                            ];
+
+                            const hasExcludeKeyword = excludeStatusKeywords.some(keyword =>
+                                text.includes(keyword) && !text.includes('融合度') && !text.includes('歧字')
+                            );
+
+                            // 如果包含问题关键词，或者不包含排除关键词且文本长度合适
+                            if (hasProblemKeyword || (!hasExcludeKeyword && text.length > 2)) {
+                                // 进一步过滤，排除只有状态词的文本
+                                if (!['QA1', 'QA2', 'Rejected', 'Approved', '驳回', '通过'].includes(text)) {
+                                    rejectionReasons.push({
+                                        text: text,
+                                        element: element,
+                                        position: Array.from(allTextElements).indexOf(element)
+                                    });
+                                    console.log('[Appen Data Collector] 发现可能的驳回理由:', text);
+                                }
+                            }
                         }
                     }
-                    
-                    // 如果还没找到，尝试查找所有文本节点
+
+                    // 优先选择最后出现的驳回理由（通常是最后一条QA的驳回理由）
+                    if (rejectionReasons.length > 0) {
+                        // 按位置排序，取最后一条
+                        rejectionReasons.sort((a, b) => b.position - a.position);
+                        comment = rejectionReasons[0].text;
+                        console.log('[Appen Data Collector] 选择最后一条驳回理由:', comment);
+                        console.log('[Appen Data Collector] 元素信息:', {
+                            tagName: rejectionReasons[0].element.tagName,
+                            className: rejectionReasons[0].element.className,
+                            textContent: rejectionReasons[0].element.textContent
+                        });
+                    }
+
+                    // 如果仍然没有找到，尝试查找包含具体问题描述的文本
                     if (!comment) {
                         const walker = document.createTreeWalker(
                             qualityCheckPopover,
@@ -1795,31 +2072,35 @@
                             null,
                             false
                         );
-                        
+
                         const textNodes = [];
                         let node;
                         while (node = walker.nextNode()) {
                             textNodes.push(node);
                         }
-                        
+
                         console.log('[Appen Data Collector] 文本节点数量:', textNodes.length);
-                        
-                        for (const textNode of textNodes) {
-                            const text = textNode.textContent.trim();
-                            // 过滤条件：长度适中且不包含状态相关关键词
-                            if (text.length > 5 && text.length < 500 && 
-                                !text.includes('Rejected') && !text.includes('Approved') &&
-                                !text.includes('驳回') && !text.includes('通过') &&
-                                !text.includes('Quality') && !text.includes('Check') &&
-                                !text.includes('Record') && !text.includes('记录') &&
-                                !text.includes('Status') && !text.includes('状态') &&
-                                !text.includes('Type') && !text.includes('类型') &&
-                                !text.includes('Action') && !text.includes('操作') &&
-                                !text.includes('Operator') && !text.includes('操作人') &&
-                                !text.includes('Time') && !text.includes('时间')) {
-                                comment = text;
-                                console.log('[Appen Data Collector] 从文本节点中提取驳回理由:', comment);
-                                break;
+
+                        // 从后往前查找，优先获取最后一条记录中的具体理由
+                        for (let i = textNodes.length - 1; i >= 0; i--) {
+                            const text = textNodes[i].textContent.trim();
+                            if (text.length > 1 && text.length < 200) {
+                                // 包含具体问题描述关键词的文本
+                                const problemKeywords = [
+                                    '融合度', '歧字', '错别字', '标点', '格式', '位置', '框选',
+                                    '标注', '漏标', '误标', '重复', '缺失', '错误', '不准',
+                                    '不完整', '不准确', '不合理', '不规范', '不清晰', '不一致'
+                                ];
+
+                                const hasProblemKeyword = problemKeywords.some(keyword => text.includes(keyword));
+
+                                if (hasProblemKeyword ||
+                                    (text.length > 2 &&
+                                     !['QA1', 'QA2', 'Rejected', 'Approved', '驳回', '通过'].includes(text))) {
+                                    comment = text;
+                                    console.log('[Appen Data Collector] 从文本节点中提取驳回理由:', comment);
+                                    break;
+                                }
                             }
                         }
                     }
@@ -1842,6 +2123,31 @@
                     };
 
                     console.log('[Appen Data Collector] 质检记录提取结果:', qualityCheckRecord);
+                    
+                    // ===== 完整的质检驳回信息输出到控制台 =====
+                    console.log('\n========== 【质检驳回信息完整输出】 ==========');
+                    console.log('| 用户ID:', collectedData.userId || 'N/A');
+                    console.log('| 任务ID:', collectedData.taskId || 'N/A');
+                    console.log('| 题目ID:', collectedData.topicId || 'N/A');
+                    console.log('| 质检状态:', statusType || 'N/A');
+                    console.log('| 状态详情:', status || 'N/A');
+                    console.log('| 驳回理由:', comment || 'N/A');
+                    console.log('| 检测时间:', new Date().toISOString());
+                    console.log('=========================================\n');
+                    
+                    // 将所有数据一起输出为JSON格式
+                    const completeQAData = {
+                        userId: collectedData.userId || 'N/A',
+                        taskId: collectedData.taskId || 'N/A',
+                        topicId: collectedData.topicId || 'N/A',
+                        qualityCheck: {
+                            status: statusType || 'N/A',
+                            statusDetail: status || 'N/A',
+                            rejectionReason: comment || 'N/A',
+                            timestamp: new Date().toISOString()
+                        }
+                    };
+                    console.log('[Appen Data Collector] 完整QA数据JSON:', JSON.stringify(completeQAData, null, 2));
                     
                     // 将质检记录存储到响应元素中
                     responseElements.qualityCheckRecord = qualityCheckRecord;
@@ -1977,6 +2283,31 @@
             '[role="radio"]',
             '[role="checkbox"]'
         );
+
+        // 查找质检详情显示按钮（向下箭头图标）
+        const qualityCheckTriggerElements = document.querySelectorAll(
+            '.anticon-down, [aria-label="down"], [data-icon="down"]'
+        );
+
+        // 为质检详情触发元素添加点击监听器
+        qualityCheckTriggerElements.forEach((element, index) => {
+            element.addEventListener('click', function(event) {
+                console.log('[Appen Data Collector] 检测到质检详情触发元素点击:', {
+                    element: element.tagName,
+                    className: element.className,
+                    ariaLabel: element.getAttribute('aria-label'),
+                    index: index
+                });
+
+                // 延迟执行质检记录提取，等待面板显示
+                setTimeout(() => {
+                    if (collectedData.responseElements) {
+                        console.log('[Appen Data Collector] 质检详情触发后重新提取质检记录');
+                        extractQualityCheckRecords(collectedData.responseElements);
+                    }
+                }, 300); // 等待面板动画完成
+            });
+        });
 
         selectionElements.forEach((element, index) => {
             // 监听点击事件
@@ -2121,6 +2452,8 @@
                 elapsedTime: Math.floor((Date.now() - collectedData.startTime) / 1000)
             };
         },
+        // 输出所有质检驳回信息到控制台
+        logQualityCheckInfo: logAllQualityCheckInfo,
         // 获取最新的认证cookie
         getLatestAuthCookies: async function() {
             try {
@@ -2220,6 +2553,91 @@
                 checkPageContentChange();
             }
         }).observe(document, { subtree: true, childList: true });
+    }
+
+    // 自动提取质检记录的函数（无需用户交互）
+    function extractQualityCheckRecordsAutomatically() {
+        try {
+            console.log('[Appen Data Collector] 自动提取质检记录开始');
+
+            // 尝试查找并显示隐藏的质检面板
+            const popoverControl = showDetailedQARecord();
+
+            // 查找质检记录弹窗
+            const qualityCheckPopover = document.querySelector('.ant-popover.custom-popover-with-lefer-arrow') ||
+                                      document.querySelector('.ant-popover:not(.ant-popover-hidden)') ||
+                                      document.querySelector('.ant-popover') ||
+                                      (popoverControl ? popoverControl.element : null) ||
+                                      document.querySelector('.ant-popover-hidden.w-full.md\\:w-96');
+
+            if (!qualityCheckPopover) {
+                console.log('[Appen Data Collector] 未找到质检记录弹窗，尝试主动显示');
+                // 如果没找到，尝试更积极的查找方式
+                const hiddenPopovers = document.querySelectorAll('.ant-popover-hidden');
+                if (hiddenPopovers.length > 0) {
+                    // 尝试显示第一个隐藏的弹窗
+                    const firstHiddenPopover = hiddenPopovers[0];
+                    const originalClasses = Array.from(firstHiddenPopover.classList);
+                    firstHiddenPopover.classList.remove('ant-popover-hidden');
+                    console.log('[Appen Data Collector] 主动显示隐藏弹窗');
+
+                    // 延迟提取内容
+                    setTimeout(() => {
+                        extractQualityCheckRecordsContent(collectedData.responseElements);
+
+                        // 恢复隐藏状态
+                        setTimeout(() => {
+                            // 先清空所有class，再恢复原始class
+                            firstHiddenPopover.className = '';
+                            originalClasses.forEach(cls => {
+                                firstHiddenPopover.classList.add(cls);
+                            });
+                            console.log('[Appen Data Collector] 恢复弹窗隐藏状态');
+                        }, 1000);
+                    }, 300);
+                    return;
+                }
+            }
+
+            if (qualityCheckPopover) {
+                console.log('[Appen Data Collector] 找到质检记录弹窗，开始提取内容');
+                // 保存原始状态
+                const hadHiddenClass = qualityCheckPopover.classList.contains('ant-popover-hidden');
+
+                // 如果弹窗隐藏了，临时显示
+                if (hadHiddenClass) {
+                    qualityCheckPopover.classList.remove('ant-popover-hidden');
+                    console.log('[Appen Data Collector] 临时显示隐藏的质检弹窗');
+                }
+
+                // 延迟提取内容
+                setTimeout(() => {
+                    extractQualityCheckRecordsContent(collectedData.responseElements);
+
+                    // 恢复原始状态
+                    if (hadHiddenClass) {
+                        setTimeout(() => {
+                            qualityCheckPopover.classList.add('ant-popover-hidden');
+                            console.log('[Appen Data Collector] 恢复质检弹窗隐藏状态');
+                        }, 500);
+                    }
+
+                    // 如果使用了popoverControl，恢复面板状态
+                    if (popoverControl && typeof popoverControl.restore === 'function') {
+                        setTimeout(() => {
+                            popoverControl.restore();
+                        }, 500);
+                    }
+                }, 200);
+            } else {
+                console.log('[Appen Data Collector] 未找到质检记录弹窗，使用原有方法');
+                // 回退到原有方法
+                extractQualityCheckRecords(collectedData.responseElements);
+            }
+
+        } catch (error) {
+            console.warn('[Appen Data Collector] 自动提取质检记录时出错:', error);
+        }
     }
 
     // 检查页面内容变化
