@@ -834,6 +834,13 @@
                 // 直接提取质检记录（现已优化为从初始数据提取，无需触发面板）
                 console.log('[Appen Data Collector] 显示模态框前提取质检记录');
                 extractQualityCheckRecords(collectedData.responseElements);
+            } else if (isTargetPage()) {
+                // 如果还没有responseElements，先创建它
+                console.log('[Appen Data Collector] 第一次打开模态框，初始化responseElements');
+                extractResponseElements();
+                setTimeout(() => {
+                    extractQualityCheckRecords(collectedData.responseElements);
+                }, 500);
             }
 
             console.log('[Appen Data Collector] 准备创建模态框');
@@ -985,6 +992,26 @@
         `;
 
         document.body.appendChild(modal);
+
+        // 更新驳回理由显示（确保显示最新的）
+        const updateRejectReasonDisplay = function() {
+            const rejectReasonSpans = modal.querySelectorAll('span');
+            for (const span of rejectReasonSpans) {
+                const parentText = span.parentElement.textContent;
+                if (parentText.includes('驳回理由:')) {
+                    const latestReason = collectedData.responseElements?.qualityCheckRecord?.latestRecord?.comment || '未找到';
+                    span.textContent = escapeHtml(latestReason);
+                    console.log('[Appen Data Collector] 已更新模态框中的驳回理由显示:', latestReason);
+                    break;
+                }
+            }
+        };
+        
+        // 立即更新一次显示
+        updateRejectReasonDisplay();
+        
+        // 延迟再更新一次，确保最新数据已加载
+        setTimeout(updateRejectReasonDisplay, 300);
 
         // 关闭按钮事件
         document.getElementById('close-modal-btn').addEventListener('click', function() {
@@ -1683,25 +1710,42 @@
             
             // 获取页面初始化的数据
             if (!window.__INITIAL_DATA__) {
-                console.log('[Appen Data Collector] __INITIAL_DATA__ 未找到');
+                console.log('[Appen Data Collector] __INITIAL_DATA__ 未找到，可能页面还在加载');
                 return null;
             }
             
             const data = window.__INITIAL_DATA__;
+            console.log('[Appen Data Collector] __INITIAL_DATA__ 已找到');
             
             // 检查数据结构
             if (!data.taskMessage?.taskRows?.[0]?.records?.[0]) {
-                console.log('[Appen Data Collector] 任务数据结构不完整');
+                console.log('[Appen Data Collector] 任务数据结构不完整', {
+                    hasTaskMessage: !!data.taskMessage,
+                    hasTaskRows: !!data.taskMessage?.taskRows,
+                    taskRowsLength: data.taskMessage?.taskRows?.length
+                });
                 return null;
             }
             
             const record = data.taskMessage.taskRows[0].records[0];
+            console.log('[Appen Data Collector] 找到任务记录');
             
             // 获取阶段历史
             if (!record.phasesHistory || record.phasesHistory.length === 0) {
-                console.log('[Appen Data Collector] phasesHistory 未找到或为空');
+                console.log('[Appen Data Collector] phasesHistory 未找到或为空', {
+                    hasPhasesHistory: !!record.phasesHistory,
+                    phasesHistoryLength: record.phasesHistory?.length
+                });
                 return null;
             }
+            
+            console.log('[Appen Data Collector] 阶段历史数据长度:', record.phasesHistory.length);
+            console.log('[Appen Data Collector] 阶段历史数据:', record.phasesHistory.map(p => ({
+                jobType: p.jobType,
+                status: p.status,
+                name: p.name,
+                submitTime: p.submitTime
+            })));
             
             // 从后往前查找最后一条QA REJECTED记录
             let qaRejectRecord = null;
@@ -1709,6 +1753,7 @@
                 const phase = record.phasesHistory[i];
                 if (phase.jobType === 'QA' && phase.status === 'REJECTED') {
                     qaRejectRecord = phase;
+                    console.log('[Appen Data Collector] 找到QA REJECTED记录，索引:', i);
                     break;
                 }
             }
@@ -1718,7 +1763,11 @@
                 return null;
             }
             
-            console.log('[Appen Data Collector] 找到QA驳回记录');
+            console.log('[Appen Data Collector] 选中的QA驳回记录:', {
+                name: qaRejectRecord.name,
+                status: qaRejectRecord.status,
+                jobType: qaRejectRecord.jobType
+            });
             
             // 解析驳回理由
             let rejectReason = '';
@@ -1728,11 +1777,17 @@
                     const commentJson = JSON.parse(qaRejectRecord.comment);
                     if (commentJson.description?.blocks?.[0]?.text) {
                         rejectReason = commentJson.description.blocks[0].text;
+                        console.log('[Appen Data Collector] 成功解析JSON格式驳回理由');
+                    } else {
+                        console.log('[Appen Data Collector] JSON中找不到blocks[0].text');
                     }
                 } catch (e) {
                     // 如果不是JSON，直接使用原始值
                     rejectReason = qaRejectRecord.comment;
+                    console.log('[Appen Data Collector] comment不是JSON格式，直接使用原始值');
                 }
+            } else {
+                console.log('[Appen Data Collector] comment为空');
             }
             
             console.log('[Appen Data Collector] 从初始数据提取到驳回理由:', rejectReason);
