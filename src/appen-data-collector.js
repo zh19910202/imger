@@ -950,7 +950,7 @@
             updateTime: new Date().toISOString(),
             elapsedTime: collectedData.elapsedTime || 0,
             isReplace: false,
-            topicNum: collectedData.responseElements?.userSelectionStatus?.editRounds || collectedData.topicNum || 0,
+            topicNum: collectedData.responseElements?.userSelectionStatus?.topicCount || collectedData.responseElements?.userSelectionStatus?.editRounds || collectedData.topicNum || 0,
             userSelectionStatus: collectedData.responseElements?.userSelectionStatus || null,
             qualityCheckRecord: collectedData.responseElements?.qualityCheckRecord || null
         };
@@ -1092,7 +1092,7 @@
                     <div><strong style="color: #333;">用户ID:</strong> <span style="color: #0066cc;">${escapeHtml(collectedData.userId || 'N/A')}</span></div>
                     <div><strong style="color: #333;">任务ID:</strong> <span style="color: #0066cc;">${escapeHtml(collectedData.taskId || 'N/A')}</span></div>
                     <div><strong style="color: #333;">题目ID:</strong> <span id="topic-id-display" style="color: #0066cc;">${escapeHtml(collectedData.topicId || 'N/A')}</span></div>
-                    <div><strong style="color: #333;">题目数量:</strong> <span id="topic-count-display" style="color: #0066cc;">${collectedData.responseElements?.userSelectionStatus?.editRounds || collectedData.topicNum || 0}</span></div>
+                    <div><strong style="color: #333;">题目数量:</strong> <span id="topic-count-display" style="color: #0066cc;">${collectedData.responseElements?.userSelectionStatus?.topicCount || collectedData.responseElements?.userSelectionStatus?.editRounds || collectedData.topicNum || 0}</span></div>
                     <div><strong style="color: #333;">耗时(秒):</strong> <span id="elapsed-time-display" style="color: #0066cc;">${currentElapsedTime}</span></div>
                     <div><strong style="color: #333;">是否有效:</strong> <span id="valid-status-display" style="color: #0066cc;">${collectedData.responseElements?.userSelectionStatus ? (collectedData.responseElements.userSelectionStatus.isValid === true ? '✓ 有效' : collectedData.responseElements.userSelectionStatus.isValid === false ? '✗ 无效' : '未知') : '未检测到'}</span></div>
                     <div><strong style="color: #333;">认证Cookie:</strong> <span id="cookie-status-display" style="color: #0066cc; font-size: 12px;">${collectedData.authCookies ? (Object.keys(collectedData.authCookies).length > 0 ? '已获取(' + Object.keys(collectedData.authCookies).length + '个)' : '无有效Cookie') : '未获取'}</span></div>
@@ -1246,7 +1246,7 @@
                 updateTime: new Date().toISOString(),
                 elapsedTime: elapsedTimeForCopy,
                 isReplace: false,
-                topicNum: collectedData.responseElements?.userSelectionStatus?.editRounds || collectedData.topicNum || 0,
+                topicNum: collectedData.responseElements?.userSelectionStatus?.topicCount || collectedData.responseElements?.userSelectionStatus?.editRounds || collectedData.topicNum || 0,
                 userSelectionStatus: collectedData.responseElements?.userSelectionStatus || null,
                 qualityCheckRecord: collectedData.responseElements?.qualityCheckRecord || null
             };
