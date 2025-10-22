@@ -23,6 +23,13 @@
         MAX_ELAPSED_TIME: 3600000
     };
 
+    const COMPLETION_STORAGE_KEY = 'appen_completion_stats';
+
+    let completionStats = {
+        totalValidCompletions: 0,
+        perPage: {}
+    };
+
     // 全局变量
     let collectedData = {
         userId: null,
@@ -31,7 +38,9 @@
         topicUrl: null,
         startTime: Date.now(),
         elapsedTime: 0,
-        topicNum: 0
+        topicNum: 0,
+        totalValidCompletions: 0,
+        pageCompletionCounts: {}
     };
 
     // 用于跟踪上一个任务ID以检测任务变化
@@ -124,6 +133,118 @@
                 resolve(false);
             }
         });
+    }
+
+    function syncCollectedDataWithCompletionStats() {
+        collectedData.totalValidCompletions = completionStats.totalValidCompletions || 0;
+        collectedData.pageCompletionCounts = { ...completionStats.perPage };
+    }
+
+    async function loadCompletionStats() {
+        if (!chrome || !chrome.storage) {
+            syncCollectedDataWithCompletionStats();
+            return;
+        }
+
+        return new Promise((resolve) => {
+            try {
+                chrome.storage.local.get([COMPLETION_STORAGE_KEY], (result) => {
+                    if (chrome.runtime && chrome.runtime.lastError) {
+                        console.warn('[Appen Data Collector] 读取标注完成统计失败:', chrome.runtime.lastError);
+                        syncCollectedDataWithCompletionStats();
+                        resolve(false);
+                        return;
+                    }
+
+                    const stored = result && result[COMPLETION_STORAGE_KEY];
+                    if (stored && typeof stored === 'object') {
+                        completionStats = {
+                            totalValidCompletions: Number(stored.totalValidCompletions) || 0,
+                            perPage: stored.perPage && typeof stored.perPage === 'object' ? stored.perPage : {}
+                        };
+                    }
+
+                    syncCollectedDataWithCompletionStats();
+                    resolve(true);
+                });
+            } catch (error) {
+                console.warn('[Appen Data Collector] 加载标注完成统计异常:', error);
+                syncCollectedDataWithCompletionStats();
+                resolve(false);
+            }
+        });
+    }
+
+    function saveCompletionStats() {
+        syncCollectedDataWithCompletionStats();
+
+        if (!chrome || !chrome.storage) {
+            return Promise.resolve(false);
+        }
+
+        return new Promise((resolve) => {
+            try {
+                chrome.storage.local.set({ [COMPLETION_STORAGE_KEY]: completionStats }, () => {
+                    if (chrome.runtime && chrome.runtime.lastError) {
+                        console.warn('[Appen Data Collector] 保存标注完成统计失败:', chrome.runtime.lastError);
+                        resolve(false);
+                    } else {
+                        resolve(true);
+                    }
+                });
+            } catch (error) {
+                console.warn('[Appen Data Collector] 保存标注完成统计异常:', error);
+                resolve(false);
+            }
+        });
+    }
+
+    function getCurrentPageKey() {
+        if (collectedData.topicId && collectedData.topicId !== 'unknown_topic') {
+            return `${collectedData.taskId || 'unknown_task'}::${collectedData.topicId}`;
+        }
+        return collectedData.topicUrl || window.location.href || 'unknown_page';
+    }
+
+    function getTopicCountForRecording() {
+        const statusTopicCount = collectedData.responseElements?.userSelectionStatus?.topicCount;
+        if (typeof statusTopicCount === 'number' && !Number.isNaN(statusTopicCount)) {
+            return statusTopicCount;
+        }
+        if (typeof collectedData.topicNum === 'number' && !Number.isNaN(collectedData.topicNum)) {
+            return collectedData.topicNum;
+        }
+        return 0;
+    }
+
+    async function recordValidCompletion() {
+        try {
+            const pageKey = getCurrentPageKey();
+            const topicCount = getTopicCountForRecording();
+
+            if (!completionStats.perPage[pageKey]) {
+                completionStats.perPage[pageKey] = {
+                    completions: 0,
+                    topicCount: topicCount
+                };
+            }
+
+            completionStats.perPage[pageKey].completions += 1;
+            completionStats.perPage[pageKey].topicCount = topicCount;
+            completionStats.totalValidCompletions += 1;
+
+            syncCollectedDataWithCompletionStats();
+
+            await saveCompletionStats();
+
+            console.log('[Appen Data Collector] 已记录有效标注完成:', {
+                pageKey,
+                totalValidCompletions: completionStats.totalValidCompletions,
+                perPage: completionStats.perPage[pageKey]
+            });
+        } catch (error) {
+            console.warn('[Appen Data Collector] 记录标注完成统计异常:', error);
+        }
     }
 
     // 从缓存获取题目ID
@@ -243,6 +364,8 @@
     // 初始化数据收集器
     async function initializeDataCollector() {
         console.log('[Appen Data Collector] 初始化即时数据收集器');
+
+        await loadCompletionStats();
 
         // 检查是否为欢迎页面
         if (isWelcomePage()) {
@@ -576,7 +699,7 @@
         // 监听鼠标点击事件
         document.addEventListener('click', function(event) {
             // 检查是否点击了提交按钮
-            checkForSubmission(event.target);
+            checkForSubmission(event.target, true);
         });
 
         // 监听表单提交事件（已禁用，改为手动推送）
@@ -669,8 +792,64 @@
         }
     }
 
+    // 记录确认完成时的标注信息
+    function recordCompletionOnConfirm() {
+        try {
+            const userStatus = collectedData.responseElements?.userSelectionStatus;
+            
+            if (!userStatus) {
+                console.log('[Appen Data Collector] 无法获取用户选择状态，跳过记录');
+                return;
+            }
+
+            if (userStatus.isValid !== true) {
+                console.log('[Appen Data Collector] 状态不是有效，跳过记录。当前状态:', userStatus.isValid);
+                return;
+            }
+
+            const pageKey = getCurrentPageKey();
+            const topicCount = getTopicCountForRecording();
+
+            console.log('[Appen Data Collector] ========== 确认完成时记录标注信息 ==========');
+            console.log('[Appen Data Collector] 页面标识:', pageKey);
+            console.log('[Appen Data Collector] 当前页面做题数量:', topicCount);
+            console.log('[Appen Data Collector] 用户有效状态:', userStatus.isValid);
+
+            if (!completionStats.perPage[pageKey]) {
+                completionStats.perPage[pageKey] = {
+                    completions: 0,
+                    topicCount: topicCount
+                };
+            }
+
+            completionStats.perPage[pageKey].completions += 1;
+            completionStats.perPage[pageKey].topicCount = topicCount;
+            completionStats.totalValidCompletions += 1;
+
+            syncCollectedDataWithCompletionStats();
+
+            console.log('[Appen Data Collector] 已记录确认完成时的标注信息:', {
+                pageKey,
+                completions: completionStats.perPage[pageKey].completions,
+                topicCount: completionStats.perPage[pageKey].topicCount,
+                totalValidCompletions: completionStats.totalValidCompletions
+            });
+
+            saveCompletionStats();
+
+        } catch (error) {
+            console.warn('[Appen Data Collector] 记录确认完成时的标注信息异常:', error);
+        }
+    }
+
     // 检查是否点击了提交按钮
-    function checkForSubmission(element) {
+    function checkForSubmission(element, triggeredByUserEvent = false) {
+        if (!element || !(element instanceof Element)) {
+            return;
+        }
+
+        const targetElement = element.closest ? (element.closest('button, [role="button"], [type="submit"], .btn, .submit') || element) : element;
+
         // 检查元素是否为提交按钮
         const submitButtonSelectors = [
             '提交并继续标注', '提交', 'Submit', '继续标注', 'Continue',
@@ -692,6 +871,13 @@
             console.log('[Appen Data Collector] 检测到提交按钮点击（已禁用自动推送，等待手动推送）');
             // 延迟推送数据，确保提交操作完成（已禁用）
             // setTimeout(pushDataOnSubmission, 300);
+        }
+
+        // 检查是否点击了"确认完成"按钮
+        const isConfirmCompleteButton = buttonText.includes('确认完成');
+        if (isConfirmCompleteButton) {
+            console.log('[Appen Data Collector] 检测到"确认完成"按钮点击');
+            recordCompletionOnConfirm();
         }
     }
 
@@ -911,6 +1097,28 @@
                     <div><strong style="color: #333;">是否有效:</strong> <span id="valid-status-display" style="color: #0066cc;">${collectedData.responseElements?.userSelectionStatus ? (collectedData.responseElements.userSelectionStatus.isValid === true ? '✓ 有效' : collectedData.responseElements.userSelectionStatus.isValid === false ? '✗ 无效' : '未知') : '未检测到'}</span></div>
                     <div><strong style="color: #333;">认证Cookie:</strong> <span id="cookie-status-display" style="color: #0066cc; font-size: 12px;">${collectedData.authCookies ? (Object.keys(collectedData.authCookies).length > 0 ? '已获取(' + Object.keys(collectedData.authCookies).length + '个)' : '无有效Cookie') : '未获取'}</span></div>
                     <div><strong style="color: #333;">驳回理由:</strong> <span style="color: #0066cc;">${escapeHtml(collectedData.responseElements?.qualityCheckRecord?.latestRecord?.comment || '')}</span></div>
+                </div>
+
+                <div style="
+                    background: #e8f5e9;
+                    padding: 15px;
+                    border-radius: 4px;
+                    margin-top: 15px;
+                    margin-bottom: 15px;
+                    border-left: 4px solid #4CAF50;
+                ">
+                    <div style="font-weight: bold; color: #2e7d32; margin-bottom: 10px; font-size: 15px;">✓ 标注完成统计</div>
+                    <div><strong style="color: #333;">总有效完成次数:</strong> <span id="total-completions-display" style="color: #0066cc; font-weight: bold; font-size: 16px;">${completionStats.totalValidCompletions || 0}</span></div>
+                    <div style="margin-top: 10px; font-size: 13px; color: #555;">
+                        <div style="margin-bottom: 5px;"><strong>各页面完成详情:</strong></div>
+                        <div id="page-completions-display" style="margin-left: 15px; line-height: 1.6;">
+                            ${Object.keys(completionStats.perPage).length > 0 
+                                ? Object.entries(completionStats.perPage).map(([pageKey, data]) => 
+                                    `<div style="margin-bottom: 5px;">页面: <span style="color: #0066cc;">${escapeHtml(pageKey.substring(0, 50))}</span> - 完成: <span style="color: #f57c00; font-weight: bold;">${data.completions}</span>, 题数: <span style="color: #0066cc;">${data.topicCount}</span></div>`
+                                  ).join('')
+                                : '<div style="color: #999;">暂无完成记录</div>'}
+                        </div>
+                    </div>
                 </div>
 
                 <div style="
@@ -1943,15 +2151,72 @@
         try {
             console.log('[Appen Data Collector] 开始提取质检记录信息');
             
-            // 步骤1：优先从初始化数据提取（最稳定、最快）
+            // 步骤1：优先从打开的质检窗口DOM提取（当用户按i键时，窗口已打开）
+            const domQARecord = extractLatestQARejectFromDOM();
+            if (domQARecord) {
+                console.log('[Appen Data Collector] 质检记录提取完成 (来自打开的窗口DOM)');
+                
+                // 构造质检记录对象
+                const qualityCheckRecord = {
+                    hasRecord: true,
+                    dataSource: 'DOM_POPOVER',
+                    timestamp: new Date().toISOString(),
+                    latestRecord: {
+                        type: 'REJECTED',
+                        action: `被 ${domQARecord.operator || 'QA'} Rejected 请修订`,
+                        comment: domQARecord.comment || '',
+                        operator: domQARecord.operator || 'QA',
+                        operateTime: domQARecord.operateTime || '',
+                        jobType: 'QA'
+                    }
+                };
+                
+                responseElements.qualityCheckRecord = qualityCheckRecord;
+                
+                // 输出最新的驳回理由信息
+                console.log('\n========== 【质检驳回信息 - 从打开窗口提取】 ==========');
+                console.log('| 数据来源: 质检窗口DOM (最实时)');
+                console.log('| 用户ID:', collectedData.userId || 'N/A');
+                console.log('| 任务ID:', collectedData.taskId || 'N/A');
+                console.log('| 题目ID:', collectedData.topicId || 'N/A');
+                console.log('| 质检状态: REJECTED (驳回)');
+                console.log('| 操作人:', domQARecord.operator || 'N/A');
+                console.log('| 操作时间:', domQARecord.operateTime || 'N/A');
+                console.log('| 驳回理由:', domQARecord.comment || 'N/A');
+                console.log('| 检测时间:', new Date().toISOString());
+                console.log('================================================\n');
+                
+                // 输出完整JSON格式
+                const latestQAData = {
+                    userId: collectedData.userId || 'N/A',
+                    taskId: collectedData.taskId || 'N/A',
+                    topicId: collectedData.topicId || 'N/A',
+                    qualityCheck: {
+                        status: 'Rejected',
+                        statusDetail: `被 ${domQARecord.operator || 'QA'} Rejected 请修订`,
+                        rejectionReason: domQARecord.comment,
+                        operator: domQARecord.operator,
+                        operateTime: domQARecord.operateTime,
+                        dataSource: 'DOM_POPOVER',
+                        timestamp: new Date().toISOString()
+                    }
+                };
+                console.log('[Appen Data Collector] 完整QA数据JSON:', JSON.stringify(latestQAData, null, 2));
+                
+                return;
+            }
+            
+            // 步骤2：备用方案 - 从初始化数据提取
+            console.log('[Appen Data Collector] DOM提取失败，尝试从初始数据提取');
+            
             const initialDataResult = extractQualityCheckFromInitialData();
             if (initialDataResult) {
                 responseElements.qualityCheckRecord = initialDataResult;
                 console.log('[Appen Data Collector] 质检记录提取完成 (来自初始数据)');
                 
                 // 输出最新的驳回理由信息
-                console.log('\n========== 【最新质检驳回信息】 ==========');
-                console.log('| 数据来源: 初始化数据 (最准确)');
+                console.log('\n========== 【质检驳回信息 - 从初始数据提取】 ==========');
+                console.log('| 数据来源: 初始化数据 (备用方案)');
                 console.log('| 用户ID:', collectedData.userId || 'N/A');
                 console.log('| 任务ID:', collectedData.taskId || 'N/A');
                 console.log('| 题目ID:', collectedData.topicId || 'N/A');
@@ -1960,7 +2225,7 @@
                 console.log('| 操作时间:', initialDataResult.latestRecord.operateTime || 'N/A');
                 console.log('| 驳回理由:', initialDataResult.latestRecord.comment || 'N/A');
                 console.log('| 检测时间:', new Date().toISOString());
-                console.log('=========================================\n');
+                console.log('================================================\n');
                 
                 // 输出完整JSON格式
                 const latestQAData = {
@@ -1982,8 +2247,7 @@
                 return;
             }
             
-            // 步骤2：备用方案 - 从DOM中提取
-            console.log('[Appen Data Collector] 初始数据提取失败，使用备用DOM方案');
+            console.log('[Appen Data Collector] 所有方案都失败，无法提取质检记录');
 
             // 使用更灵活的方式查找质检弹窗，优先查找可见的，然后查找隐藏的
             const qualityCheckPopover = document.querySelector('.ant-popover.custom-popover-with-lefter-arrow') ||
@@ -2057,7 +2321,7 @@
                     }
                 }
             }, 500); // 等待 DOM 更新
-
+            
         } catch (error) {
             console.warn('[Appen Data Collector] 提取质检记录时出错:', error);
             responseElements.qualityCheckRecord = {
