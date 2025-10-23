@@ -4,7 +4,7 @@
 fix-elapsed-time-zero
 
 ## Status
-Proposed
+Implemented
 
 ## Summary
 Fix the issue where elapsed time shows as 0 in page completion details by ensuring proper elapsed time calculation and storage in both recordValidCompletion and recordCompletionOnConfirm functions.
