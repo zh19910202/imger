@@ -2403,6 +2403,33 @@
                     });
                 }
 
+                // 【增强诊断】检查所有包含"task"或"record"的属性
+                log(LOG_LEVEL.INFO, '   ├─ 【增强诊断】 检查所有可能包含任务数据的属性...');
+                const allKeys = Object.keys(window).filter(key =>
+                    key.toLowerCase().includes('task') ||
+                    key.toLowerCase().includes('record') ||
+                    key.toLowerCase().includes('quality') ||
+                    key.toLowerCase().includes('qa') ||
+                    key.toLowerCase().includes('annotation') ||
+                    key.toLowerCase().includes('app') ||
+                    key.toLowerCase().includes('state')
+                );
+
+                if (allKeys.length > 0) {
+                    log(LOG_LEVEL.INFO, '      发现的任务相关属性:', allKeys.slice(0, 20));
+                    // 详细输出前几个
+                    allKeys.slice(0, 3).forEach(key => {
+                        const value = window[key];
+                        if (typeof value === 'object' && value !== null) {
+                            log(LOG_LEVEL.DEBUG, '        ' + key + ' (object):', Object.keys(value).slice(0, 5));
+                        } else {
+                            log(LOG_LEVEL.DEBUG, '        ' + key + ':', typeof value);
+                        }
+                    });
+                } else {
+                    log(LOG_LEVEL.WARN, '      未找到任何任务相关属性');
+                }
+
                 return null;
             }
 
