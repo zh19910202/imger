@@ -4,7 +4,7 @@
 enhance-modal-completion-stats
 
 ## Status
-Proposed
+Implemented
 
 ## Summary
 Enhance the showDataModal function to include reject reason and elapsed time in the page completion details statistics. This will provide more comprehensive information about each completed annotation page directly in the modal display.
