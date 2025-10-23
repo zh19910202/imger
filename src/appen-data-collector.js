@@ -292,6 +292,12 @@
         pageCompletionCounts: {}
     };
 
+    // 状态变量用于跟踪质检记录提取
+    let qualityCheckExtractionState = {
+        lastExtractionTime: 0,
+        extractionInProgress: false
+    };
+
     // 用于跟踪上一个任务ID以检测任务变化
     let lastTaskId = null;
     // 用于跟踪上一个题目ID以检测标注页面变化
@@ -657,8 +663,6 @@
                 extractResponseElements();
                 // 附加用户选择状态监听器
                 setTimeout(attachUserSelectionListeners, 500);
-                // 自动触发质检详情加载
-                setTimeout(autoTriggerQualityCheckDetails, 1000);
             }, 2000); // 等待页面加载完成
         }
 
@@ -1016,9 +1020,6 @@
             } else if (qualityCheckStatusElements.length > 0) {
                 // 如果没有找到触发元素但找到了状态元素，说明可能已经展开
                 log(LOG_LEVEL.DEBUG, '检测到质检状态元素，尝试直接提取信息');
-                if (collectedData.responseElements) {
-                    extractQualityCheckRecords(collectedData.responseElements);
-                }
             } else {
                 log(LOG_LEVEL.DEBUG, '未找到质检相关信息元素');
             }
@@ -1267,14 +1268,10 @@
                 detectUserSelectionStatus(collectedData.responseElements);
                 // 直接提取质检记录（现已优化为从初始数据提取，无需触发面板）
                 log(LOG_LEVEL.DEBUG, '显示模态框前提取质检记录');
-                extractQualityCheckRecords(collectedData.responseElements);
             } else if (isTargetPage()) {
                 // 如果还没有responseElements，先创建它
                 log(LOG_LEVEL.DEBUG, '第一次打开模态框，初始化responseElements');
                 extractResponseElements();
-                setTimeout(() => {
-                    extractQualityCheckRecords(collectedData.responseElements);
-                }, 500);
             }
 
             log(LOG_LEVEL.DEBUG, '准备创建模态框');
@@ -1891,7 +1888,6 @@
             detectUserSelectionStatus(responseElements);
 
             // 提取质检记录信息
-            extractQualityCheckRecords(responseElements);
 
             // 提取可能的任务相关信息
             const taskElements = ElementSelector.selectAll([
@@ -2497,6 +2493,21 @@
     // 提取质检记录信息
     function extractQualityCheckRecords(responseElements) {
         try {
+            // 状态跟踪：防止重复提取
+            const now = Date.now();
+            if (qualityCheckExtractionState.extractionInProgress) {
+                log(LOG_LEVEL.DEBUG, '质检记录提取正在进行中，跳过重复请求');
+                return;
+            }
+
+            // 限制提取频率（至少间隔1秒）
+            if (now - qualityCheckExtractionState.lastExtractionTime < 1000) {
+                log(LOG_LEVEL.DEBUG, '质检记录提取频率过高，跳过请求');
+                return;
+            }
+
+            // 设置提取状态
+            qualityCheckExtractionState.extractionInProgress = true;
             log(LOG_LEVEL.DEBUG, '开始提取质检记录信息');
 
             // 步骤1：优先从打开的质检窗口DOM提取（当用户按i键时，窗口已打开）
@@ -2685,6 +2696,10 @@
                 error: error.message,
                 timestamp: new Date().toISOString()
             };
+        } finally {
+            // 重置提取状态
+            qualityCheckExtractionState.extractionInProgress = false;
+            qualityCheckExtractionState.lastExtractionTime = Date.now();
         }
     }
     
@@ -2749,7 +2764,7 @@
                         originalClasses.forEach(cls => {
                             hiddenPopover.classList.add(cls);
                         });
-                        
+
                         // 恢复原始样式
                         hiddenPopover.style.display = originalDisplay;
                         hiddenPopover.style.visibility = originalVisibility;
@@ -2758,6 +2773,15 @@
                         hiddenPopover.style.zIndex = originalZIndex;
                         hiddenPopover.style.position = originalPosition;
                         hiddenPopover.removeAttribute('data-appen-temp-visible');
+
+                        // 当用户手动隐藏面板时，触发质检记录提取
+                        log(LOG_LEVEL.INFO, '[Appen Data Collector] 用户手动隐藏质检详情面板，触发质检记录提取');
+                        if (collectedData.responseElements) {
+                            setTimeout(() => {
+                                extractQualityCheckRecords(collectedData.responseElements);
+                            }, 100); // 短暂延迟以确保面板完全隐藏
+                        }
+
                         log(LOG_LEVEL.INFO, '[Appen Data Collector] 详细质检记录面板已恢复隐藏');
                     }
                 };
@@ -2898,7 +2922,7 @@
                         originalClasses.forEach(cls => {
                             hiddenPopover.classList.add(cls);
                         });
-                        
+
                         // 恢复原始样式
                         hiddenPopover.style.display = originalDisplay;
                         hiddenPopover.style.visibility = originalVisibility;
@@ -2907,6 +2931,15 @@
                         hiddenPopover.style.zIndex = originalZIndex;
                         hiddenPopover.style.position = originalPosition;
                         hiddenPopover.removeAttribute('data-appen-temp-visible');
+
+                        // 当用户手动隐藏面板时，触发质检记录提取
+                        log(LOG_LEVEL.INFO, '[Appen Data Collector] 用户手动隐藏质检详情面板，触发质检记录提取');
+                        if (collectedData.responseElements) {
+                            setTimeout(() => {
+                                extractQualityCheckRecords(collectedData.responseElements);
+                            }, 100); // 短暂延迟以确保面板完全隐藏
+                        }
+
                         log(LOG_LEVEL.INFO, '[Appen Data Collector] 详细质检记录面板已恢复隐藏');
                     }
                 };
@@ -2956,12 +2989,6 @@
                 });
 
                 // 延迟执行质检记录提取，等待面板显示
-                setTimeout(() => {
-                    if (collectedData.responseElements) {
-                        log(LOG_LEVEL.INFO, '[Appen Data Collector] 质检详情触发后重新提取质检记录');
-                        extractQualityCheckRecords(collectedData.responseElements);
-                    }
-                }, 300); // 等待面板动画完成
             });
         });
 
@@ -3290,9 +3317,7 @@
                     }
                 }, 200);
             } else {
-                log(LOG_LEVEL.INFO, '[Appen Data Collector] 未找到质检记录弹窗，使用原有方法');
-                // 回退到原有方法
-                extractQualityCheckRecords(collectedData.responseElements);
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 未找到质检记录弹窗，推迟提取直到用户隐藏面板');
             }
 
         } catch (error) {
