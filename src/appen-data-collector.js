@@ -1887,7 +1887,8 @@
             // 检测用户当前的单选是有效还是无效，以及是第几轮
             detectUserSelectionStatus(responseElements);
 
-            // 提取质检记录信息
+            // 提取质检记录信息 - 在页面加载时自动获取，无需用户点击
+            extractQualityCheckRecords(responseElements);
 
             // 提取可能的任务相关信息
             const taskElements = ElementSelector.selectAll([
@@ -2774,14 +2775,7 @@
                         hiddenPopover.style.position = originalPosition;
                         hiddenPopover.removeAttribute('data-appen-temp-visible');
 
-                        // 当用户手动隐藏面板时，触发质检记录提取
-                        log(LOG_LEVEL.INFO, '[Appen Data Collector] 用户手动隐藏质检详情面板，触发质检记录提取');
-                        if (collectedData.responseElements) {
-                            setTimeout(() => {
-                                extractQualityCheckRecords(collectedData.responseElements);
-                            }, 100); // 短暂延迟以确保面板完全隐藏
-                        }
-
+                        // 注意：质检记录已在页面加载时自动提取，无需再次提取
                         log(LOG_LEVEL.INFO, '[Appen Data Collector] 详细质检记录面板已恢复隐藏');
                     }
                 };
@@ -2932,14 +2926,7 @@
                         hiddenPopover.style.position = originalPosition;
                         hiddenPopover.removeAttribute('data-appen-temp-visible');
 
-                        // 当用户手动隐藏面板时，触发质检记录提取
-                        log(LOG_LEVEL.INFO, '[Appen Data Collector] 用户手动隐藏质检详情面板，触发质检记录提取');
-                        if (collectedData.responseElements) {
-                            setTimeout(() => {
-                                extractQualityCheckRecords(collectedData.responseElements);
-                            }, 100); // 短暂延迟以确保面板完全隐藏
-                        }
-
+                        // 注意：质检记录已在页面加载时自动提取，无需再次提取
                         log(LOG_LEVEL.INFO, '[Appen Data Collector] 详细质检记录面板已恢复隐藏');
                     }
                 };
