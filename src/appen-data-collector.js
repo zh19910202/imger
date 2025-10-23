@@ -1364,9 +1364,29 @@
                             ${Object.keys(completionStats.perPage).length > 0
                                 ? Object.entries(completionStats.perPage)
                                     .slice(0, 5) // 只显示前5条记录
-                                    .map(([pageKey, data]) =>
-                                        `<div style="margin-bottom: 5px;">页面: <span style="color: #0066cc;">${escapeHtml(pageKey.substring(0, 50))}</span> - 完成: <span style="color: #f57c00; font-weight: bold;">${data.completions}</span>, 题数: <span style="color: #0066cc;">${data.topicCount}</span></div>`
-                                    ).join('')
+                                    .map(([pageKey, data]) => {
+                                        // 获取驳回理由（如果有的话）
+                                        const rejectReason = collectedData.responseElements?.qualityCheckRecord?.latestRecord?.comment || '无驳回';
+                                        // 格式化时间戳
+                                        const lastCompletionTime = data.lastCompletionTime
+                                            ? new Date(data.lastCompletionTime).toLocaleString('zh-CN')
+                                            : '未知';
+
+                                        return `<div style="margin-bottom: 8px; padding: 5px; border-bottom: 1px solid #eee;">
+                                            <div><strong>页面:</strong> <span style="color: #0066cc;">${escapeHtml(pageKey.substring(0, 50))}${pageKey.length > 50 ? '...' : ''}</span></div>
+                                            <div style="margin-left: 15px; font-size: 13px;">
+                                                <span>完成次数: <span style="color: #f57c00; font-weight: bold;">${data.completions}</span></span> |
+                                                <span>题数: <span style="color: #0066cc;">${data.topicCount}</span></span> |
+                                                <span>耗时: <span style="color: #4CAF50;">${data.elapsedSeconds || 0}秒</span></span>
+                                            </div>
+                                            <div style="margin-left: 15px; font-size: 13px;">
+                                                <span>驳回理由: <span style="color: #f44336;">${escapeHtml(rejectReason.substring(0, 30))}${rejectReason.length > 30 ? '...' : ''}</span></span>
+                                            </div>
+                                            <div style="margin-left: 15px; font-size: 12px; color: #777;">
+                                                最后完成: ${lastCompletionTime}
+                                            </div>
+                                        </div>`;
+                                    }).join('')
                                 : '<div style="color: #999;">暂无完成记录</div>'}
                         </div>
                         ${Object.keys(completionStats.perPage).length > 5
