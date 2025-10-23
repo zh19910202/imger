@@ -9,8 +9,11 @@
     "build-dist": "node build/build.js",
     "clean": "rm -rf build/dist",
     "dist": "npm run clean && npm run build",
-    "test": "echo 'No tests specified'",
-    "lint": "echo 'No linter configured'"
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "echo 'No linter configured'",
+    "test:diagnose": "node tests/scripts/diagnose-appen-data-collector.js"
   },
   "keywords": [
     "chrome-extension",
@@ -31,6 +34,7 @@
   },
   "homepage": "https://github.com/your-username/auxis#readme",
   "devDependencies": {
-    "javascript-obfuscator": "^4.1.1"
+    "javascript-obfuscator": "^4.1.1",
+    "jest": "^30.2.0"
   }
 }
