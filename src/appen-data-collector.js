@@ -1894,6 +1894,7 @@
 
             // 使用setTimeout确保__INITIAL_DATA__已被完全加载
             setTimeout(() => {
+                log(LOG_LEVEL.INFO, '🕐 【setTimeout回调执行】 500ms延迟后，开始调用extractQualityCheckRecords');
                 extractQualityCheckRecords(responseElements);
                 log(LOG_LEVEL.INFO, '========== 质检驳回信息提取调用完成 ==========');
             }, 500);
@@ -2549,7 +2550,7 @@
     // 提取质检记录信息
     function extractQualityCheckRecords(responseElements) {
         try {
-            log(LOG_LEVEL.INFO, '▶ 【extractQualityCheckRecords】 函数开始执行');
+            log(LOG_LEVEL.INFO, '🎯 【extractQualityCheckRecords】 ========== 函数已被调用！==========');
 
             // 状态跟踪：防止重复提取
             const now = Date.now();
