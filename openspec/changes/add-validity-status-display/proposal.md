@@ -4,7 +4,7 @@
 add-validity-status-display
 
 ## Status
-Proposed
+Implemented
 
 ## Summary
 Add validity status display to the page completion details in the modal statistics. This enhancement will show whether each completed page was marked as valid or invalid, providing users with immediate feedback on their annotation quality.
