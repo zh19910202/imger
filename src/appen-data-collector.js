@@ -1377,7 +1377,8 @@
                                             <div style="margin-left: 15px; font-size: 13px;">
                                                 <span>完成次数: <span style="color: #f57c00; font-weight: bold;">${data.completions}</span></span> |
                                                 <span>题数: <span style="color: #0066cc;">${data.topicCount}</span></span> |
-                                                <span>耗时: <span style="color: #4CAF50;">${data.elapsedSeconds || 0}秒</span></span>
+                                                <span>耗时: <span style="color: #4CAF50;">${data.elapsedSeconds || 0}秒</span></span> |
+                                                <span>状态: <span style="color: ${data.isValid === true ? '#4CAF50' : data.isValid === false ? '#f44336' : '#9E9E9E'}; font-weight: bold;">${data.isValid === true ? '✓ 有效' : data.isValid === false ? '✗ 无效' : '未知状态'}</span></span>
                                             </div>
                                             <div style="margin-left: 15px; font-size: 13px;">
                                                 <span>驳回理由: <span style="color: #f44336;">${escapeHtml(rejectReason.substring(0, 30))}${rejectReason.length > 30 ? '...' : ''}</span></span>
