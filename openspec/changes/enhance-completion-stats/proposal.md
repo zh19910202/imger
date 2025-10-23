@@ -4,7 +4,7 @@
 enhance-completion-stats
 
 ## Status
-Proposed
+Implemented
 
 ## Summary
 Enhance the Appen data collector to record detailed information for each annotation page in the completion statistics, including topic ID, topic count, elapsed time (seconds), and validity status. This will provide more granular tracking and reporting capabilities for annotation work.
