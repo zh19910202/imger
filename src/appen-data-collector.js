@@ -2381,6 +2381,24 @@
             // 获取页面初始化的数据
             if (!window.__INITIAL_DATA__) {
                 log(LOG_LEVEL.WARN, '   ├─ ❌ window.__INITIAL_DATA__ 未找到');
+
+                // 诊断：检查其他可能的数据位置
+                log(LOG_LEVEL.INFO, '   ├─ 【诊断】 检查其他可能的数据位置...');
+                log(LOG_LEVEL.DEBUG, '      window.__INITIAL_DATA__:', typeof window.__INITIAL_DATA__);
+
+                // 检查所有window属性中包含DATA或INITIAL的
+                const potentialKeys = Object.keys(window).filter(key =>
+                    key.toUpperCase().includes('DATA') ||
+                    key.toUpperCase().includes('INITIAL') ||
+                    key.toUpperCase().includes('STATE')
+                );
+                if (potentialKeys.length > 0) {
+                    log(LOG_LEVEL.INFO, '      发现的相关属性:', potentialKeys);
+                    potentialKeys.slice(0, 5).forEach(key => {
+                        log(LOG_LEVEL.DEBUG, '        ' + key + ':', typeof window[key]);
+                    });
+                }
+
                 return null;
             }
 
