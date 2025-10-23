@@ -1509,7 +1509,7 @@
             navigator.clipboard.writeText(jsonString).then(() => {
                 alert('数据已复制到剪贴板！');
             }).catch(err => {
-                log(ERROR, '复制失败:', err);
+                log(LOG_LEVEL.ERROR, '复制失败:', err);
                 alert('复制失败，请手动复制');
             });
         });
@@ -1532,7 +1532,7 @@
                     navigator.clipboard.writeText(cookieJson).then(() => {
                         alert('Cookie数据已复制到剪贴板并更新到内存！\n\n' + cookieJson);
                     }).catch(err => {
-                        log(ERROR, '复制失败:', err);
+                        log(LOG_LEVEL.ERROR, '复制失败:', err);
                         alert('获取成功但复制失败，请查看控制台输出\n\n' + cookieJson);
                     });
                     
@@ -2016,7 +2016,7 @@
 
             return null;
         } catch (error) {
-            log(WARN, '[Appen Data Collector] 获取输入元素标签失败:', error);
+            log(LOG_LEVEL.WARN, '[Appen Data Collector] 获取输入元素标签失败:', error);
             return null;
         }
     }
@@ -2674,7 +2674,7 @@
             for (const selector of popoverSelectors) {
                 hiddenPopover = document.querySelector(selector);
                 if (hiddenPopover) {
-                    log(INFO, '[Appen Data Collector] 使用选择器找到隐藏面板:', selector);
+                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 使用选择器找到隐藏面板:', selector);
                     break;
                 }
             }
@@ -2705,7 +2705,7 @@
                 // 添加临时标识以便识别
                 hiddenPopover.setAttribute('data-appen-temp-visible', 'true');
                 
-                log(INFO, '[Appen Data Collector] 详细质检记录已显示');
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 详细质检记录已显示');
                 
                 // 返回面板引用和恢复函数
                 return {
@@ -2726,15 +2726,15 @@
                         hiddenPopover.style.zIndex = originalZIndex;
                         hiddenPopover.style.position = originalPosition;
                         hiddenPopover.removeAttribute('data-appen-temp-visible');
-                        log(INFO, '[Appen Data Collector] 详细质检记录面板已恢复隐藏');
+                        log(LOG_LEVEL.INFO, '[Appen Data Collector] 详细质检记录面板已恢复隐藏');
                     }
                 };
             } else {
-                log(INFO, '[Appen Data Collector] 未找到隐藏的质检记录面板');
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 未找到隐藏的质检记录面板');
                 return null;
             }
         } catch (error) {
-            log(WARN, '[Appen Data Collector] 显示详细QA记录时出错:', error);
+            log(LOG_LEVEL.WARN, '[Appen Data Collector] 显示详细QA记录时出错:', error);
             return null;
         }
     }
@@ -2742,7 +2742,7 @@
     // 提取质检记录内容的具体实现
     function extractQualityCheckRecordsContent(responseElements) {
         try {
-            log(INFO, '[Appen Data Collector] 开始提取质检记录内容');
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 开始提取质检记录内容');
 
             // 根据用户建议，先尝试显示隐藏的详细面板
             const popoverControl = showDetailedQARecord();
@@ -2752,7 +2752,7 @@
                 // 尝试优先从打开的质检窗口DOM中提取最新驳回理由
                 const domQARecord = extractLatestQARejectFromDOM();
                 if (domQARecord) {
-                    log(INFO, '[Appen Data Collector] 成功从DOM提取最新QA驳回理由');
+                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 成功从DOM提取最新QA驳回理由');
                     
                     // 构造质检记录对象
                     const qualityCheckRecord = {
@@ -2772,19 +2772,19 @@
                     responseElements.qualityCheckRecord = qualityCheckRecord;
                     
                     // 输出到控制台
-                    log(INFO, '\n========== 【从打开窗口提取的最新驳回理由】 ==========');
-                    log(INFO, '| 数据来源: 质检窗口DOM (实时)');
-                    log(INFO, '| 用户ID:', collectedData.userId || 'N/A');
-                    log(INFO, '| 任务ID:', collectedData.taskId || 'N/A');
-                    log(INFO, '| 题目ID:', collectedData.topicId || 'N/A');
-                    log(INFO, '| 质检状态: REJECTED (驳回)');
-                    log(INFO, '| 操作人:', domQARecord.operator || 'N/A');
-                    log(INFO, '| 操作时间:', domQARecord.operateTime || 'N/A');
-                    log(INFO, '| 驳回理由:', domQARecord.comment || 'N/A');
-                    log(INFO, '| 检测时间:', new Date().toISOString());
-                    log(INFO, '===============================================\n');
+                    log(LOG_LEVEL.INFO, '\n========== 【从打开窗口提取的最新驳回理由】 ==========');
+                    log(LOG_LEVEL.INFO, '| 数据来源: 质检窗口DOM (实时)');
+                    log(LOG_LEVEL.INFO, '| 用户ID:', collectedData.userId || 'N/A');
+                    log(LOG_LEVEL.INFO, '| 任务ID:', collectedData.taskId || 'N/A');
+                    log(LOG_LEVEL.INFO, '| 题目ID:', collectedData.topicId || 'N/A');
+                    log(LOG_LEVEL.INFO, '| 质检状态: REJECTED (驳回)');
+                    log(LOG_LEVEL.INFO, '| 操作人:', domQARecord.operator || 'N/A');
+                    log(LOG_LEVEL.INFO, '| 操作时间:', domQARecord.operateTime || 'N/A');
+                    log(LOG_LEVEL.INFO, '| 驳回理由:', domQARecord.comment || 'N/A');
+                    log(LOG_LEVEL.INFO, '| 检测时间:', new Date().toISOString());
+                    log(LOG_LEVEL.INFO, '===============================================\n');
                 } else {
-                    log(INFO, '[Appen Data Collector] DOM提取失败或窗口未打开，跳过此方案');
+                    log(LOG_LEVEL.INFO, '[Appen Data Collector] DOM提取失败或窗口未打开，跳过此方案');
                 }
                 
                 // 恢复面板状态
@@ -2796,7 +2796,7 @@
             }, 300);
             
         } catch (error) {
-            log(WARN, '[Appen Data Collector] 提取质检记录内容时出错:', error);
+            log(LOG_LEVEL.WARN, '[Appen Data Collector] 提取质检记录内容时出错:', error);
             responseElements.qualityCheckRecord = {
                 hasRecord: false,
                 error: error.message,
@@ -2823,7 +2823,7 @@
             for (const selector of popoverSelectors) {
                 hiddenPopover = document.querySelector(selector);
                 if (hiddenPopover) {
-                    log(INFO, '[Appen Data Collector] 使用选择器找到隐藏面板:', selector);
+                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 使用选择器找到隐藏面板:', selector);
                     break;
                 }
             }
@@ -2854,7 +2854,7 @@
                 // 添加临时标识以便识别
                 hiddenPopover.setAttribute('data-appen-temp-visible', 'true');
                 
-                log(INFO, '[Appen Data Collector] 详细质检记录已显示');
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 详细质检记录已显示');
                 
                 // 返回面板引用和恢复函数
                 return {
@@ -2875,22 +2875,22 @@
                         hiddenPopover.style.zIndex = originalZIndex;
                         hiddenPopover.style.position = originalPosition;
                         hiddenPopover.removeAttribute('data-appen-temp-visible');
-                        log(INFO, '[Appen Data Collector] 详细质检记录面板已恢复隐藏');
+                        log(LOG_LEVEL.INFO, '[Appen Data Collector] 详细质检记录面板已恢复隐藏');
                     }
                 };
             } else {
-                log(INFO, '[Appen Data Collector] 未找到隐藏的质检记录面板');
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 未找到隐藏的质检记录面板');
                 return null;
             }
         } catch (error) {
-            log(WARN, '[Appen Data Collector] 显示详细QA记录时出错:', error);
+            log(LOG_LEVEL.WARN, '[Appen Data Collector] 显示详细QA记录时出错:', error);
             return null;
         }
     }
 
     // 监听用户选择状态变化
     function attachUserSelectionListeners() {
-        log(INFO, '[Appen Data Collector] 开始附加用户选择状态监听器');
+        log(LOG_LEVEL.INFO, '[Appen Data Collector] 开始附加用户选择状态监听器');
 
         // 查找可能的单选按钮或选择元素
         const selectionElements = ElementSelector.selectAll([
@@ -2916,7 +2916,7 @@
         // 为质检详情触发元素添加点击监听器
         qualityCheckTriggerElements.forEach((element, index) => {
             element.addEventListener('click', function(event) {
-                log(INFO, '[Appen Data Collector] 检测到质检详情触发元素点击:', {
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 检测到质检详情触发元素点击:', {
                     element: element.tagName,
                     className: element.className,
                     ariaLabel: element.getAttribute('aria-label'),
@@ -2926,7 +2926,7 @@
                 // 延迟执行质检记录提取，等待面板显示
                 setTimeout(() => {
                     if (collectedData.responseElements) {
-                        log(INFO, '[Appen Data Collector] 质检详情触发后重新提取质检记录');
+                        log(LOG_LEVEL.INFO, '[Appen Data Collector] 质检详情触发后重新提取质检记录');
                         extractQualityCheckRecords(collectedData.responseElements);
                     }
                 }, 300); // 等待面板动画完成
@@ -2936,7 +2936,7 @@
         selectionElements.forEach((element, index) => {
             // 监听点击事件
             element.addEventListener('click', function(event) {
-                log(INFO, '[Appen Data Collector] 检测到选择元素点击:', {
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 检测到选择元素点击:', {
                     element: element.tagName,
                     id: element.id,
                     className: element.className,
@@ -2946,7 +2946,7 @@
                 setTimeout(() => {
                     if (collectedData.responseElements) {
                         detectUserSelectionStatus(collectedData.responseElements);
-                        log(INFO, '[Appen Data Collector] 用户选择后重新检测状态');
+                        log(LOG_LEVEL.INFO, '[Appen Data Collector] 用户选择后重新检测状态');
                     }
                 }, 100);
             });
@@ -2954,7 +2954,7 @@
             // 监听变化事件（对于表单元素）
             if (element.tagName === 'INPUT' && (element.type === 'radio' || element.type === 'checkbox')) {
                 element.addEventListener('change', function(event) {
-                    log(INFO, '[Appen Data Collector] 检测到选择元素变化:', {
+                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 检测到选择元素变化:', {
                         element: element.tagName,
                         id: element.id,
                         className: element.className,
@@ -2965,7 +2965,7 @@
                     setTimeout(() => {
                         if (collectedData.responseElements) {
                             detectUserSelectionStatus(collectedData.responseElements);
-                            log(INFO, '[Appen Data Collector] 用户选择变化后重新检测状态');
+                            log(LOG_LEVEL.INFO, '[Appen Data Collector] 用户选择变化后重新检测状态');
                         }
                     }, 100);
                 });
@@ -2983,7 +2983,7 @@
 
         actionButtons.forEach((button, index) => {
             button.addEventListener('click', function(event) {
-                log(INFO, '[Appen Data Collector] 检测到按钮点击:', {
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 检测到按钮点击:', {
                     buttonText: button.textContent.trim(),
                     id: button.id,
                     className: button.className,
@@ -2993,7 +2993,7 @@
                 setTimeout(() => {
                     if (collectedData.responseElements) {
                         detectUserSelectionStatus(collectedData.responseElements);
-                        log(INFO, '[Appen Data Collector] 按钮点击后重新检测状态');
+                        log(LOG_LEVEL.INFO, '[Appen Data Collector] 按钮点击后重新检测状态');
                     }
                 }, 300); // 稍长延迟，因为按钮点击可能触发更多页面变化
             });
@@ -3028,19 +3028,19 @@
                     if (mutation.attributeName === 'class' || mutation.attributeName === 'data-status' ||
                         mutation.attributeName === 'checked' || mutation.attributeName === 'aria-checked') {
                         shouldCheckStatus = true;
-                        log(INFO, '[Appen Data Collector] 检测到相关属性变化:', mutation.attributeName);
+                        log(LOG_LEVEL.INFO, '[Appen Data Collector] 检测到相关属性变化:', mutation.attributeName);
                     }
                 }
             });
 
             if (shouldCheckStatus) {
-                log(INFO, '[Appen Data Collector] 检测到可能影响状态的DOM变化');
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 检测到可能影响状态的DOM变化');
                 // 防抖处理，避免频繁检测
                 clearTimeout(window._statusCheckTimeout);
                 window._statusCheckTimeout = setTimeout(() => {
                     if (collectedData.responseElements) {
                         detectUserSelectionStatus(collectedData.responseElements);
-                        log(INFO, '[Appen Data Collector] DOM变化后重新检测状态');
+                        log(LOG_LEVEL.INFO, '[Appen Data Collector] DOM变化后重新检测状态');
                     }
                 }, 200);
             }
@@ -3055,7 +3055,7 @@
             attributeFilter: ['class', 'data-status', 'checked', 'aria-checked']
         });
 
-        log(INFO, '[Appen Data Collector] 已附加用户选择状态监听器，监听元素数量:', selectionElements.length + actionButtons.length);
+        log(LOG_LEVEL.INFO, '[Appen Data Collector] 已附加用户选择状态监听器，监听元素数量:', selectionElements.length + actionButtons.length);
     }
 
     // 停止数据收集
@@ -3083,30 +3083,30 @@
         // 获取最新的认证cookie
         getLatestAuthCookies: async function() {
             try {
-                log(INFO, '[Appen Data Collector] 获取最新的认证cookie');
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 获取最新的认证cookie');
                 const authCookies = await getAuthCookies();
                 if (authCookies) {
                     collectedData.authCookies = authCookies;
-                    log(INFO, '[Appen Data Collector] 认证cookie已更新:', authCookies);
+                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 认证cookie已更新:', authCookies);
                 }
                 return authCookies;
             } catch (error) {
-                log(ERROR, '[Appen Data Collector] 获取最新认证cookie失败:', error);
+                log(LOG_LEVEL.ERROR, '[Appen Data Collector] 获取最新认证cookie失败:', error);
                 return null;
             }
         },
         // 获取详细的Cookie信息用于显示
         getDetailedCookies: async function() {
             try {
-                log(INFO, '[Appen Data Collector] 获取详细的Cookie信息');
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 获取详细的Cookie信息');
                 const authCookies = await getAuthCookies();
                 if (authCookies) {
                     collectedData.authCookies = authCookies;
-                    log(INFO, '[Appen Data Collector] 详细的Cookie信息已更新:', authCookies);
+                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 详细的Cookie信息已更新:', authCookies);
                 }
                 return authCookies;
             } catch (error) {
-                log(ERROR, '[Appen Data Collector] 获取详细Cookie信息失败:', error);
+                log(LOG_LEVEL.ERROR, '[Appen Data Collector] 获取详细Cookie信息失败:', error);
                 return null;
             }
         },
@@ -3132,7 +3132,7 @@
         extractResponseElements: function() {
             // 只在目标页面允许提取响应元素
             if (!isTargetPage()) {
-                log(INFO, '[Appen Data Collector] 当前不是目标页面，无法提取响应元素');
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 当前不是目标页面，无法提取响应元素');
                 return null;
             }
             return extractResponseElements();
@@ -3143,7 +3143,7 @@
         getAuthCookies: function() {
             // 只在目标页面允许获取cookie
             if (!isTargetPage()) {
-                log(INFO, '[Appen Data Collector] 当前不是目标页面，无法获取cookie');
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 当前不是目标页面，无法获取cookie');
                 return Promise.resolve(null);
             }
             return getAuthCookies();
@@ -3158,7 +3158,7 @@
 
     // 定期检查URL变化和页面内容变化
     function watchUrlChanges() {
-        log(INFO, '[Appen Data Collector] 开始监控URL变化和页面内容变化');
+        log(LOG_LEVEL.INFO, '[Appen Data Collector] 开始监控URL变化和页面内容变化');
         let lastUrl = location.href;
         let lastCheckTime = Date.now();
 
@@ -3168,13 +3168,13 @@
 
             // 检查 URL 变化
             if (url !== lastUrl) {
-                log(INFO, '[Appen Data Collector] URL确实发生变化:', { from: lastUrl, to: url });
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] URL确实发生变化:', { from: lastUrl, to: url });
                 lastUrl = url;
                 onUrlChange();
             }
             // 即使 URL 没有变化，也定期检查页面内容（每3秒检查一次）
             else if (now - lastCheckTime > 3000) {
-                log(INFO, '[Appen Data Collector] URL未变化，但定期检查页面内容');
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] URL未变化，但定期检查页面内容');
                 lastCheckTime = now;
                 checkPageContentChange();
             }
@@ -3184,7 +3184,7 @@
     // 自动提取质检记录的函数（无需用户交互）
     function extractQualityCheckRecordsAutomatically() {
         try {
-            log(INFO, '[Appen Data Collector] 自动提取质检记录开始');
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 自动提取质检记录开始');
 
             // 尝试查找并显示隐藏的质检面板
             const popoverControl = showDetailedQARecord();
@@ -3199,7 +3199,7 @@
             ]) || (popoverControl ? popoverControl.element : null);
 
             if (!qualityCheckPopover) {
-                log(INFO, '[Appen Data Collector] 未找到质检记录弹窗，尝试主动显示');
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 未找到质检记录弹窗，尝试主动显示');
                 // 如果没找到，尝试更积极的查找方式
                 const hiddenPopovers = ElementSelector.selectAll('.ant-popover-hidden');
                 if (hiddenPopovers.length > 0) {
@@ -3207,7 +3207,7 @@
                     const firstHiddenPopover = hiddenPopovers[0];
                     const originalClasses = Array.from(firstHiddenPopover.classList);
                     firstHiddenPopover.classList.remove('ant-popover-hidden');
-                    log(INFO, '[Appen Data Collector] 主动显示隐藏弹窗');
+                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 主动显示隐藏弹窗');
 
                     // 延迟提取内容
                     setTimeout(() => {
@@ -3220,7 +3220,7 @@
                             originalClasses.forEach(cls => {
                                 firstHiddenPopover.classList.add(cls);
                             });
-                            log(INFO, '[Appen Data Collector] 恢复弹窗隐藏状态');
+                            log(LOG_LEVEL.INFO, '[Appen Data Collector] 恢复弹窗隐藏状态');
                         }, 1000);
                     }, 300);
                     return;
@@ -3228,14 +3228,14 @@
             }
 
             if (qualityCheckPopover) {
-                log(INFO, '[Appen Data Collector] 找到质检记录弹窗，开始提取内容');
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 找到质检记录弹窗，开始提取内容');
                 // 保存原始状态
                 const hadHiddenClass = qualityCheckPopover.classList.contains('ant-popover-hidden');
 
                 // 如果弹窗隐藏了，临时显示
                 if (hadHiddenClass) {
                     qualityCheckPopover.classList.remove('ant-popover-hidden');
-                    log(INFO, '[Appen Data Collector] 临时显示隐藏的质检弹窗');
+                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 临时显示隐藏的质检弹窗');
                 }
 
                 // 延迟提取内容
@@ -3246,7 +3246,7 @@
                     if (hadHiddenClass) {
                         setTimeout(() => {
                             qualityCheckPopover.classList.add('ant-popover-hidden');
-                            log(INFO, '[Appen Data Collector] 恢复质检弹窗隐藏状态');
+                            log(LOG_LEVEL.INFO, '[Appen Data Collector] 恢复质检弹窗隐藏状态');
                         }, 500);
                     }
 
@@ -3258,13 +3258,13 @@
                     }
                 }, 200);
             } else {
-                log(INFO, '[Appen Data Collector] 未找到质检记录弹窗，使用原有方法');
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 未找到质检记录弹窗，使用原有方法');
                 // 回退到原有方法
                 extractQualityCheckRecords(collectedData.responseElements);
             }
 
         } catch (error) {
-            log(WARN, '[Appen Data Collector] 自动提取质检记录时出错:', error);
+            log(LOG_LEVEL.WARN, '[Appen Data Collector] 自动提取质检记录时出错:', error);
         }
     }
 
@@ -3272,19 +3272,19 @@
     function checkPageContentChange() {
         // 只在目标页面上检查
         if (isTargetPage()) {
-            log(INFO, '[Appen Data Collector] 定期检查目标页面内容变化');
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 定期检查目标页面内容变化');
             
             // 获取当前题目ID
             const currentTopicId = getSpecifiedElementId(true); // 传入 true 表示这是定期检查
 
-            log(INFO, '[Appen Data Collector] 检查题目ID变化:', {
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 检查题目ID变化:', {
                 lastTopicId: lastTopicId,
                 currentTopicId: currentTopicId
             });
             
             // 检测题目ID是否变化（新的标注页）
             if (lastTopicId !== null && lastTopicId !== currentTopicId && currentTopicId !== null && currentTopicId !== 'no-id') {
-                log(INFO, '[Appen Data Collector] 检测到新的标注页面，题目ID发生变化:', {
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 检测到新的标注页面，题目ID发生变化:', {
                     oldTopicId: lastTopicId,
                     newTopicId: currentTopicId
                 });
@@ -3293,7 +3293,7 @@
                 const newStartTime = Date.now();
                 collectedData.startTime = newStartTime;
 
-                log(INFO, '[Appen Data Collector] 重置计时器，新的开始时间:', new Date(newStartTime).toISOString());
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 重置计时器，新的开始时间:', new Date(newStartTime).toISOString());
                 
                 // 重新收集题目信息
                 collectTopicInfo();
@@ -3316,7 +3316,7 @@
     // 获取目标 div 的 id
     function getTargetDivId() {
         try {
-            log(INFO, '[Appen Data Collector] 开始查找目标 div 元素');
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 开始查找目标 div 元素');
 
             // 尝试多种选择器
             const selectors = [
@@ -3336,14 +3336,14 @@
                 targetDiv = document.querySelector(selector);
                 if (targetDiv) {
                     usedSelector = selector;
-                    log(INFO, '[Appen Data Collector] 使用选择器找到目标 div:', selector);
+                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 使用选择器找到目标 div:', selector);
                     break;
                 }
             }
 
             // 如果常规选择器都没找到，尝试查找包含特定内容的 div
             if (!targetDiv) {
-                log(INFO, '[Appen Data Collector] 常规选择器未找到，尝试查找包含题目内容的 div');
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 常规选择器未找到，尝试查找包含题目内容的 div');
                 const allDivs = Array.from(ElementSelector.selectAll('div'));
                 targetDiv = allDivs.find(div => {
                     const text = div.textContent.trim();
@@ -3353,12 +3353,12 @@
                             div.children.length > 0);
                 });
                 if (targetDiv) {
-                    log(INFO, '[Appen Data Collector] 通过内容匹配找到目标 div');
+                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 通过内容匹配找到目标 div');
                 }
             }
 
             if (!targetDiv) {
-                log(INFO, '[Appen Data Collector] 未找到目标 div，尝试获取页面上所有主要的 div 元素');
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 未找到目标 div，尝试获取页面上所有主要的 div 元素');
                 const mainDivs = ElementSelector.selectAll([
                     'main > div',
                     '.main > div',
@@ -3369,23 +3369,23 @@
                 if (mainDivs.length > 0) {
                     // 选择第二个 div，通常是题目容器
                     targetDiv = mainDivs[Math.min(1, mainDivs.length - 1)];
-                    log(INFO, '[Appen Data Collector] 通过 main 查找找到目标 div，索引:', Math.min(1, mainDivs.length - 1));
+                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 通过 main 查找找到目标 div，索引:', Math.min(1, mainDivs.length - 1));
                 }
             }
 
             if (!targetDiv) {
-                log(INFO, '[Appen Data Collector] 未找到目标 div');
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 未找到目标 div');
                 return null;
             }
 
             const divId = targetDiv.id || targetDiv.getAttribute('data-id') || targetDiv.getAttribute('data-key') || 'no-id';
-            log(INFO, '[Appen Data Collector] 目标 div id:', divId);
-            log(INFO, '[Appen Data Collector] 目标 div 类名:', targetDiv.className);
-            log(INFO, '[Appen Data Collector] 目标 div 内容预览:', targetDiv.textContent.substring(0, 100));
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 目标 div id:', divId);
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 目标 div 类名:', targetDiv.className);
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 目标 div 内容预览:', targetDiv.textContent.substring(0, 100));
 
             return divId;
         } catch (error) {
-            log(ERROR, '[Appen Data Collector] 获取目标 div id 失败:', error);
+            log(LOG_LEVEL.ERROR, '[Appen Data Collector] 获取目标 div id 失败:', error);
             return null;
         }
     }
@@ -3394,20 +3394,20 @@
     function getSpecifiedElementId(isPeriodicCheck = false) {
         try {
             const currentUrl = window.location.href;
-            log(INFO, '[Appen Data Collector] 开始查找指定路径的 div 元素');
-            log(INFO, '[Appen Data Collector] 当前页面 URL:', currentUrl);
-            log(INFO, '[Appen Data Collector] 是否为定期检查:', isPeriodicCheck);
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 开始查找指定路径的 div 元素');
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 当前页面 URL:', currentUrl);
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 是否为定期检查:', isPeriodicCheck);
 
             // 检查是否是新页面
             const isNewPage = currentPageUrl !== currentUrl;
             if (isNewPage) {
-                log(INFO, '[Appen Data Collector] 检测到新页面加载');
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 检测到新页面加载');
                 currentPageUrl = currentUrl;
             }
 
             // 检查页面上是否存在 div 元素
             const allDivs = ElementSelector.selectAll('div');
-            log(INFO, '[Appen Data Collector] 页面上 div 元素总数:', allDivs.length);
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 页面上 div 元素总数:', allDivs.length);
 
             // 尝试多种方法查找目标元素
             let targetDiv = null;
@@ -3424,10 +3424,10 @@
                 ).singleNodeValue;
                 if (targetDiv) {
                     methodUsed = 'XPath';
-                    log(INFO, '[Appen Data Collector] 通过XPath找到目标元素');
+                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 通过XPath找到目标元素');
                 }
             } catch (xpathError) {
-                log(INFO, '[Appen Data Collector] XPath查找失败:', xpathError.message);
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] XPath查找失败:', xpathError.message);
             }
 
             // 方法2: CSS选择器查找
@@ -3447,19 +3447,19 @@
                         if (element) {
                             targetDiv = element;
                             methodUsed = 'CSS: ' + selector;
-                            log(INFO, '[Appen Data Collector] 通过CSS选择器找到目标元素:', selector);
+                            log(LOG_LEVEL.INFO, '[Appen Data Collector] 通过CSS选择器找到目标元素:', selector);
                             break;
                         }
                     }
                 } catch (cssError) {
-                    log(INFO, '[Appen Data Collector] CSS选择器查找失败:', cssError.message);
+                    log(LOG_LEVEL.INFO, '[Appen Data Collector] CSS选择器查找失败:', cssError.message);
                 }
             }
 
             // 方法3: 通过内容特征查找
             if (!targetDiv) {
                 try {
-                    log(INFO, '[Appen Data Collector] 尝试通过内容特征查找目标元素');
+                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 尝试通过内容特征查找目标元素');
                     const allDivsArray = Array.from(ElementSelector.selectAll('div'));
                     targetDiv = allDivsArray.find(div => {
                         // 查找可能包含题目内容的div
@@ -3471,17 +3471,17 @@
                     });
                     if (targetDiv) {
                         methodUsed = 'Content Matching';
-                        log(INFO, '[Appen Data Collector] 通过内容匹配找到目标元素');
+                        log(LOG_LEVEL.INFO, '[Appen Data Collector] 通过内容匹配找到目标元素');
                     }
                 } catch (contentError) {
-                    log(INFO, '[Appen Data Collector] 内容匹配查找失败:', contentError.message);
+                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 内容匹配查找失败:', contentError.message);
                 }
             }
 
             // 方法4: 查找具有特定属性的元素
             if (!targetDiv) {
                 try {
-                    log(INFO, '[Appen Data Collector] 尝试通过属性查找目标元素');
+                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 尝试通过属性查找目标元素');
                     const attributeSelectors = [
                         '[data-testid*="question"]',
                         '[data-id]',
@@ -3494,19 +3494,19 @@
                         if (element) {
                             targetDiv = element;
                             methodUsed = 'Attribute: ' + selector;
-                            log(INFO, '[Appen Data Collector] 通过属性选择器找到目标元素:', selector);
+                            log(LOG_LEVEL.INFO, '[Appen Data Collector] 通过属性选择器找到目标元素:', selector);
                             break;
                         }
                     }
                 } catch (attrError) {
-                    log(INFO, '[Appen Data Collector] 属性选择器查找失败:', attrError.message);
+                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 属性选择器查找失败:', attrError.message);
                 }
             }
 
-            log(INFO, '[Appen Data Collector] 查找结果 - 方法:', methodUsed || 'None', '元素:', targetDiv);
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 查找结果 - 方法:', methodUsed || 'None', '元素:', targetDiv);
 
             if (!targetDiv) {
-                log(INFO, '[Appen Data Collector] 未找到指定路径的 div 元素');
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 未找到指定路径的 div 元素');
 
                 // 尝试获取页面上主要的div元素作为备选
                 try {
@@ -3532,10 +3532,10 @@
 
                         targetDiv = bestDiv;
                         methodUsed = 'Main Content Selection';
-                        log(INFO, '[Appen Data Collector] 通过主要内容选择找到备选元素');
+                        log(LOG_LEVEL.INFO, '[Appen Data Collector] 通过主要内容选择找到备选元素');
                     }
                 } catch (mainError) {
-                    log(INFO, '[Appen Data Collector] 主内容选择失败:', mainError.message);
+                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 主内容选择失败:', mainError.message);
                 }
 
                 if (!targetDiv) {
@@ -3544,20 +3544,20 @@
             }
 
             const divId = targetDiv.id || targetDiv.getAttribute('data-id') || targetDiv.getAttribute('data-key') || 'no-id';
-            log(INFO, '[Appen Data Collector] =============== getSpecifiedElementId 返回结果 ===============');
-            log(INFO, '[Appen Data Collector] 找到的 div 元素 id:', divId);
-            log(INFO, '[Appen Data Collector] div.id:', targetDiv.id);
-            log(INFO, '[Appen Data Collector] div[data-id]:', targetDiv.getAttribute('data-id'));
-            log(INFO, '[Appen Data Collector] div[data-key]:', targetDiv.getAttribute('data-key'));
-            log(INFO, '[Appen Data Collector] 使用的方法:', methodUsed);
-            log(INFO, '[Appen Data Collector] 元素类名:', targetDiv.className);
-            log(INFO, '[Appen Data Collector] 元素内容预览:', targetDiv.textContent.substring(0, 100));
-            log(INFO, '[Appen Data Collector] =============== 返回 divId: ' + divId + ' ===============');
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] =============== getSpecifiedElementId 返回结果 ===============');
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 找到的 div 元素 id:', divId);
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] div.id:', targetDiv.id);
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] div[data-id]:', targetDiv.getAttribute('data-id'));
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] div[data-key]:', targetDiv.getAttribute('data-key'));
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 使用的方法:', methodUsed);
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 元素类名:', targetDiv.className);
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 元素内容预览:', targetDiv.textContent.substring(0, 100));
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] =============== 返回 divId: ' + divId + ' ===============');
 
             // 检查是否是新 ID 或定期检查时 ID 发生变化
             if ((isNewPage || isPeriodicCheck) && lastSpecifiedElementId !== null) {
                 if (lastSpecifiedElementId !== divId) {
-                    log(INFO, '[Appen Data Collector] 检测到页面内容变化，新旧 ID 不同:', {
+                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 检测到页面内容变化，新旧 ID 不同:', {
                         oldId: lastSpecifiedElementId,
                         newId: divId,
                         isNewPage: isNewPage,
@@ -3565,9 +3565,9 @@
                         method: methodUsed
                     });
                 } else if (isPeriodicCheck) {
-                    log(INFO, '[Appen Data Collector] 定期检查，ID 未发生变化:', divId);
+                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 定期检查，ID 未发生变化:', divId);
                 } else {
-                    log(INFO, '[Appen Data Collector] 检测到页面切换，但 ID 相同:', divId);
+                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 检测到页面切换，但 ID 相同:', divId);
                 }
             }
 
@@ -3577,58 +3577,58 @@
             // 将指定元素 ID 作为题目 ID 存储
             if (divId && divId !== 'no-id') {
                 specifiedElementIdAsTopicId = divId;
-                log(INFO, '[Appen Data Collector] 将指定元素 ID 作为题目 ID 存储:', divId);
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 将指定元素 ID 作为题目 ID 存储:', divId);
 
                 // 更新 collectedData 中的 topicId
                 if (collectedData) {
                     collectedData.topicId = divId;
-                    log(INFO, '[Appen Data Collector] 更新 collectedData.topicId:', divId);
+                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 更新 collectedData.topicId:', divId);
                 }
             }
 
             return divId;
         } catch (error) {
-            log(ERROR, '[Appen Data Collector] 获取指定路径 div 元素 id 失败:', error);
-            log(ERROR, '[Appen Data Collector] 错误堆栈:', error.stack);
+            log(LOG_LEVEL.ERROR, '[Appen Data Collector] 获取指定路径 div 元素 id 失败:', error);
+            log(LOG_LEVEL.ERROR, '[Appen Data Collector] 错误堆栈:', error.stack);
             return null;
         }
     }
 
     // URL变化时的处理函数
     async function onUrlChange() {
-        log(INFO, '[Appen Data Collector] URL变化检测:', window.location.href);
+        log(LOG_LEVEL.INFO, '[Appen Data Collector] URL变化检测:', window.location.href);
 
         // 先从缓存读取用户ID（如果还没有的话）
         if (!collectedData.userId || collectedData.userId === 'unknown_user') {
             const cachedUserId = await getCachedUserId();
             if (cachedUserId) {
-                log(INFO, '[Appen Data Collector] URL变化时从缓存读取用户ID:', cachedUserId);
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] URL变化时从缓存读取用户ID:', cachedUserId);
                 collectedData.userId = cachedUserId;
             }
         }
 
         if (isTargetPage()) {
-            log(INFO, '[Appen Data Collector] 检测到标注页面URL变化');
-            log(INFO, '[Appen Data Collector] 当前页面 URL:', window.location.href);
-            log(INFO, '[Appen Data Collector] URL 匹配结果:', isTargetPage());
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 检测到标注页面URL变化');
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 当前页面 URL:', window.location.href);
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] URL 匹配结果:', isTargetPage());
 
             // 获取当前的目标 div id
             const currentDivId = getTargetDivId();
-            log(INFO, '[Appen Data Collector] 当前 div id:', currentDivId);
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 当前 div id:', currentDivId);
 
             // 获取指定路径元素的 ID
             const specifiedElementId = getSpecifiedElementId(false); // 传入 false 表示这不是定期检查
-            log(INFO, '[Appen Data Collector] 指定路径元素 ID:', specifiedElementId);
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 指定路径元素 ID:', specifiedElementId);
 
             // 收集任务信息以获取任务ID
             collectTaskInfo();
-            log(INFO, '[Appen Data Collector] 当前任务ID:', collectedData.taskId);
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 当前任务ID:', collectedData.taskId);
 
             // 检查是否是新任务
             const isNewTask = lastTaskId !== collectedData.taskId && collectedData.taskId !== null && collectedData.taskId !== 'unknown_task';
             if (isNewTask) {
-                log(INFO, '[Appen Data Collector] 检测到新任务，重置计时器');
-                log(INFO, '[Appen Data Collector] 上一个任务ID:', lastTaskId, '当前任务ID:', collectedData.taskId);
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 检测到新任务，重置计时器');
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 上一个任务ID:', lastTaskId, '当前任务ID:', collectedData.taskId);
                 lastTaskId = collectedData.taskId;
 
                 // 重置开始时间
@@ -3636,29 +3636,29 @@
                 collectedData.startTime = newStartTime;
                 await clearCachedStartTime(); // 清除旧的缓存
                 await saveCachedStartTime(newStartTime); // 保存新的开始时间
-                log(INFO, '[Appen Data Collector] 新任务的开始时间已保存到缓存:', new Date(newStartTime).toISOString());
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 新任务的开始时间已保存到缓存:', new Date(newStartTime).toISOString());
             } else {
                 // 如果是同一个任务或题目，检查是否已有缓存的开始时间
                 const cachedStartTime = await getCachedStartTime();
                 if (cachedStartTime) {
-                    log(INFO, '[Appen Data Collector] 从缓存读取任务开始时间，继续计时，不重置计时器');
+                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 从缓存读取任务开始时间，继续计时，不重置计时器');
                     collectedData.startTime = cachedStartTime;
                 } else {
                     // 缓存中没有，说明是第一次进入标注页面或缓存已清除
                     const newStartTime = Date.now();
-                    log(INFO, '[Appen Data Collector] 第一次进入标注页面或缓存已清除，记录开始时间');
+                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 第一次进入标注页面或缓存已清除，记录开始时间');
                     collectedData.startTime = newStartTime;
                     await saveCachedStartTime(newStartTime);
-                    log(INFO, '[Appen Data Collector] 开始时间已保存到缓存:', new Date(newStartTime).toISOString());
+                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 开始时间已保存到缓存:', new Date(newStartTime).toISOString());
                 }
             }
 
             if (!collectedData.responseElements) {
-                log(INFO, '[Appen Data Collector] 开始提取响应元素');
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 开始提取响应元素');
 
                 // 获取认证cookie
                 try {
-                    log(INFO, '[Appen Data Collector] 获取认证cookie');
+                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 获取认证cookie');
                     const authCookies = await getAuthCookies();
                     if (authCookies) {
                         collectedData.authCookies = authCookies;
@@ -3666,7 +3666,7 @@
                         await syncAuthToServer(authCookies);
                     }
                 } catch (error) {
-                    log(WARN, '[Appen Data Collector] 获取认证cookie失败:', error);
+                    log(LOG_LEVEL.WARN, '[Appen Data Collector] 获取认证cookie失败:', error);
                 }
 
                 // 提取响应元素
@@ -3674,7 +3674,7 @@
             }
         } else {
             // 离开标注页面时清除缓存的开始时间
-            log(INFO, '[Appen Data Collector] 离开标注页面，清除缓存的开始时间');
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 离开标注页面，清除缓存的开始时间');
             await clearCachedStartTime();
             // 重置上一个任务ID
             lastTaskId = null;
