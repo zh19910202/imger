@@ -2263,16 +2263,16 @@
     // 从打开的质检窗口DOM中提取最新驳回理由（改进的DOM提取方案）
     function extractLatestQARejectFromDOM() {
         try {
-            log(LOG_LEVEL.DEBUG, '尝试从打开的质检窗口DOM中提取最新驳回理由');
+            log(LOG_LEVEL.INFO, '   开始从打开的质检窗口DOM中提取...');
 
             // 找到质检窗口的内容容器
             const popoverContent = document.querySelector('.ant-popover-content');
             if (!popoverContent) {
-                log(LOG_LEVEL.DEBUG, '未找到打开的质检窗口');
+                log(LOG_LEVEL.DEBUG, '   ├─ 未找到打开的质检窗口 (.ant-popover-content)');
                 return null;
             }
 
-            log(LOG_LEVEL.DEBUG, '找到质检窗口');
+            log(LOG_LEVEL.DEBUG, '   ├─ 找到质检窗口');
 
             // 找到ul列表
             const ul = popoverContent.querySelector('ul');
@@ -2376,20 +2376,20 @@
     // 从初始化数据中直接提取质检驳回理由（最优方案）
     function extractQualityCheckFromInitialData() {
         try {
-            log(LOG_LEVEL.DEBUG, '尝试从初始数据提取质检驳回理由');
+            log(LOG_LEVEL.INFO, '   开始从初始化数据 (__INITIAL_DATA__) 中提取...');
 
             // 获取页面初始化的数据
             if (!window.__INITIAL_DATA__) {
-                log(LOG_LEVEL.DEBUG, '__INITIAL_DATA__ 未找到，可能页面还在加载');
+                log(LOG_LEVEL.WARN, '   ├─ ❌ window.__INITIAL_DATA__ 未找到');
                 return null;
             }
 
             const data = window.__INITIAL_DATA__;
-            log(LOG_LEVEL.DEBUG, '__INITIAL_DATA__ 已找到');
+            log(LOG_LEVEL.DEBUG, '   ├─ __INITIAL_DATA__ 已找到');
 
             // 检查数据结构
             if (!data.taskMessage?.taskRows?.[0]?.records?.[0]) {
-                log(LOG_LEVEL.DEBUG, '任务数据结构不完整', {
+                log(LOG_LEVEL.WARN, '   ├─ ❌ 任务数据结构不完整', {
                     hasTaskMessage: !!data.taskMessage,
                     hasTaskRows: !!data.taskMessage?.taskRows,
                     taskRowsLength: data.taskMessage?.taskRows?.length
@@ -2398,11 +2398,11 @@
             }
 
             const record = data.taskMessage.taskRows[0].records[0];
-            log(LOG_LEVEL.DEBUG, '找到任务记录');
+            log(LOG_LEVEL.DEBUG, '   ├─ 找到任务记录');
 
             // 获取阶段历史
             if (!record.phasesHistory || record.phasesHistory.length === 0) {
-                log(LOG_LEVEL.DEBUG, 'phasesHistory 未找到或为空', {
+                log(LOG_LEVEL.WARN, '   ├─ ❌ phasesHistory 未找到或为空', {
                     hasPhasesHistory: !!record.phasesHistory,
                     phasesHistoryLength: record.phasesHistory?.length
                 });
@@ -2438,11 +2438,11 @@
             }
 
             if (!qaRejectRecord) {
-                log(LOG_LEVEL.DEBUG, '未找到QA驳回记录');
+                log(LOG_LEVEL.WARN, '   ├─ ❌ 未找到QA驳回记录 (phasesHistory中没有jobType=QA且status=REJECTED的记录)');
                 return null;
             }
 
-            log(LOG_LEVEL.DEBUG, '选中的最新QA驳回记录:', {
+            log(LOG_LEVEL.DEBUG, '   ├─ 成功找到最新QA驳回记录:', {
                 name: qaRejectRecord.name,
                 status: qaRejectRecord.status,
                 jobType: qaRejectRecord.jobType,
@@ -2472,6 +2472,8 @@
             }
 
             log(LOG_LEVEL.DEBUG, '从初始数据提取到的最新驳回理由:', rejectReason);
+
+            log(LOG_LEVEL.INFO, '   └─ ✅ 从初始化数据成功提取驳回理由:', rejectReason);
 
             // 构造返回对象
             return {
@@ -2522,6 +2524,7 @@
             const domQARecord = extractLatestQARejectFromDOM();
             if (domQARecord) {
                 log(LOG_LEVEL.INFO, '✅ 【成功】 质检记录提取完成 (来自打开的窗口DOM)');
+                log(LOG_LEVEL.DEBUG, '   提取的数据:', domQARecord);
 
                 // 构造质检记录对象
                 const qualityCheckRecord = {
@@ -2573,8 +2576,11 @@
                 return;
             }
 
+            // 步骤1失败
+            log(LOG_LEVEL.WARN, '⚠ 【步骤1失败】 未能从打开的质检窗口DOM中提取数据');
+
             // 步骤2：备用方案 - 从初始化数据提取
-            log(LOG_LEVEL.INFO, '📋 【步骤2】 DOM提取失败，尝试从初始化数据提取...');
+            log(LOG_LEVEL.INFO, '📋 【步骤2】 尝试从初始化数据提取...');
 
             const initialDataResult = extractQualityCheckFromInitialData();
             if (initialDataResult) {
@@ -2614,9 +2620,10 @@
                 return;
             }
 
-            log(LOG_LEVEL.DEBUG, '所有方案都失败，无法提取质检记录');
+            // 步骤2失败
+            log(LOG_LEVEL.WARN, '⚠ 【步骤2失败】 未能从初始化数据中提取质检记录');
 
-            log(LOG_LEVEL.INFO, '📋 【步骤3】 初始数据提取失败，尝试临时显示隐藏的质检面板提取...');
+            log(LOG_LEVEL.INFO, '📋 【步骤3】 尝试临时显示隐藏的质检面板提取...');
             // 使用更灵活的方式查找质检弹窗，优先查找可见的，然后查找隐藏的
             const qualityCheckPopover = ElementSelector.select([
                 '.ant-popover.custom-popover-with-lefter-arrow',
