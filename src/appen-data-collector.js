@@ -1891,8 +1891,12 @@
             log(LOG_LEVEL.INFO, '========== 开始自动提取质检驳回信息 ==========');
             log(LOG_LEVEL.INFO, '触发位置: 页面初始化阶段 (extractResponseElements)');
             log(LOG_LEVEL.INFO, '预期结果: 直接从DOM或初始数据获取驳回详情，无需用户点击');
-            extractQualityCheckRecords(responseElements);
-            log(LOG_LEVEL.INFO, '========== 质检驳回信息提取调用完成 ==========');
+
+            // 使用setTimeout确保__INITIAL_DATA__已被完全加载
+            setTimeout(() => {
+                extractQualityCheckRecords(responseElements);
+                log(LOG_LEVEL.INFO, '========== 质检驳回信息提取调用完成 ==========');
+            }, 500);
 
             // 提取可能的任务相关信息
             const taskElements = ElementSelector.selectAll([
