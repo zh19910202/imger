@@ -392,8 +392,29 @@
                 if (stored && typeof stored === 'object') {
                     completionStats = {
                         totalValidCompletions: Number(stored.totalValidCompletions) || 0,
+                        totalTopicsCompleted: Number(stored.totalTopicsCompleted) || 0,
                         perPage: stored.perPage && typeof stored.perPage === 'object' ? stored.perPage : {}
                     };
+
+                    // 迁移旧格式的perPage数据
+                    for (const [pageKey, pageData] of Object.entries(completionStats.perPage)) {
+                        if (typeof pageData === 'object' && pageData !== null) {
+                            // 检查是否是旧格式（只有completions和topicCount）
+                            if (pageData.completions !== undefined && pageData.topicCount !== undefined &&
+                                pageData.topicId === undefined) {
+                                // 迁移到新格式
+                                completionStats.perPage[pageKey] = {
+                                    completions: Number(pageData.completions) || 0,
+                                    topicId: 'unknown_topic', // 旧数据没有topicId
+                                    topicCount: Number(pageData.topicCount) || 0,
+                                    elapsedSeconds: 0, // 旧数据没有耗时信息
+                                    isValid: true, // 假设旧的完成记录都是有效的
+                                    firstCompletionTime: Date.now(), // 旧数据没有时间戳
+                                    lastCompletionTime: Date.now()
+                                };
+                            }
+                        }
+                    }
                 }
             }
 
@@ -443,16 +464,25 @@
             const pageKey = getCurrentPageKey();
             log(LOG_LEVEL.DEBUG, '记录有效完成 - 页面标识:', pageKey);
             const topicCount = getTopicCountForRecording();
+            const currentTime = Date.now();
+            const elapsedSeconds = Math.floor((currentTime - collectedData.startTime) / 1000);
 
             if (!completionStats.perPage[pageKey]) {
                 completionStats.perPage[pageKey] = {
                     completions: 0,
-                    topicCount: topicCount
+                    topicId: collectedData.topicId || 'unknown_topic',
+                    topicCount: topicCount,
+                    elapsedSeconds: elapsedSeconds,
+                    isValid: true,
+                    firstCompletionTime: currentTime,
+                    lastCompletionTime: currentTime
                 };
             }
 
             completionStats.perPage[pageKey].completions += 1;
             completionStats.perPage[pageKey].topicCount = topicCount;
+            completionStats.perPage[pageKey].elapsedSeconds = elapsedSeconds;
+            completionStats.perPage[pageKey].lastCompletionTime = currentTime;
             completionStats.totalValidCompletions += 1;
             completionStats.totalTopicsCompleted += topicCount;
 
