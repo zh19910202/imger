@@ -4,7 +4,7 @@
 fix-undefined-error-constant
 
 ## Status
-Proposed
+Implemented
 
 ## Summary
 Fix the ReferenceError where undefined `ERROR` constant is used in logging calls instead of the proper `LOG_LEVEL.ERROR` constant. This error occurs in multiple places in the appen-data-collector.js file.
