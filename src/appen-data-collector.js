@@ -1888,7 +1888,11 @@
             detectUserSelectionStatus(responseElements);
 
             // 提取质检记录信息 - 在页面加载时自动获取，无需用户点击
+            log(LOG_LEVEL.INFO, '========== 开始自动提取质检驳回信息 ==========');
+            log(LOG_LEVEL.INFO, '触发位置: 页面初始化阶段 (extractResponseElements)');
+            log(LOG_LEVEL.INFO, '预期结果: 直接从DOM或初始数据获取驳回详情，无需用户点击');
             extractQualityCheckRecords(responseElements);
+            log(LOG_LEVEL.INFO, '========== 质检驳回信息提取调用完成 ==========');
 
             // 提取可能的任务相关信息
             const taskElements = ElementSelector.selectAll([
@@ -2494,27 +2498,30 @@
     // 提取质检记录信息
     function extractQualityCheckRecords(responseElements) {
         try {
+            log(LOG_LEVEL.INFO, '▶ 【extractQualityCheckRecords】 函数开始执行');
+
             // 状态跟踪：防止重复提取
             const now = Date.now();
             if (qualityCheckExtractionState.extractionInProgress) {
-                log(LOG_LEVEL.DEBUG, '质检记录提取正在进行中，跳过重复请求');
+                log(LOG_LEVEL.WARN, '⚠ 质检记录提取正在进行中，跳过重复请求');
                 return;
             }
 
             // 限制提取频率（至少间隔1秒）
             if (now - qualityCheckExtractionState.lastExtractionTime < 1000) {
-                log(LOG_LEVEL.DEBUG, '质检记录提取频率过高，跳过请求');
+                log(LOG_LEVEL.WARN, '⚠ 质检记录提取频率过高，跳过请求 (距离上次提取: ' + (now - qualityCheckExtractionState.lastExtractionTime) + 'ms)');
                 return;
             }
 
             // 设置提取状态
             qualityCheckExtractionState.extractionInProgress = true;
-            log(LOG_LEVEL.DEBUG, '开始提取质检记录信息');
+            log(LOG_LEVEL.DEBUG, '✓ 已设置extractionInProgress=true，防止重复提取');
 
             // 步骤1：优先从打开的质检窗口DOM提取（当用户按i键时，窗口已打开）
+            log(LOG_LEVEL.INFO, '📋 【步骤1】 尝试从打开的质检窗口DOM提取...');
             const domQARecord = extractLatestQARejectFromDOM();
             if (domQARecord) {
-                log(LOG_LEVEL.DEBUG, '质检记录提取完成 (来自打开的窗口DOM)');
+                log(LOG_LEVEL.INFO, '✅ 【成功】 质检记录提取完成 (来自打开的窗口DOM)');
 
                 // 构造质检记录对象
                 const qualityCheckRecord = {
@@ -2567,12 +2574,12 @@
             }
 
             // 步骤2：备用方案 - 从初始化数据提取
-            log(LOG_LEVEL.DEBUG, 'DOM提取失败，尝试从初始数据提取');
+            log(LOG_LEVEL.INFO, '📋 【步骤2】 DOM提取失败，尝试从初始化数据提取...');
 
             const initialDataResult = extractQualityCheckFromInitialData();
             if (initialDataResult) {
                 responseElements.qualityCheckRecord = initialDataResult;
-                log(LOG_LEVEL.DEBUG, '质检记录提取完成 (来自初始数据)');
+                log(LOG_LEVEL.INFO, '✅ 【成功】 质检记录提取完成 (来自初始化数据)');
 
                 // 输出最新的驳回理由信息
                 log(LOG_LEVEL.DEBUG, '\n========== 【质检驳回信息 - 从初始数据提取】 ==========');
@@ -2609,6 +2616,7 @@
 
             log(LOG_LEVEL.DEBUG, '所有方案都失败，无法提取质检记录');
 
+            log(LOG_LEVEL.INFO, '📋 【步骤3】 初始数据提取失败，尝试临时显示隐藏的质检面板提取...');
             // 使用更灵活的方式查找质检弹窗，优先查找可见的，然后查找隐藏的
             const qualityCheckPopover = ElementSelector.select([
                 '.ant-popover.custom-popover-with-lefter-arrow',
@@ -2619,7 +2627,7 @@
             ]);
 
             if (!qualityCheckPopover) {
-                log(LOG_LEVEL.DEBUG, '未找到质检弹窗，尝试查找隐藏的质检详情面板');
+                log(LOG_LEVEL.WARN, '⚠ 未找到质检弹窗，尝试查找隐藏的质检详情面板');
                 // 如果常规方式没找到，尝试查找隐藏的质检详情面板
                 const hiddenQualityCheckPanel = ElementSelector.select([
                     '.ant-popover-hidden.custom-popover-with-lefter-arrow',
@@ -2630,7 +2638,7 @@
                 ]);
 
                 if (hiddenQualityCheckPanel) {
-                    log(LOG_LEVEL.DEBUG, '找到隐藏的质检详情面板，临时显示以提取信息');
+                    log(LOG_LEVEL.INFO, '✓ 找到隐藏的质检详情面板，准备临时显示以提取信息');
                     // 保存原始状态
                     const originalClasses = Array.from(hiddenQualityCheckPanel.classList);
                     const hadHiddenClass = hiddenQualityCheckPanel.classList.contains('ant-popover-hidden');
@@ -2659,13 +2667,13 @@
                     }, 500); // 等待 DOM 更新
                     return;
                 } else {
-                    log(LOG_LEVEL.DEBUG, '未找到任何质检弹窗或面板');
+                    log(LOG_LEVEL.WARN, '❌ 【失败】 未找到任何质检弹窗或面板');
                     responseElements.qualityCheckRecord = null;
                     return;
                 }
             }
 
-            log(LOG_LEVEL.DEBUG, '找到质检弹窗');
+            log(LOG_LEVEL.INFO, '✓ 找到质检弹窗');
 
             // 保存原始状态
             const hadHiddenClass = qualityCheckPopover.classList.contains('ant-popover-hidden');
@@ -2674,7 +2682,7 @@
             // 如果弹窗隐藏了，移除 ant-popover-hidden 类以显示
             if (hadHiddenClass) {
                 qualityCheckPopover.classList.remove('ant-popover-hidden');
-                log(LOG_LEVEL.DEBUG, '已移除 ant-popover-hidden 类，弹窗显示');
+                log(LOG_LEVEL.INFO, '✓ 已移除 ant-popover-hidden 类，弹窗显示');
             }
 
             // 等待 DOM 渲染后提取内容
@@ -2701,6 +2709,18 @@
             // 重置提取状态
             qualityCheckExtractionState.extractionInProgress = false;
             qualityCheckExtractionState.lastExtractionTime = Date.now();
+
+            // 最终结果日志
+            const finalResult = responseElements.qualityCheckRecord;
+            if (finalResult && finalResult.hasRecord) {
+                log(LOG_LEVEL.INFO, '✅ 【完成】 质检驳回信息提取成功');
+                log(LOG_LEVEL.INFO, '   数据来源: ' + (finalResult.dataSource || 'UNKNOWN'));
+                log(LOG_LEVEL.INFO, '   驳回理由: ' + (finalResult.latestRecord?.comment || 'N/A'));
+                log(LOG_LEVEL.INFO, '   操作人: ' + (finalResult.latestRecord?.operator || 'N/A'));
+            } else {
+                log(LOG_LEVEL.WARN, '❌ 【完成】 质检驳回信息提取失败或不存在');
+            }
+            log(LOG_LEVEL.INFO, '========== extractQualityCheckRecords 执行完成 ==========\n');
         }
     }
     
