@@ -1050,15 +1050,26 @@
             log(LOG_LEVEL.DEBUG, '当前页面做题数量:', topicCount);
             log(LOG_LEVEL.DEBUG, '用户有效状态:', userStatus.isValid);
 
+            // 计算当前页面的耗时
+            const currentTime = Date.now();
+            const elapsedSeconds = Math.floor((currentTime - collectedData.startTime) / 1000);
+
             if (!completionStats.perPage[pageKey]) {
                 completionStats.perPage[pageKey] = {
                     completions: 0,
-                    topicCount: topicCount
+                    topicId: collectedData.topicId || 'unknown_topic',
+                    topicCount: topicCount,
+                    elapsedSeconds: elapsedSeconds,
+                    isValid: true,
+                    firstCompletionTime: currentTime,
+                    lastCompletionTime: currentTime
                 };
             }
 
             completionStats.perPage[pageKey].completions += 1;
             completionStats.perPage[pageKey].topicCount = topicCount;
+            completionStats.perPage[pageKey].elapsedSeconds = elapsedSeconds;
+            completionStats.perPage[pageKey].lastCompletionTime = currentTime;
             completionStats.totalValidCompletions += 1;
             completionStats.totalTopicsCompleted += topicCount;
 
