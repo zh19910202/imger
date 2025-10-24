@@ -680,13 +680,13 @@
             return '新'; // 如果没有页面数据，认为是新题
         }
 
-        // 检查是否是二次返修
-        if (pageData.isSecondaryRework === true) {
-            return '旧'; // 二次返修
+        // 检查之前是否有返修记录
+        if (pageData.hasRework === true) {
+            return '旧'; // 之前有返修记录
         }
 
-        // 检查是否是一次返修或普通题目
-        return '新'; // 一次返修或普通题目都是"新"
+        // 之前没有返修记录
+        return '新'; // 新题
     }
 
     // 获取当前页面的返修状态（新/旧）
@@ -4317,12 +4317,12 @@
             return '#2196F3'; // 默认蓝色（新题）
         }
 
-        // 检查是否是二次返修
-        if (pageData.isSecondaryRework === true) {
+        // 检查之前是否有返修记录
+        if (pageData.hasRework === true) {
             return '#FF9800'; // 橙色（旧题）
         }
 
-        // 一次返修或普通题目都是新题，使用蓝色
+        // 之前没有返修记录，使用蓝色
         return '#2196F3'; // 蓝色（新题）
     }
 
