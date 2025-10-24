@@ -684,17 +684,20 @@
     // 检查当前页面是否被QA驳回
     function isCurrentPageRejected() {
         try {
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 开始检查当前页面是否被QA驳回');
+
             // 强制调试输出，确保函数被调用
             console.log('[Appen-新旧题] [强制调试] isCurrentPageRejected函数被调用');
 
             // 获取当前页面键值
             const currentKey = getCurrentPageKey();
-            console.log('[Appen-新旧题] [调试] 当前页面键值:', currentKey);
-            console.log('[Appen-新旧题] [调试] 之前记录的页面键值:', currentPageKey);
-            console.log('[Appen-新旧题] [调试] 之前记录的驳回状态:', currentPageRejectedStatus);
+            log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 当前页面键值:', currentKey);
+            log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 之前记录的页面键值:', currentPageKey);
+            log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 之前记录的驳回状态:', currentPageRejectedStatus);
 
             // 如果是新页面，重置状态缓存
             if (currentKey !== currentPageKey) {
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 检测到新页面，重置驳回状态缓存');
                 console.log('[Appen-新旧题] [调试] 检测到新页面，重置驳回状态缓存');
                 currentPageRejectedStatus = null;
                 currentPageKey = currentKey;
@@ -702,12 +705,23 @@
 
             // 如果之前已经检测到驳回状态，直接返回true（状态锁定）
             if (currentPageRejectedStatus === true) {
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 状态已锁定为驳回，直接返回true');
                 console.log('[Appen-新旧题] [调试] 状态已锁定为驳回，直接返回true');
                 return true;
             }
 
             // 检查页面文本中是否包含QA驳回信息
             const pageText = document.body.innerText;
+            log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 页面文本总长度:', pageText.length);
+            log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 当前时间戳:', new Date().toISOString());
+
+            // 简化日志输出，只显示关键信息
+            log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 页面是否包含QA驳回信息:');
+            log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 包含"被 QA1 Rejected 请修订":', pageText.includes("被 QA1 Rejected 请修订"));
+            log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 包含"被 QA":', pageText.includes("被 QA"));
+            log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 包含"Rejected":', pageText.includes("Rejected"));
+            log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 包含"请修订":', pageText.includes("请修订"));
+
             console.log('[Appen-新旧题] [调试] 页面文本总长度:', pageText.length);
             console.log('[Appen-新旧题] [调试] 当前时间戳:', new Date().toISOString());
 
@@ -719,14 +733,18 @@
             console.log('[Appen-新旧题] [调试] 包含"请修订":', pageText.includes("请修订"));
 
             // 检查实际的QA驳回格式
+            log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 包含"被QA1 Rejected，请修订":', pageText.includes("被QA1 Rejected，请修订"));
             console.log('[Appen-新旧题] [调试] 包含"被QA1 Rejected，请修订":', pageText.includes("被QA1 Rejected，请修订"));
 
             // 显示包含这些关键词的上下文
             const lines = pageText.split('\n');
+            log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 页面总行数:', lines.length);
             console.log('[Appen-新旧题] [调试] 页面总行数:', lines.length);
+
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
                 if (line.includes('QA') && line.includes('Rejected')) {
+                    log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 找到QA驳回相关行:', line.trim());
                     console.log('[Appen-新旧题] [调试] 找到QA驳回相关行:', line.trim());
                 }
             }
@@ -735,6 +753,7 @@
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
                 if (line.includes('被 QA1 Rejected 请修订')) {
+                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 精确匹配到QA1驳回行:', line.trim());
                     console.log('[Appen-新旧题] [调试] 精确匹配到QA1驳回行:', line.trim());
                     console.log('[Appen-新旧题] [调试] 精确匹配找到QA1驳回信息');
                     currentPageRejectedStatus = true;
@@ -746,6 +765,7 @@
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
                 if (line.includes('被QA1 Rejected，请修订')) {
+                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 精确匹配到实际QA1驳回行:', line.trim());
                     console.log('[Appen-新旧题] [调试] 精确匹配到实际QA1驳回行:', line.trim());
                     console.log('[Appen-新旧题] [调试] 精确匹配找到实际QA1驳回信息');
                     currentPageRejectedStatus = true;
@@ -754,6 +774,7 @@
             }
 
             if (pageText.includes("被 QA1 Rejected 请修订")) {
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 找到QA1驳回信息');
                 console.log('[Appen-新旧题] [调试] 找到QA1驳回信息');
                 currentPageRejectedStatus = true;
                 return true; // 找到QA1驳回信息
@@ -761,6 +782,7 @@
 
             // 检查实际的QA驳回格式
             if (pageText.includes("被QA1 Rejected，请修订")) {
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 找到实际QA1驳回信息');
                 console.log('[Appen-新旧题] [调试] 找到实际QA1驳回信息');
                 currentPageRejectedStatus = true;
                 return true; // 找到实际QA1驳回信息
@@ -768,6 +790,7 @@
 
             // 检查其他可能的QA驳回模式
             if (pageText.includes("被 QA") && pageText.includes("Rejected") && pageText.includes("请修订")) {
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 找到其他QA驳回信息');
                 console.log('[Appen-新旧题] [调试] 找到其他QA驳回信息');
                 currentPageRejectedStatus = true;
                 return true; // 找到其他QA的驳回信息
@@ -775,6 +798,7 @@
 
             // 检查实际的QA驳回模式
             if (pageText.includes("被QA") && pageText.includes("Rejected") && pageText.includes("请修订")) {
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 找到其他实际QA驳回信息');
                 console.log('[Appen-新旧题] [调试] 找到其他实际QA驳回信息');
                 currentPageRejectedStatus = true;
                 return true; // 找到其他实际QA的驳回信息
@@ -793,14 +817,17 @@
                 try {
                     const varValue = eval(varName);
                     if (varValue) {
+                        log(LOG_LEVEL.DEBUG, `[Appen Data Collector] 找到变量 ${varName}:`, typeof varValue);
                         console.log(`[Appen-新旧题] [调试] 找到变量 ${varName}:`, typeof varValue);
                         // 检查任务类型
                         if (varValue.taskMessage && varValue.taskMessage.taskType === "REWORK") {
+                            log(LOG_LEVEL.INFO, `[Appen Data Collector] 任务在${varName}中被标记为返修`);
                             console.log(`[Appen-新旧题] [调试] 任务在${varName}中被标记为返修`);
                             currentPageRejectedStatus = true;
                             return true;
                         }
                         if (varValue.taskType === "REWORK") {
+                            log(LOG_LEVEL.INFO, `[Appen Data Collector] 任务在${varName}中被标记为返修`);
                             console.log(`[Appen-新旧题] [调试] 任务在${varName}中被标记为返修`);
                             currentPageRejectedStatus = true;
                             return true;
@@ -813,19 +840,23 @@
 
             // 检查页面上的特定元素
             const rejectElements = document.querySelectorAll('[class*="reject"], [class*="Reject"], [class*="驳回"]');
+            log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 找到可能的驳回相关元素数量:', rejectElements.length);
             console.log('[Appen-新旧题] [调试] 找到可能的驳回相关元素数量:', rejectElements.length);
 
             for (let i = 0; i < Math.min(rejectElements.length, 5); i++) {
                 const elementText = (rejectElements[i].innerText || rejectElements[i].textContent || '').trim();
                 if (elementText.length > 0) {
+                    log(LOG_LEVEL.DEBUG, `[Appen Data Collector] 驳回相关元素 ${i}:`, elementText.substring(0, 100));
                     console.log(`[Appen-新旧题] [调试] 驳回相关元素 ${i}:`, elementText.substring(0, 100));
                     // 检查元素文本中是否包含驳回信息
                     if (elementText.includes("被 QA") && elementText.includes("Rejected") && elementText.includes("请修订")) {
+                        log(LOG_LEVEL.INFO, '[Appen Data Collector] 在元素中找到QA驳回信息');
                         console.log('[Appen-新旧题] [调试] 在元素中找到QA驳回信息');
                         currentPageRejectedStatus = true;
                         return true;
                     }
                     if (elementText.includes("被QA") && elementText.includes("Rejected") && elementText.includes("请修订")) {
+                        log(LOG_LEVEL.INFO, '[Appen Data Collector] 在元素中找到实际QA驳回信息');
                         console.log('[Appen-新旧题] [调试] 在元素中找到实际QA驳回信息');
                         currentPageRejectedStatus = true;
                         return true;
@@ -833,6 +864,7 @@
                 }
             }
 
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 没有检测到QA驳回信息');
             console.log('[Appen-新旧题] [调试] 没有检测到QA驳回信息');
             // 只有在之前没有检测到驳回状态时才设置为false
             if (currentPageRejectedStatus === null) {
@@ -840,6 +872,7 @@
             }
             return currentPageRejectedStatus;
         } catch (error) {
+            log(LOG_LEVEL.ERROR, '[Appen Data Collector] 检查页面驳回状态时出错:', error);
             console.log('[Appen-新旧题] [调试] 检查页面驳回状态时出错:', error.message);
             // 发生错误时保持之前的状态
             return currentPageRejectedStatus === true;
@@ -849,12 +882,20 @@
     // 获取页面的新旧题状态
     // 获取页面的新旧题状态
     function getPageNewOldStatus(pageData) {
+        log(LOG_LEVEL.INFO, '[Appen Data Collector] 开始获取页面的新旧题状态');
+        log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 传入的pageData:', pageData);
+
         // 检查当前页面是否被QA驳回
-        if (isCurrentPageRejected()) {
+        const isRejected = isCurrentPageRejected();
+        log(LOG_LEVEL.DEBUG, '[Appen Data Collector] isCurrentPageRejected返回值:', isRejected);
+
+        if (isRejected) {
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 当前页面被QA驳回，标记为旧题');
             return '旧'; // 当前页面显示QA驳回
         }
 
         // 如果没有当前驳回，认为是新题
+        log(LOG_LEVEL.INFO, '[Appen Data Collector] 当前页面未被QA驳回，标记为新题');
         return '新'; // 新题
     }
     // 获取当前页面的返修状态（新/旧）
@@ -3069,6 +3110,7 @@
 
             // 新增：自动化点击小图标以获取最新的驳回信息
             log(LOG_LEVEL.INFO, '🔍 【新增功能】 开始自动化点击小图标获取最新驳回信息...');
+            log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 开始查找质检详情触发元素（向下箭头图标）');
             try {
                 // 查找质检详情显示按钮（向下箭头图标）
                 const qualityCheckTriggerElements = ElementSelector.selectAll([
@@ -3079,16 +3121,25 @@
                     '[class*="arrow"]'
                 ]);
 
+                log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 查找质检详情触发元素完成，找到元素数量:', qualityCheckTriggerElements.length);
+
                 if (qualityCheckTriggerElements.length > 0) {
                     const firstTrigger = qualityCheckTriggerElements[0];
                     log(LOG_LEVEL.INFO, '✅ 找到质检详情触发元素，开始模拟点击');
+                    log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 质检详情触发元素信息:', {
+                        tagName: firstTrigger.tagName,
+                        className: firstTrigger.className,
+                        id: firstTrigger.id
+                    });
 
                     // 创建并派发点击事件
+                    log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 创建鼠标点击事件');
                     const clickEvent = new MouseEvent('click', {
                         view: window,
                         bubbles: true,
                         cancelable: true
                     });
+                    log(LOG_LEVEL.INFO, '🖱️ 开始模拟点击质检详情触发元素');
                     firstTrigger.dispatchEvent(clickEvent);
                     log(LOG_LEVEL.INFO, '🖱️ 已模拟点击质检详情触发元素');
 
@@ -3096,30 +3147,48 @@
                     log(LOG_LEVEL.INFO, '⏱️ 等待内容加载完成...');
 
                     // 等待内容加载完成后再次点击收起面板
+                    log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 设置1秒后收起面板的定时器');
                     setTimeout(() => {
+                        log(LOG_LEVEL.INFO, '🖱️ 开始模拟再次点击收起质检详情面板');
                         firstTrigger.dispatchEvent(clickEvent);
                         log(LOG_LEVEL.INFO, '🖱️ 已模拟再次点击收起质检详情面板');
+                        log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 质检详情面板已收起');
                     }, 1000);
                 } else {
                     log(LOG_LEVEL.WARN, '⚠ 未找到质检详情触发元素');
+                    log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 未找到任何符合条件的质检详情触发元素');
                 }
             } catch (clickError) {
-                log(LOG_LEVEL.WARN, '⚠ 自动化点击小图标时出错:', clickError);
+                log(LOG_LEVEL.ERROR, '⚠ 自动化点击小图标时出错:', clickError);
+                log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 点击错误详情:', {
+                    message: clickError.message,
+                    stack: clickError.stack
+                });
             }
 
             let extractionSuccess = false;
 
             // 步骤1：优先从打开的质检窗口DOM提取（自动化点击后或用户按i键时，窗口已打开）
             log(LOG_LEVEL.INFO, '📋 【步骤1】 尝试从打开的质检窗口DOM提取...');
+            log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 开始从打开的质检窗口DOM提取驳回详情');
             // 等待1.5秒确保自动化点击后的内容已加载
             setTimeout(() => {
                 try {
+                    log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 调用extractLatestQARejectFromDOM函数提取数据');
                     const domQARecord = extractLatestQARejectFromDOM();
+                    log(LOG_LEVEL.DEBUG, '[Appen Data Collector] extractLatestQARejectFromDOM函数返回结果:', domQARecord ? '成功获取数据' : '未获取到数据');
+
                     if (domQARecord) {
                         log(LOG_LEVEL.INFO, '✅ 【成功】 质检记录提取完成 (来自打开的窗口DOM)');
                         log(LOG_LEVEL.DEBUG, '   提取的数据:', domQARecord);
+                        log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 从DOM提取的质检记录详情:', {
+                            operator: domQARecord.operator,
+                            comment: domQARecord.comment,
+                            operateTime: domQARecord.operateTime
+                        });
 
                         // 构造质检记录对象
+                        log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 构造质检记录对象');
                         const qualityCheckRecord = {
                             hasRecord: true,
                             dataSource: 'DOM_POPOVER',
@@ -3134,8 +3203,10 @@
                             }
                         };
 
+                        log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 设置responseElements.qualityCheckRecord');
                         responseElements.qualityCheckRecord = qualityCheckRecord;
                         extractionSuccess = true;
+                        log(LOG_LEVEL.DEBUG, '[Appen Data Collector] extractionSuccess设置为true');
 
                         // 输出最新的驳回理由信息
                         log(LOG_LEVEL.DEBUG, '\n========== 【质检驳回信息 - 从打开窗口提取】 ==========');
@@ -3151,6 +3222,7 @@
                         log(LOG_LEVEL.DEBUG, '================================================\n');
 
                         // 输出完整JSON格式
+                        log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 构造完整QA数据JSON');
                         const latestQAData = {
                             userId: collectedData.userId || 'N/A',
                             taskId: collectedData.taskId || 'N/A',
@@ -3166,12 +3238,18 @@
                             }
                         };
                         log(LOG_LEVEL.DEBUG, '完整QA数据JSON:', JSON.stringify(latestQAData, null, 2));
+                        log(LOG_LEVEL.INFO, '[Appen Data Collector] 质检驳回详情提取成功 (来自DOM)');
                     } else {
                         // 步骤1失败
                         log(LOG_LEVEL.WARN, '⚠ 【步骤1失败】 未能从打开的质检窗口DOM中提取数据');
+                        log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 从DOM提取数据返回null或undefined');
                     }
                 } catch (error) {
-                    log(LOG_LEVEL.WARN, '⚠ 【步骤1异常】 从打开的质检窗口DOM提取时出错:', error);
+                    log(LOG_LEVEL.ERROR, '⚠ 【步骤1异常】 从打开的质检窗口DOM提取时出错:', error);
+                    log(LOG_LEVEL.DEBUG, '[Appen Data Collector] DOM提取错误详情:', {
+                        message: error.message,
+                        stack: error.stack
+                    });
                 }
 
                 // 步骤2：备用方案 - 从初始化数据提取
@@ -3424,22 +3502,37 @@
                 }
 
                 // 重置提取状态
+                log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 重置质检记录提取状态');
                 qualityCheckExtractionState.extractionInProgress = false;
                 qualityCheckExtractionState.lastExtractionTime = Date.now();
+                log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 质检记录提取状态已重置');
 
                 // 最终结果日志
+                log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 开始记录最终提取结果');
                 if (responseElements) {
                     const finalResult = responseElements.qualityCheckRecord;
+                    log(LOG_LEVEL.DEBUG, '[Appen Data Collector] responseElements.qualityCheckRecord:', finalResult);
                     if (finalResult && finalResult.hasRecord) {
                         log(LOG_LEVEL.INFO, '✅ 【完成】 质检驳回信息提取成功');
                         log(LOG_LEVEL.INFO, '   数据来源: ' + (finalResult.dataSource || 'UNKNOWN'));
                         log(LOG_LEVEL.INFO, '   驳回理由: ' + (finalResult.latestRecord?.comment || 'N/A'));
                         log(LOG_LEVEL.INFO, '   操作人: ' + (finalResult.latestRecord?.operator || 'N/A'));
+                        log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 质检驳回信息提取成功，详细信息:', {
+                            dataSource: finalResult.dataSource,
+                            comment: finalResult.latestRecord?.comment,
+                            operator: finalResult.latestRecord?.operator,
+                            operateTime: finalResult.latestRecord?.operateTime
+                        });
                     } else {
                         log(LOG_LEVEL.WARN, '❌ 【完成】 质检驳回信息提取失败或不存在');
+                        log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 质检驳回信息提取失败或不存在');
                     }
+                } else {
+                    log(LOG_LEVEL.WARN, '❌ 【完成】 responseElements未定义，无法记录最终结果');
+                    log(LOG_LEVEL.DEBUG, '[Appen Data Collector] responseElements未定义');
                 }
                 log(LOG_LEVEL.INFO, '========== extractQualityCheckRecords 执行完成 ==========\n');
+                log(LOG_LEVEL.DEBUG, '[Appen Data Collector] extractQualityCheckRecords函数执行完成');
             }, 1500); // 等待1.5秒确保内容加载完成
 
             // 步骤2：备用方案 - 从初始化数据提取
@@ -4450,22 +4543,35 @@
 
             if (!collectedData.responseElements) {
                 log(LOG_LEVEL.INFO, '[Appen Data Collector] 开始提取响应元素');
+                log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 当前页面URL:', window.location.href);
 
                 // 获取认证cookie
                 try {
                     log(LOG_LEVEL.INFO, '[Appen Data Collector] 获取认证cookie');
                     const authCookies = await getAuthCookies();
                     if (authCookies) {
+                        log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 成功获取认证cookie');
                         collectedData.authCookies = authCookies;
                         // 同步认证信息到服务端
                         await syncAuthToServer(authCookies);
+                    } else {
+                        log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 未获取到认证cookie');
                     }
                 } catch (error) {
                     log(LOG_LEVEL.WARN, '[Appen Data Collector] 获取认证cookie失败:', error);
+                    log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 认证cookie错误详情:', {
+                        message: error.message,
+                        stack: error.stack
+                    });
                 }
 
                 // 提取响应元素
-                setTimeout(extractResponseElements, 1000); // 等待页面加载完成
+                log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 设置1秒后提取响应元素的定时器');
+                setTimeout(() => {
+                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 开始提取响应元素');
+                    extractResponseElements();
+                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 响应元素提取完成');
+                }, 1000); // 等待页面加载完成
             }
         } else {
             // 离开标注页面时清除缓存的开始时间
