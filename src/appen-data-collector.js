@@ -694,6 +694,9 @@
             console.log('[Appen-新旧题] [调试] 包含"Rejected":', pageText.includes("Rejected"));
             console.log('[Appen-新旧题] [调试] 包含"请修订":', pageText.includes("请修订"));
 
+            // 检查实际的QA驳回格式
+            console.log('[Appen-新旧题] [调试] 包含"被QA1 Rejected，请修订":', pageText.includes("被QA1 Rejected，请修订"));
+
             // 显示包含这些关键词的上下文
             const lines = pageText.split('\n');
             console.log('[Appen-新旧题] [调试] 页面总行数:', lines.length);
@@ -714,15 +717,37 @@
                 }
             }
 
+            // 检查实际的QA驳回格式
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                if (line.includes('被QA1 Rejected，请修订')) {
+                    console.log('[Appen-新旧题] [调试] 精确匹配到实际QA1驳回行:', line.trim());
+                    console.log('[Appen-新旧题] [调试] 精确匹配找到实际QA1驳回信息');
+                    return true;
+                }
+            }
+
             if (pageText.includes("被 QA1 Rejected 请修订")) {
                 console.log('[Appen-新旧题] [调试] 找到QA1驳回信息');
                 return true; // 找到QA1驳回信息
+            }
+
+            // 检查实际的QA驳回格式
+            if (pageText.includes("被QA1 Rejected，请修订")) {
+                console.log('[Appen-新旧题] [调试] 找到实际QA1驳回信息');
+                return true; // 找到实际QA1驳回信息
             }
 
             // 检查其他可能的QA驳回模式
             if (pageText.includes("被 QA") && pageText.includes("Rejected") && pageText.includes("请修订")) {
                 console.log('[Appen-新旧题] [调试] 找到其他QA驳回信息');
                 return true; // 找到其他QA的驳回信息
+            }
+
+            // 检查实际的QA驳回模式
+            if (pageText.includes("被QA") && pageText.includes("Rejected") && pageText.includes("请修订")) {
+                console.log('[Appen-新旧题] [调试] 找到其他实际QA驳回信息');
+                return true; // 找到其他实际QA的驳回信息
             }
 
             // 检查多种可能的JavaScript变量名
