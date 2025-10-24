@@ -1756,8 +1756,16 @@
                     <div><strong style="color: #333;">新旧题状态:</strong> <span style="color: ${(() => {
                         const pageKey = getCurrentPageKey();
                         const pageData = completionStats.perPage[pageKey];
-                        return getPageNewOldStatusColor(pageData);
-                    })()};">${getCurrentPageReworkStatus()}</span></div>
+                        console.log('[Appen-新旧题] [模态框] 计算新旧题状态 - 页面键值:', pageKey);
+                        console.log('[Appen-新旧题] [模态框] 页面数据:', pageData);
+                        const color = getPageNewOldStatusColor(pageData);
+                        console.log('[Appen-新旧题] [模态框] 计算得到的颜色:', color);
+                        return color;
+                    })()};">${(() => {
+                        const status = getCurrentPageReworkStatus();
+                        console.log('[Appen-新旧题] [模态框] 计算得到的状态:', status);
+                        return status;
+                    })()}</span></div>
                     <div><strong style="color: #333;">驳回理由:</strong> <span style="color: #0066cc;">${escapeHtml(collectedData.responseElements?.qualityCheckRecord?.latestRecord?.comment || '')}</span></div>
                 </div>
 
