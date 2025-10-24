@@ -223,10 +223,441 @@
         }
     };
 
+    // Enhanced Element Selection with Multiple Strategies
+    const EnhancedElementSelector = {
+        // Find element using multiple strategies with fallback
+        findElementByMultipleStrategies: function(strategies) {
+            for (const strategy of strategies) {
+                try {
+                    let element = null;
+
+                    switch (strategy.type) {
+                        case 'selector':
+                            element = ElementSelector.select(strategy.value);
+                            break;
+                        case 'xpath':
+                            const result = document.evaluate(strategy.value, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+                            element = result.singleNodeValue;
+                            break;
+                        case 'content':
+                            const allElements = document.querySelectorAll('*');
+                            for (let i = 0; i < allElements.length; i++) {
+                                const el = allElements[i];
+                                const text = el.textContent || el.innerText || '';
+                                if (text.includes(strategy.value)) {
+                                    element = el;
+                                    break;
+                                }
+                            }
+                            break;
+                        case 'svg':
+                            // 专门处理SVG内容定位
+                            const svgElements = document.querySelectorAll('svg');
+                            for (let i = 0; i < svgElements.length; i++) {
+                                const svg = svgElements[i];
+                                const pathElements = svg.querySelectorAll('path');
+                                for (let j = 0; j < pathElements.length; j++) {
+                                    const path = pathElements[j];
+                                    const dAttr = path.getAttribute('d') || '';
+                                    if (dAttr.includes(strategy.value)) {
+                                        element = svg; // 返回包含该path的svg元素
+                                        break;
+                                    }
+                                }
+                                if (element) break;
+                            }
+                            break;
+                        case 'attribute':
+                            const attrElements = document.querySelectorAll(`[${strategy.name}="${strategy.value}"]`);
+                            if (attrElements.length > 0) {
+                                element = attrElements[0];
+                            }
+                            break;
+                        case 'classPattern':
+                            const classElements = document.querySelectorAll('[class]');
+                            for (let i = 0; i < classElements.length; i++) {
+                                const el = classElements[i];
+                                const className = el.className;
+                                if (className && className.includes(strategy.value)) {
+                                    element = el;
+                                    break;
+                                }
+                            }
+                            break;
+                        case 'idPattern':
+                            const idElements = document.querySelectorAll('[id]');
+                            for (let i = 0; i < idElements.length; i++) {
+                                const el = idElements[i];
+                                const id = el.id;
+                                if (id && id.includes(strategy.value)) {
+                                    element = el;
+                                    break;
+                                }
+                            }
+                            break;
+                        case 'structure':
+                            // Find element by structural position
+                            if (strategy.parentSelector && strategy.childIndex !== undefined) {
+                                const parent = document.querySelector(strategy.parentSelector);
+                                if (parent && parent.children[strategy.childIndex]) {
+                                    element = parent.children[strategy.childIndex];
+                                }
+                            }
+                            break;
+                    }
+
+                    if (element) {
+                        log(LOG_LEVEL.DEBUG, `[EnhancedElementSelector] 找到元素，使用策略: ${strategy.type}`);
+                        return {
+                            element: element,
+                            strategy: strategy.type
+                        };
+                    }
+                } catch (error) {
+                    ErrorHandler.handleDOMError(error, `[EnhancedElementSelector] 策略执行失败: ${strategy.type}`, null);
+                }
+            }
+
+            log(LOG_LEVEL.DEBUG, '[EnhancedElementSelector] 未找到元素，所有策略均已尝试');
+            return null;
+        },
+
+        // Find multiple elements using multiple strategies
+        findElementsByMultipleStrategies: function(strategies) {
+            for (const strategy of strategies) {
+                try {
+                    let elements = [];
+
+                    switch (strategy.type) {
+                        case 'selector':
+                            elements = Array.from(ElementSelector.selectAll(strategy.value));
+                            break;
+                        case 'xpath':
+                            const result = document.evaluate(strategy.value, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+                            for (let i = 0; i < result.snapshotLength; i++) {
+                                elements.push(result.snapshotItem(i));
+                            }
+                            break;
+                        case 'content':
+                            const allElements = document.querySelectorAll('*');
+                            for (let i = 0; i < allElements.length; i++) {
+                                const el = allElements[i];
+                                const text = el.textContent || el.innerText || '';
+                                if (text.includes(strategy.value)) {
+                                    elements.push(el);
+                                }
+                            }
+                            break;
+                        case 'svg':
+                            // 专门处理SVG内容定位
+                            const svgElements = document.querySelectorAll('svg');
+                            for (let i = 0; i < svgElements.length; i++) {
+                                const svg = svgElements[i];
+                                const pathElements = svg.querySelectorAll('path');
+                                for (let j = 0; j < pathElements.length; j++) {
+                                    const path = pathElements[j];
+                                    const dAttr = path.getAttribute('d') || '';
+                                    if (dAttr.includes(strategy.value)) {
+                                        elements.push(svg); // 返回包含该path的svg元素
+                                        break;
+                                    }
+                                }
+                            }
+                            break;
+                        case 'attribute':
+                            elements = Array.from(document.querySelectorAll(`[${strategy.name}="${strategy.value}"]`));
+                            break;
+                        case 'classPattern':
+                            const classElements = document.querySelectorAll('[class]');
+                            for (let i = 0; i < classElements.length; i++) {
+                                const el = classElements[i];
+                                const className = el.className;
+                                if (className && className.includes(strategy.value)) {
+                                    elements.push(el);
+                                }
+                            }
+                            break;
+                        case 'idPattern':
+                            const idElements = document.querySelectorAll('[id]');
+                            for (let i = 0; i < idElements.length; i++) {
+                                const el = idElements[i];
+                                const id = el.id;
+                                if (id && id.includes(strategy.value)) {
+                                    elements.push(el);
+                                }
+                            }
+                            break;
+                    }
+
+                    if (elements.length > 0) {
+                        log(LOG_LEVEL.DEBUG, `[EnhancedElementSelector] 找到 ${elements.length} 个元素，使用策略: ${strategy.type}`);
+                        return {
+                            elements: elements,
+                            strategy: strategy.type
+                        };
+                    }
+                } catch (error) {
+                    ErrorHandler.handleDOMError(error, `[EnhancedElementSelector] 策略执行失败: ${strategy.type}`, null);
+                }
+            }
+
+            log(LOG_LEVEL.DEBUG, '[EnhancedElementSelector] 未找到元素，所有策略均已尝试');
+            return null;
+        }
+    };
+
+    // Enhanced Text Content Extraction Utility Functions
+    const TextExtractor = {
+        // 提取元素文本内容，支持多种策略和清理选项
+        extractText: function(element, options = {}) {
+            if (!element) {
+                log(LOG_LEVEL.DEBUG, '[TextExtractor] 元素为空');
+                return '';
+            }
+
+            const {
+                clean = true,
+                maxLength = 0,
+                preserveNewlines = false,
+                preserveSpaces = false,
+                removeExtraWhitespace = true,
+                allowedTags = []
+            } = options;
+
+            try {
+                let text = '';
+
+                // 方法1: 使用textContent (首选，包含隐藏文本)
+                if (element.textContent !== undefined) {
+                    text = element.textContent;
+                }
+                // 方法2: 使用innerText (仅可见文本)
+                else if (element.innerText !== undefined) {
+                    text = element.innerText;
+                }
+                // 方法3: 使用nodeValue (适用于文本节点)
+                else if (element.nodeValue !== undefined) {
+                    text = element.nodeValue;
+                }
+                // 方法4: 使用textContent属性
+                else if (element.textContent !== undefined) {
+                    text = element.textContent;
+                }
+                // 方法5: 转换为字符串
+                else {
+                    text = element.toString();
+                }
+
+                // 清理文本内容
+                if (clean) {
+                    text = this.cleanText(text, {
+                        preserveNewlines,
+                        preserveSpaces,
+                        removeExtraWhitespace,
+                        allowedTags
+                    });
+                }
+
+                // 限制文本长度
+                if (maxLength > 0 && text.length > maxLength) {
+                    text = text.substring(0, maxLength);
+                }
+
+                log(LOG_LEVEL.DEBUG, `[TextExtractor] 成功提取文本，长度: ${text.length}`);
+                return text;
+            } catch (error) {
+                return ErrorHandler.handleTextExtractionError(error, '[TextExtractor] 提取文本时出错', '');
+            }
+        },
+
+        // 清理文本内容
+        cleanText: function(text, options = {}) {
+            if (!text || typeof text !== 'string') {
+                return '';
+            }
+
+            const {
+                preserveNewlines = false,
+                preserveSpaces = false,
+                removeExtraWhitespace = true,
+                allowedTags = []
+            } = options;
+
+            try {
+                let cleanedText = text;
+
+                // 移除HTML标签（如果需要）
+                if (allowedTags.length === 0) {
+                    cleanedText = cleanedText.replace(/<[^>]*>/g, '');
+                } else {
+                    // 只移除不允许的标签
+                    const allowedTagPattern = allowedTags.map(tag => `<${tag}[^>]*>|</${tag}>`).join('|');
+                    const disallowedTagPattern = `<(?!/?(${allowedTags.join('|')})\\b)[^>]*>`;
+                    cleanedText = cleanedText.replace(new RegExp(disallowedTagPattern, 'g'), '');
+                }
+
+                // 处理换行符
+                if (!preserveNewlines) {
+                    cleanedText = cleanedText.replace(/\n/g, ' ');
+                }
+
+                // 处理多余的空白字符
+                if (removeExtraWhitespace) {
+                    if (preserveNewlines) {
+                        // 保留换行符但清理其他空白
+                        cleanedText = cleanedText.replace(/[ \t]+/g, ' ')
+                                                   .replace(/[\r\f\v]+/g, '')
+                                                   .replace(/^[ \t]+|[ \t]+$/gm, '');
+                    } else {
+                        // 清理所有多余的空白
+                        cleanedText = cleanedText.replace(/\s+/g, ' ');
+                    }
+                }
+
+                // 处理空格
+                if (!preserveSpaces) {
+                    cleanedText = cleanedText.trim();
+                }
+
+                // 移除不可见字符
+                cleanedText = cleanedText.replace(/[\u200B-\u200D\uFEFF]/g, '');
+
+                log(LOG_LEVEL.DEBUG, `[TextExtractor] 文本清理完成，原始长度: ${text.length}, 清理后长度: ${cleanedText.length}`);
+                return cleanedText;
+            } catch (error) {
+                ErrorHandler.handle(error, '[TextExtractor] 清理文本时出错', text, LOG_LEVEL.WARN);
+                return text;
+            }
+        },
+
+        // 提取多个元素的文本内容
+        extractTexts: function(elements, options = {}) {
+            if (!elements || !elements.length) {
+                log(LOG_LEVEL.DEBUG, '[TextExtractor] 元素数组为空');
+                return [];
+            }
+
+            const texts = [];
+            for (let i = 0; i < elements.length; i++) {
+                const text = this.extractText(elements[i], options);
+                if (text) {
+                    texts.push(text);
+                }
+            }
+
+            log(LOG_LEVEL.DEBUG, `[TextExtractor] 成功提取 ${texts.length} 个文本内容`);
+            return texts;
+        },
+
+        // 从元素中提取结构化文本信息
+        extractStructuredText: function(element, options = {}) {
+            if (!element) {
+                log(LOG_LEVEL.DEBUG, '[TextExtractor] 元素为空');
+                return null;
+            }
+
+            const {
+                includeAttributes = false,
+                includeChildren = true,
+                maxDepth = 3
+            } = options;
+
+            try {
+                const result = {
+                    text: this.extractText(element, options),
+                    length: element.textContent ? element.textContent.length : 0
+                };
+
+                // 包含属性信息
+                if (includeAttributes && element.attributes) {
+                    result.attributes = {};
+                    for (let i = 0; i < element.attributes.length; i++) {
+                        const attr = element.attributes[i];
+                        result.attributes[attr.name] = attr.value;
+                    }
+                }
+
+                // 包含子元素文本
+                if (includeChildren && maxDepth > 0 && element.children) {
+                    result.children = [];
+                    for (let i = 0; i < element.children.length; i++) {
+                        const child = element.children[i];
+                        if (child.textContent && child.textContent.trim()) {
+                            result.children.push({
+                                text: this.extractText(child, options),
+                                tag: child.tagName ? child.tagName.toLowerCase() : 'unknown',
+                                length: child.textContent.length
+                            });
+                        }
+                    }
+                }
+
+                log(LOG_LEVEL.DEBUG, '[TextExtractor] 结构化文本提取完成');
+                return result;
+            } catch (error) {
+                ErrorHandler.handle(error, '[TextExtractor] 结构化文本提取时出错', null, LOG_LEVEL.WARN);
+                return null;
+            }
+        }
+    };
+
     // Unified Error Handler Utility Functions
     const ErrorHandler = {
+        // 降级策略配置
+        degradationStrategies: {
+            // 默认降级策略
+            default: {
+                maxRetries: 3,
+                timeout: 5000,
+                fallbackValue: null,
+                logLevel: LOG_LEVEL.WARN
+            },
+
+            // DOM操作降级策略
+            dom: {
+                maxRetries: 2,
+                timeout: 3000,
+                fallbackValue: null,
+                logLevel: LOG_LEVEL.WARN,
+                // 降级方法列表
+                fallbackMethods: [
+                    'querySelector',
+                    'querySelectorAll',
+                    'getElementById',
+                    'getElementsByClassName'
+                ]
+            },
+
+            // 网络请求降级策略
+            network: {
+                maxRetries: 3,
+                timeout: 10000,
+                fallbackValue: null,
+                logLevel: LOG_LEVEL.WARN,
+                // 降级方法列表
+                fallbackMethods: [
+                    'fetch',
+                    'XMLHttpRequest',
+                    'localStorage'
+                ]
+            },
+
+            // 文本提取降级策略
+            textExtraction: {
+                maxRetries: 1,
+                timeout: 2000,
+                fallbackValue: '',
+                logLevel: LOG_LEVEL.WARN,
+                // 降级方法列表
+                fallbackMethods: [
+                    'textContent',
+                    'innerText',
+                    'nodeValue'
+                ]
+            }
+        },
         // Handle errors with consistent logging and optional fallback
-        handle: function(error, context, fallbackValue = null, logLevel = LOG_LEVEL.WARN) {
+        handle: function(error, context, fallbackValue = null, logLevel = LOG_LEVEL.WARN, strategyType = 'default') {
             log(logLevel, `${context}:`, error);
 
             // Log additional error details if available
@@ -234,20 +665,29 @@
                 log(LOG_LEVEL.DEBUG, `${context} - 错误堆栈:`, error.stack);
             }
 
+            // 记录错误统计
+            this.recordError(context, error);
+
+            // 应用降级策略
+            const strategy = this.degradationStrategies[strategyType] || this.degradationStrategies.default;
+            if (strategy.fallbackValue !== undefined) {
+                return strategy.fallbackValue;
+            }
+
             return fallbackValue;
         },
 
         // Handle async errors with consistent logging and optional fallback
-        handleAsync: async function(asyncFunction, context, fallbackValue = null, logLevel = LOG_LEVEL.WARN) {
+        handleAsync: async function(asyncFunction, context, fallbackValue = null, logLevel = LOG_LEVEL.WARN, strategyType = 'default') {
             try {
                 return await asyncFunction();
             } catch (error) {
-                return this.handle(error, context, fallbackValue, logLevel);
+                return this.handle(error, context, fallbackValue, logLevel, strategyType);
             }
         },
 
         // Handle errors that should be re-thrown
-        handleAndRethrow: function(error, context) {
+        handleAndRethrow: function(error, context, strategyType = 'default') {
             log(LOG_LEVEL.ERROR, `${context}:`, error);
 
             // Log additional error details if available
@@ -255,22 +695,181 @@
                 log(LOG_LEVEL.DEBUG, `${context} - 错误堆栈:`, error.stack);
             }
 
+            // 记录错误统计
+            this.recordError(context, error);
+
+            // 应用降级策略
+            const strategy = this.degradationStrategies[strategyType] || this.degradationStrategies.default;
+            if (strategy.logLevel === LOG_LEVEL.ERROR) {
+                // 如果策略要求记录错误，则不抛出异常
+                return strategy.fallbackValue !== undefined ? strategy.fallbackValue : null;
+            }
+
             throw error;
         },
 
         // Handle DOM-related errors
         handleDOMError: function(error, context, fallbackValue = null) {
-            return this.handle(error, `${context} (DOM操作错误)`, fallbackValue, LOG_LEVEL.WARN);
+            return this.handle(error, `${context} (DOM操作错误)`, fallbackValue, LOG_LEVEL.WARN, 'dom');
         },
 
         // Handle network-related errors
         handleNetworkError: function(error, context, fallbackValue = null) {
-            return this.handle(error, `${context} (网络错误)`, fallbackValue, LOG_LEVEL.WARN);
+            return this.handle(error, `${context} (网络错误)`, fallbackValue, LOG_LEVEL.WARN, 'network');
         },
 
         // Handle storage-related errors
         handleStorageError: function(error, context, fallbackValue = null) {
-            return this.handle(error, `${context} (存储错误)`, fallbackValue, LOG_LEVEL.WARN);
+            return this.handle(error, `${context} (存储错误)`, fallbackValue, LOG_LEVEL.WARN, 'default');
+        },
+
+        // Handle text extraction errors
+        handleTextExtractionError: function(error, context, fallbackValue = '') {
+            return this.handle(error, `${context} (文本提取错误)`, fallbackValue, LOG_LEVEL.WARN, 'textExtraction');
+        },
+
+        // 降级策略管理器
+        degradationManager: {
+            // 检查是否应该应用降级策略
+            shouldDegrade: function(context, errorCount) {
+                // 基于错误统计决定是否降级
+                const stats = ErrorHandler.getErrorStats();
+                const key = Object.keys(stats).find(k => k.includes(context));
+                if (key && stats[key].count > 5) {
+                    return true;
+                }
+                return false;
+            },
+
+            // 获取降级后的替代方法
+            getFallbackMethod: function(strategyType, methodName) {
+                const strategy = ErrorHandler.degradationStrategies[strategyType];
+                if (strategy && strategy.fallbackMethods) {
+                    const index = strategy.fallbackMethods.indexOf(methodName);
+                    if (index >= 0 && index < strategy.fallbackMethods.length - 1) {
+                        return strategy.fallbackMethods[index + 1];
+                    }
+                }
+                return null;
+            },
+
+            // 应用降级策略
+            applyDegrade: function(context, strategyType = 'default') {
+                const strategy = ErrorHandler.degradationStrategies[strategyType] || ErrorHandler.degradationStrategies.default;
+
+                // 记录降级事件
+                log(LOG_LEVEL.INFO, `[DegradationManager] 应用降级策略: ${context}`, {
+                    strategyType: strategyType,
+                    maxRetries: strategy.maxRetries,
+                    timeout: strategy.timeout
+                });
+
+                return strategy;
+            }
+        },
+
+        // 记录错误统计
+        errorStats: {},
+
+        recordError: function(context, error) {
+            try {
+                const errorType = error ? error.constructor.name : 'UnknownError';
+                const key = `${context}::${errorType}`;
+
+                if (!this.errorStats[key]) {
+                    this.errorStats[key] = {
+                        count: 0,
+                        firstOccurrence: new Date(),
+                        lastOccurrence: new Date(),
+                        error: error
+                    };
+                }
+
+                this.errorStats[key].count++;
+                this.errorStats[key].lastOccurrence = new Date();
+
+                // 如果错误发生频率过高，记录警告
+                if (this.errorStats[key].count > 10) {
+                    log(LOG_LEVEL.WARN, `[ErrorHandler] 错误发生频率过高: ${key}, 次数: ${this.errorStats[key].count}`);
+                }
+            } catch (statsError) {
+                // 忽略统计记录错误，避免递归错误处理
+                log(LOG_LEVEL.DEBUG, '[ErrorHandler] 记录错误统计时出错:', statsError);
+            }
+        },
+
+        // 获取错误统计
+        getErrorStats: function() {
+            return this.errorStats;
+        },
+
+        // 重置错误统计
+        resetErrorStats: function() {
+            this.errorStats = {};
+        },
+
+        // 处理超时错误
+        handleTimeoutError: function(context, timeoutMs = 5000, fallbackValue = null) {
+            const error = new Error(`操作超时 (${timeoutMs}ms)`);
+            return this.handle(error, `${context} (超时错误)`, fallbackValue, LOG_LEVEL.WARN);
+        },
+
+        // 处理验证错误
+        handleValidationError: function(error, context, fallbackValue = null) {
+            return this.handle(error, `${context} (验证错误)`, fallbackValue, LOG_LEVEL.WARN);
+        },
+
+        // 处理业务逻辑错误
+        handleBusinessError: function(error, context, fallbackValue = null) {
+            return this.handle(error, `${context} (业务错误)`, fallbackValue, LOG_LEVEL.WARN);
+        },
+
+        // 创建带有重试机制的处理函数
+        withRetry: function(operation, context, maxRetries = 3, delayMs = 1000) {
+            return async function(...args) {
+                let lastError;
+
+                for (let i = 0; i <= maxRetries; i++) {
+                    try {
+                        return await operation(...args);
+                    } catch (error) {
+                        lastError = error;
+
+                        if (i < maxRetries) {
+                            log(LOG_LEVEL.WARN, `${context} - 第${i + 1}次尝试失败，${delayMs}ms后重试:`, error);
+                            await new Promise(resolve => setTimeout(resolve, delayMs));
+                        }
+                    }
+                }
+
+                return ErrorHandler.handle(lastError, `${context} - 所有重试都失败`, null, LOG_LEVEL.ERROR);
+            };
+        },
+
+        // 创建带有超时机制的处理函数
+        withTimeout: function(operation, context, timeoutMs = 5000) {
+            return async function(...args) {
+                return new Promise((resolve, reject) => {
+                    // 设置超时计时器
+                    const timeoutId = setTimeout(() => {
+                        const error = new Error(`${context} - 操作超时 (${timeoutMs}ms)`);
+                        reject(error);
+                    }, timeoutMs);
+
+                    // 执行操作
+                    operation(...args)
+                        .then(result => {
+                            clearTimeout(timeoutId);
+                            resolve(result);
+                        })
+                        .catch(error => {
+                            clearTimeout(timeoutId);
+                            reject(error);
+                        });
+                }).catch(error => {
+                    return ErrorHandler.handle(error, context, null, LOG_LEVEL.WARN);
+                });
+            };
         }
     };
 
@@ -2721,7 +3320,7 @@
             // 质检记录信息现在通过两步交互模式提取，在处理返修页时调用
             log(LOG_LEVEL.INFO, '========== 质检驳回信息将通过两步交互模式提取 ==========');
             log(LOG_LEVEL.INFO, '触发位置: 返修页处理阶段 (collectRejectReason)');
-            log(LOG_LEVEL.INFO, '预期结果: 通过关闭通知和点击信息图标获取最新驳回详情');
+            log(LOG_LEVEL.INFO, '预期结果: 通过关闭通知和双击信息图标获取最新驳回详情');
 
             // 提取可能的任务相关信息
             const taskElements = ElementSelector.selectAll([
@@ -3089,26 +3688,40 @@
         }
     }
 
-    // 从打开的质检窗口DOM中提取最新驳回理由（改进的DOM提取方案）
+    // 从打开的质检窗口DOM中提取最新驳回理由（专门为两步交互策略优化）
     function extractLatestQARejectFromDOM() {
         try {
             log(LOG_LEVEL.INFO, '   开始从打开的质检窗口DOM中提取...');
 
-            // 查找质检窗口的内容容器（支持多种可能的选择器）
-            const popoverSelectors = [
-                '.ant-popover-content',
-                '.ant-popover:not(.ant-popover-hidden)',
-                '[class*="popover"]:not([class*="hidden"])',
-                '.custom-popover-with-lefter-arrow'
+            // 检查是否需要应用降级策略
+            const shouldDegrade = ErrorHandler.degradationManager.shouldDegrade('extractLatestQARejectFromDOM', 0);
+            if (shouldDegrade) {
+                log(LOG_LEVEL.INFO, '   检测到高频错误，应用降级策略');
+                ErrorHandler.degradationManager.applyDegrade('extractLatestQARejectFromDOM', 'dom');
+            }
+
+            // 使用多策略方法查找质检窗口的内容容器
+            const popoverStrategies = [
+                // 策略1: 原有的选择器
+                { type: 'selector', value: '.ant-popover-content' },
+                // 策略2: 可见的popover
+                { type: 'selector', value: '.ant-popover:not(.ant-popover-hidden)' },
+                // 策略3: 通用popover类名
+                { type: 'selector', value: '[class*="popover"]:not([class*="hidden"])' },
+                // 策略4: 自定义popover类名
+                { type: 'selector', value: '.custom-popover-with-lefter-arrow' },
+                // 策略5: 通过内容特征定位
+                { type: 'content', value: '质检记录' },
+                // 策略6: 通过结构定位
+                { type: 'structure', parentSelector: 'body', childIndex: -1 } // 最后一个子元素可能是popover
             ];
 
+            const popoverResult = EnhancedElementSelector.findElementByMultipleStrategies(popoverStrategies);
             let popoverContent = null;
-            for (const selector of popoverSelectors) {
-                popoverContent = document.querySelector(selector);
-                if (popoverContent) {
-                    log(LOG_LEVEL.DEBUG, `   ├─ 找到质检窗口 (${selector})`);
-                    break;
-                }
+
+            if (popoverResult) {
+                popoverContent = popoverResult.element;
+                log(LOG_LEVEL.DEBUG, `   ├─ 找到质检窗口 (策略: ${popoverResult.strategy})`);
             }
 
             if (!popoverContent) {
@@ -3130,21 +3743,56 @@
                 }
             }
 
-            // 找到ul列表
-            const ul = popoverContent.querySelector('ul');
-            if (!ul) {
-                log(LOG_LEVEL.DEBUG, '未找到质检记录列表');
-                return null;
+            // 使用多策略方法找到ul列表
+            const ulStrategies = [
+                // 策略1: 直接查找ul
+                { type: 'selector', value: 'ul' },
+                // 策略2: 在popover内容中查找ul
+                { type: 'selector', value: '.ant-popover-content ul, .popover-content ul' },
+                // 策略3: 通过结构定位
+                { type: 'structure', parentSelector: popoverContent.tagName, childIndex: 0 }
+            ];
+
+            const ulResult = EnhancedElementSelector.findElementByMultipleStrategies(ulStrategies);
+            let ul = null;
+
+            if (ulResult) {
+                ul = ulResult.element;
+                log(LOG_LEVEL.DEBUG, `找到质检记录列表 (策略: ${ulResult.strategy})`);
+            } else {
+                // 回退到原有方法
+                ul = popoverContent.querySelector('ul');
+                if (!ul) {
+                    log(LOG_LEVEL.DEBUG, '未找到质检记录列表');
+                    return null;
+                }
             }
 
-            // 获取所有li元素
-            const liElements = ul.querySelectorAll('li');
-            if (liElements.length === 0) {
-                log(LOG_LEVEL.DEBUG, '质检记录列表为空');
-                return null;
-            }
+            // 使用多策略方法获取所有li元素
+            const liStrategies = [
+                // 策略1: 直接查找li
+                { type: 'selector', value: 'li' },
+                // 策略2: 在ul中查找li
+                { type: 'selector', value: 'ul li' },
+                // 策略3: 通过类名特征查找
+                { type: 'selector', value: 'li[class*="record"], li[class*="item"]' }
+            ];
 
-            log(LOG_LEVEL.DEBUG, '找到质检记录数量:', liElements.length);
+            const liResult = EnhancedElementSelector.findElementsByMultipleStrategies(liStrategies);
+            let liElements = [];
+
+            if (liResult) {
+                liElements = liResult.elements;
+                log(LOG_LEVEL.DEBUG, `找到质检记录数量: ${liElements.length} (策略: ${liResult.strategy})`);
+            } else {
+                // 回退到原有方法
+                liElements = ul.querySelectorAll('li');
+                if (liElements.length === 0) {
+                    log(LOG_LEVEL.DEBUG, '质检记录列表为空');
+                    return null;
+                }
+                log(LOG_LEVEL.DEBUG, '找到质检记录数量:', liElements.length);
+            }
 
             // 遍历所有li元素，查找QA REJECTED的记录
             // 记录结构：
@@ -3157,7 +3805,7 @@
 
             for (let i = 0; i < liElements.length; i++) {
                 const li = liElements[i];
-                const liText = li.textContent.trim();
+                const liText = TextExtractor.extractText(li, { maxLength: 1000 });
 
                 // 查找包含"质检"和"已驳回"的记录（支持多种格式）
                 if ((liText.includes('质检') && liText.includes('已驳回')) ||
@@ -3165,15 +3813,53 @@
                     log(LOG_LEVEL.DEBUG, `[Appen Data Collector] 找到QA驳回记录 ${i}: ${liText.substring(0, 50)}`);
 
                     // 提取操作人和时间
-                    const timeDiv = li.querySelector('.flex.text-gray-400');
+                    // 使用多策略方法查找时间信息容器
+                    const timeDivStrategies = [
+                        // 策略1: 原有类名
+                        { type: 'selector', value: '.flex.text-gray-400' },
+                        // 策略2: 通用flex容器
+                        { type: 'selector', value: '.flex.justify-between, .time-info' },
+                        // 策略3: 通过内容特征定位
+                        { type: 'content', value: '操作人' }
+                    ];
+
+                    const timeDivResult = EnhancedElementSelector.findElementByMultipleStrategies(timeDivStrategies);
+                    let timeDiv = null;
+
+                    if (timeDivResult) {
+                        timeDiv = timeDivResult.element;
+                        log(LOG_LEVEL.DEBUG, `[Appen Data Collector] 找到时间信息容器 (策略: ${timeDivResult.strategy})`);
+                    } else {
+                        // 回退到原有方法
+                        timeDiv = li.querySelector('.flex.text-gray-400');
+                    }
+
                     let operator = '';
                     let timeStr = '';
 
                     if (timeDiv) {
-                        const divs = timeDiv.querySelectorAll('div');
+                        // 使用多策略方法查找时间信息div
+                        const timeInfoStrategies = [
+                            // 策略1: 查找所有div
+                            { type: 'selector', value: 'div' },
+                            // 策略2: 通过类名特征查找
+                            { type: 'selector', value: 'div[class*="info"], div[class*="time"]' }
+                        ];
+
+                        const timeInfoResult = EnhancedElementSelector.findElementsByMultipleStrategies(timeInfoStrategies);
+                        let divs = [];
+
+                        if (timeInfoResult) {
+                            divs = timeInfoResult.elements;
+                            log(LOG_LEVEL.DEBUG, `[Appen Data Collector] 找到时间信息divs (策略: ${timeInfoResult.strategy})`);
+                        } else {
+                            // 回退到原有方法
+                            divs = timeDiv.querySelectorAll('div');
+                        }
+
                         if (divs.length >= 2) {
-                            operator = divs[0].textContent.trim();
-                            timeStr = divs[1].textContent.trim();
+                            operator = TextExtractor.extractText(divs[0]);
+                            timeStr = TextExtractor.extractText(divs[1]);
                             log(LOG_LEVEL.DEBUG, `[Appen Data Collector] 操作人: ${operator}, 时间: ${timeStr}`);
                         }
                     }
@@ -3209,29 +3895,99 @@
                     let rejectReason = '';
 
                     // 方法1: 从DraftEditor中提取
-                    const draftEditor = li.querySelector('.DraftEditor-root');
+                    const draftEditorStrategies = [
+                        // 策略1: 原有选择器
+                        { type: 'selector', value: '.DraftEditor-root' },
+                        // 策略2: 通过类名特征查找
+                        { type: 'selector', value: '[class*="editor"], [class*="content"]' }
+                    ];
+
+                    const draftEditorResult = EnhancedElementSelector.findElementByMultipleStrategies(draftEditorStrategies);
+                    let draftEditor = null;
+
+                    if (draftEditorResult) {
+                        draftEditor = draftEditorResult.element;
+                        log(LOG_LEVEL.DEBUG, `[Appen Data Collector] 找到DraftEditor (策略: ${draftEditorResult.strategy})`);
+                    } else {
+                        // 回退到原有方法
+                        draftEditor = li.querySelector('.DraftEditor-root');
+                    }
+
                     if (draftEditor) {
-                        const spanWithText = draftEditor.querySelector('span[data-text="true"]');
+                        const spanWithTextStrategies = [
+                            // 策略1: 原有选择器
+                            { type: 'selector', value: 'span[data-text="true"]' },
+                            // 策略2: 通过属性特征查找
+                            { type: 'selector', value: 'span[contenteditable]' }
+                        ];
+
+                        const spanResult = EnhancedElementSelector.findElementByMultipleStrategies(spanWithTextStrategies);
+                        let spanWithText = null;
+
+                        if (spanResult) {
+                            spanWithText = spanResult.element;
+                            log(LOG_LEVEL.DEBUG, `[Appen Data Collector] 找到文本span (策略: ${spanResult.strategy})`);
+                        } else {
+                            // 回退到原有方法
+                            spanWithText = draftEditor.querySelector('span[data-text="true"]');
+                        }
+
                         if (spanWithText) {
-                            rejectReason = spanWithText.textContent.trim();
+                            rejectReason = TextExtractor.extractText(spanWithText, { maxLength: 2000 });
                             log(LOG_LEVEL.DEBUG, `[Appen Data Collector] 从DraftEditor提取到驳回理由: ${rejectReason}`);
                         }
                     }
 
                     // 方法2: 如果方法1失败，从第一个含文本的div提取
                     if (!rejectReason) {
-                        const divWithText = li.querySelector('div.min-h-fit');
+                        const divWithTextStrategies = [
+                            // 策略1: 原有选择器
+                            { type: 'selector', value: 'div.min-h-fit' },
+                            // 策略2: 通过类名特征查找
+                            { type: 'selector', value: 'div[class*="text"], div[class*="content"]' },
+                            // 策略3: 通过内容特征查找
+                            { type: 'content', value: '驳回' }
+                        ];
+
+                        const divResult = EnhancedElementSelector.findElementByMultipleStrategies(divWithTextStrategies);
+                        let divWithText = null;
+
+                        if (divResult) {
+                            divWithText = divResult.element;
+                            log(LOG_LEVEL.DEBUG, `[Appen Data Collector] 找到文本div (策略: ${divResult.strategy})`);
+                        } else {
+                            // 回退到原有方法
+                            divWithText = li.querySelector('div.min-h-fit');
+                        }
+
                         if (divWithText) {
-                            rejectReason = divWithText.textContent.trim();
+                            rejectReason = TextExtractor.extractText(divWithText, { maxLength: 2000 });
                             log(LOG_LEVEL.DEBUG, `[Appen Data Collector] 从div.min-h-fit提取到内容: ${rejectReason}`);
                         }
                     }
 
                     // 方法3: 从其他可能包含文本的div中提取
                     if (!rejectReason) {
-                        const allDivs = li.querySelectorAll('div');
+                        const allDivsStrategies = [
+                            // 策略1: 查找所有div
+                            { type: 'selector', value: 'div' },
+                            // 策略2: 通过类名特征查找
+                            { type: 'selector', value: 'div[class]' }
+                        ];
+
+                        const allDivsResult = EnhancedElementSelector.findElementsByMultipleStrategies(allDivsStrategies);
+                        let allDivs = [];
+
+                        if (allDivsResult) {
+                            allDivs = allDivsResult.elements;
+                            log(LOG_LEVEL.DEBUG, `[Appen Data Collector] 找到所有div (策略: ${allDivsResult.strategy})`);
+                        } else {
+                            // 回退到原有方法
+                            allDivs = li.querySelectorAll('div');
+                        }
+
                         for (let j = 0; j < allDivs.length; j++) {
-                            const divText = allDivs[j].textContent.trim();
+                            const divText = TextExtractor.extractText(allDivs[j]);
                             // 排除操作人、时间和其他已知的标签文本
                             if (divText &&
                                 divText !== operator &&
@@ -3298,8 +4054,7 @@
             }
 
         } catch (error) {
-            log(LOG_LEVEL.WARN, '从DOM提取QA驳回理由时出错:', error);
-            return null;
+            return ErrorHandler.handleDOMError(error, '从DOM提取QA驳回理由时出错');
         }
     }
     
@@ -4128,34 +4883,50 @@
         try {
             log(LOG_LEVEL.INFO, '[Appen Data Collector] 开始收集驳回理由');
 
-            // 实现两步交互模式：首先关闭通知，然后点击信息图标
+            // 检查是否需要应用降级策略
+            const shouldDegrade = ErrorHandler.degradationManager.shouldDegrade('collectRejectReason', 0);
+            if (shouldDegrade) {
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 检测到高频错误，应用降级策略');
+                ErrorHandler.degradationManager.applyDegrade('collectRejectReason', 'dom');
+            }
+
+            // 实现两步交互模式：首先关闭通知，然后双击信息图标
             log(LOG_LEVEL.INFO, '[Appen Data Collector] 实施两步交互模式获取驳回详情');
 
-            // 步骤1: 查找并点击关闭通知按钮（UID模式：*_244）
-            const closeButtons = document.querySelectorAll('[id$="_244"]');
+            // 步骤1: 查找并点击关闭通知按钮（使用多策略定位）
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 查找关闭通知按钮...');
+
+            // 定义关闭按钮的多策略定位方案
+            const closeButtonStrategies = [
+                // 策略1: 原有的ID模式匹配（最精确）
+                { type: 'selector', value: '[id$="_244"]' },
+                // 策略2: 通过特定类名和属性特征定位（更精确）
+                { type: 'selector', value: 'button[aria-label="close"]' },
+                // 策略3: 通过结构定位（父容器特征）
+                { type: 'structure', parentSelector: '.ant-notification-notice', childIndex: 1 }
+            ];
+
+            const closeButtonResult = EnhancedElementSelector.findElementByMultipleStrategies(closeButtonStrategies);
             let closeButtonClicked = false;
 
-            if (closeButtons.length > 0) {
-                log(LOG_LEVEL.INFO, '[Appen Data Collector] 找到关闭通知按钮，数量:', closeButtons.length);
-                for (let i = 0; i < closeButtons.length; i++) {
-                    const button = closeButtons[i];
-                    try {
-                        log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 点击关闭按钮:', button.id);
-                        const clickEvent = new MouseEvent('click', {
-                            view: window,
-                            bubbles: true,
-                            cancelable: true
-                        });
-                        button.dispatchEvent(clickEvent);
-                        closeButtonClicked = true;
-                        log(LOG_LEVEL.INFO, '[Appen Data Collector] 成功点击关闭按钮:', button.id);
-                        break; // 只点击第一个找到的按钮
-                    } catch (clickError) {
-                        log(LOG_LEVEL.WARN, '[Appen Data Collector] 点击关闭按钮失败:', button.id, clickError);
-                    }
+            if (closeButtonResult) {
+                const closeButton = closeButtonResult.element;
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 找到关闭通知按钮，使用策略:', closeButtonResult.strategy);
+                try {
+                    log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 点击关闭按钮:', closeButton);
+                    const clickEvent = new MouseEvent('click', {
+                        view: window,
+                        bubbles: true,
+                        cancelable: true
+                    });
+                    closeButton.dispatchEvent(clickEvent);
+                    closeButtonClicked = true;
+                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 成功点击关闭按钮');
+                } catch (clickError) {
+                    ErrorHandler.handleDOMError(clickError, '[Appen Data Collector] 点击关闭按钮失败');
                 }
             } else {
-                log(LOG_LEVEL.INFO, '[Appen Data Collector] 未找到关闭通知按钮，尝试直接点击信息图标');
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 未找到关闭通知按钮，尝试直接双击信息图标');
             }
 
             // 如果点击了关闭按钮，等待一段时间让UI更新
@@ -4164,40 +4935,66 @@
                 await new Promise(resolve => setTimeout(resolve, 500));
             }
 
-            // 步骤2: 查找并点击信息图标（UID模式：*_197）
-            const infoIcons = document.querySelectorAll('[id$="_197"]');
+            // 步骤2: 查找并双击信息图标（使用多策略定位）
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 查找信息图标...');
+
+            // 定义信息图标的多策略定位方案
+            const infoIconStrategies = [
+                // 策略1: 原有的ID模式匹配（最精确）
+                { type: 'selector', value: '[id$="_197"]' },
+                // 策略2: 通过SVG内容特征定位（基于用户提供的SVG）
+                { type: 'svg', value: 'M2.5 2.06301V0L1.5 0L1.5 2.06301C0.637386 2.28503 0 3.06808 0 4C0 4.93192 0.637386 5.71497 1.5 5.93699L1.5 10.063C0.637387 10.285 0 11.0681 0 12C0 12.9319 0.637386 13.715 1.5 13.937V16H2.5V13.937C3.36261 13.715 4 12.9319 4 12C4 11.0681 3.36261 10.285 2.5 10.063L2.5 5.93699C3.36261 5.71497 4 4.93192 4 4C4 3.06808 3.36261 2.28503 2.5 2.06301ZM2 11C1.44772 11 1 11.4477 1 12C1 12.5523 1.44772 13 2 13C2.55228 13 3 12.5523 3 12C3 11.4477 2.55228 11 2 11ZM2 5C2.55228 5 3 4.55228 3 4C3 3.44772 2.55228 3 2 3C1.44772 3 1 3.44772 1 4C1 4.55228 1.44772 5 2 5ZM14 4.5L6 4.5V3.5L14 3.5V4.5ZM6 6.5L11 6.5V5.5L6 5.5V6.5ZM14 11.5H6V10.5H14V11.5ZM6 13.5H11V12.5H6V13.5Z' },
+                // 策略3: 通过特定类名和属性特征定位（更精确）
+                { type: 'selector', value: '.anticon-info-circle' },
+                // 策略4: 通过结构定位（在特定容器内）
+                { type: 'structure', parentSelector: '.ant-notification-notice', childIndex: 0 },
+                // 策略5: 通过XPath定位（假定结构）
+                { type: 'xpath', value: '//span[contains(@class, "anticon") and contains(@aria-label, "info") and not(contains(text(), "标注"))]' }
+            ];
+
+            const infoIconResult = EnhancedElementSelector.findElementByMultipleStrategies(infoIconStrategies);
             let infoIconClicked = false;
 
-            if (infoIcons.length > 0) {
-                log(LOG_LEVEL.INFO, '[Appen Data Collector] 找到信息图标，数量:', infoIcons.length);
-                for (let i = 0; i < infoIcons.length; i++) {
-                    const icon = infoIcons[i];
-                    try {
-                        log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 点击信息图标:', icon.id);
-                        const clickEvent = new MouseEvent('click', {
-                            view: window,
-                            bubbles: true,
-                            cancelable: true
-                        });
-                        icon.dispatchEvent(clickEvent);
-                        infoIconClicked = true;
-                        log(LOG_LEVEL.INFO, '[Appen Data Collector] 成功点击信息图标:', icon.id);
-                        break; // 只点击第一个找到的图标
-                    } catch (clickError) {
-                        log(LOG_LEVEL.WARN, '[Appen Data Collector] 点击信息图标失败:', icon.id, clickError);
-                    }
+            if (infoIconResult) {
+                const infoIcon = infoIconResult.element;
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 找到信息图标，使用策略:', infoIconResult.strategy);
+                try {
+                    log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 双击信息图标:', infoIcon);
+                    // 双击事件 - 模拟两次点击来实现双击效果
+                    const clickEvent1 = new MouseEvent('click', {
+                        view: window,
+                        bubbles: true,
+                        cancelable: true
+                    });
+                    infoIcon.dispatchEvent(clickEvent1);
+
+                    // 短暂延迟后发送第二次点击事件
+                    await new Promise(resolve => setTimeout(resolve, 100));
+
+                    const clickEvent2 = new MouseEvent('click', {
+                        view: window,
+                        bubbles: true,
+                        cancelable: true
+                    });
+                    infoIcon.dispatchEvent(clickEvent2);
+
+                    infoIconClicked = true;
+                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 成功双击信息图标');
+                } catch (clickError) {
+                    ErrorHandler.handleDOMError(clickError, '[Appen Data Collector] 双击信息图标失败');
                 }
             } else {
                 log(LOG_LEVEL.WARN, '[Appen Data Collector] 未找到信息图标');
             }
 
-            // 如果点击了信息图标，等待一段时间让内容加载
+            // 如果双击了信息图标，等待一段时间让内容加载
             if (infoIconClicked) {
                 log(LOG_LEVEL.INFO, '[Appen Data Collector] 等待驳回详情内容加载...');
                 await new Promise(resolve => setTimeout(resolve, 800));
             }
 
-            // 从DOM中提取最新的驳回理由
+            // 从DOM中提取最新的驳回理由（基于两步交互策略）
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 使用两步交互策略提取驳回理由...');
             const rejectInfo = extractLatestQARejectFromDOM();
 
             if (rejectInfo) {
@@ -4214,7 +5011,7 @@
                 if (collectedData.responseElements) {
                     collectedData.responseElements.qualityCheckRecord = {
                         hasRecord: true,
-                        dataSource: 'TWO_STEP_INTERACTION',
+                        dataSource: 'TWO_STEP_INTERACTION_ENHANCED',
                         timestamp: new Date().toISOString(),
                         latestRecord: {
                             type: 'REJECTED',
@@ -4236,71 +5033,55 @@
                 showRejectInfoNotification(rejectInfo);
 
                 // 输出到控制台以便调试
-                console.log('[Appen Data Collector] 驳回理由:', rejectInfo.comment);
-                console.log('[Appen Data Collector] 操作人:', rejectInfo.operator);
-                console.log('[Appen Data Collector] 操作时间:', rejectInfo.operateTime);
+                console.log('[Appen Data Collector] 驳回理由:', TextExtractor.extractText({ textContent: rejectInfo.comment }, { maxLength: 200 }));
+                console.log('[Appen Data Collector] 操作人:', TextExtractor.extractText({ textContent: rejectInfo.operator }));
+                console.log('[Appen Data Collector] 操作时间:', TextExtractor.extractText({ textContent: rejectInfo.operateTime }));
             } else {
-                log(LOG_LEVEL.WARN, '[Appen Data Collector] 未找到驳回理由信息');
+                log(LOG_LEVEL.WARN, '[Appen Data Collector] 两步交互策略未找到驳回理由信息');
 
-                // 如果两步交互模式失败，回退到原来的直接提取方式
-                log(LOG_LEVEL.INFO, '[Appen Data Collector] 回退到直接提取方式');
-                const fallbackRejectInfo = extractLatestQARejectFromDOM();
-                if (fallbackRejectInfo) {
-                    if (!collectedData.qualityCheckInfo) {
-                        collectedData.qualityCheckInfo = {};
-                    }
-                    collectedData.qualityCheckInfo.rejectReason = fallbackRejectInfo.comment;
-                    collectedData.qualityCheckInfo.rejectOperator = fallbackRejectInfo.operator;
-                    collectedData.qualityCheckInfo.rejectTime = fallbackRejectInfo.operateTime;
-
-                    // 同时设置responseElements.qualityCheckRecord以保持兼容性
-                    if (collectedData.responseElements) {
-                        collectedData.responseElements.qualityCheckRecord = {
-                            hasRecord: true,
-                            dataSource: 'FALLBACK_DIRECT_EXTRACTION',
-                            timestamp: new Date().toISOString(),
-                            latestRecord: {
-                                type: 'REJECTED',
-                                action: `被 ${fallbackRejectInfo.operator || 'QA'} Rejected 请修订`,
-                                comment: fallbackRejectInfo.comment || '',
-                                operator: fallbackRejectInfo.operator || 'QA',
-                                operateTime: fallbackRejectInfo.operateTime || ''
-                            }
-                        };
-                    }
-
-                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 回退方式成功提取驳回理由');
-
-                    // 显示质检驳回信息提示
-                    showRejectInfoNotification(fallbackRejectInfo);
-                } else {
-                    // 如果都没有找到驳回信息，显示提示
-                    showRejectInfoNotification(null);
-                }
+                // 优先使用两步交互策略，只有在明确需要时才考虑其他方法
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 两步交互策略是主要方法，不使用其他回退方式');
+                // 显示提示
+                showRejectInfoNotification(null);
             }
 
-            // 如果之前点击了信息图标，再次点击以关闭面板
+            // 如果之前双击了信息图标，再次双击以关闭面板
             if (infoIconClicked) {
                 log(LOG_LEVEL.INFO, '[Appen Data Collector] 关闭驳回详情面板');
                 await new Promise(resolve => setTimeout(resolve, 500));
-                for (let i = 0; i < infoIcons.length; i++) {
-                    const icon = infoIcons[i];
+
+                // 再次使用多策略定位双击信息图标以关闭面板
+                const closePanelResult = EnhancedElementSelector.findElementByMultipleStrategies(infoIconStrategies);
+                if (closePanelResult) {
+                    const infoIcon = closePanelResult.element;
                     try {
-                        const clickEvent = new MouseEvent('click', {
+                        log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 双击信息图标关闭面板:', infoIcon);
+                        // 双击事件 - 模拟两次点击来实现双击效果
+                        const clickEvent1 = new MouseEvent('click', {
                             view: window,
                             bubbles: true,
                             cancelable: true
                         });
-                        icon.dispatchEvent(clickEvent);
-                        log(LOG_LEVEL.INFO, '[Appen Data Collector] 成功关闭信息面板:', icon.id);
-                        break;
+                        infoIcon.dispatchEvent(clickEvent1);
+
+                        // 短暂延迟后发送第二次点击事件
+                        await new Promise(resolve => setTimeout(resolve, 100));
+
+                        const clickEvent2 = new MouseEvent('click', {
+                            view: window,
+                            bubbles: true,
+                            cancelable: true
+                        });
+                        infoIcon.dispatchEvent(clickEvent2);
+
+                        log(LOG_LEVEL.INFO, '[Appen Data Collector] 成功双击信息图标关闭面板，使用策略:', closePanelResult.strategy);
                     } catch (clickError) {
-                        log(LOG_LEVEL.WARN, '[Appen Data Collector] 关闭信息面板失败:', icon.id, clickError);
+                        ErrorHandler.handleDOMError(clickError, '[Appen Data Collector] 双击信息图标关闭面板失败');
                     }
                 }
             }
         } catch (error) {
-            log(LOG_LEVEL.ERROR, '[Appen Data Collector] 收集驳回理由时出错:', error);
+            ErrorHandler.handle(error, '[Appen Data Collector] 收集驳回理由时出错', null, LOG_LEVEL.ERROR, 'dom');
         }
     }
 
@@ -4323,7 +5104,7 @@
 
             log(LOG_LEVEL.INFO, '[Appen Data Collector] 基础信息收集完成');
         } catch (error) {
-            log(LOG_LEVEL.ERROR, '[Appen Data Collector] 收集基础信息时出错:', error);
+            ErrorHandler.handle(error, '[Appen Data Collector] 收集基础信息时出错', null, LOG_LEVEL.ERROR);
         }
     }
 
@@ -4450,7 +5231,10 @@
         try {
             log(LOG_LEVEL.INFO, '[Appen Data Collector] 显示质检驳回信息提示:', rejectInfo);
             if (rejectInfo && rejectInfo.comment) {
-                const message = `📢 质检驳回信息: ${rejectInfo.comment.substring(0, 100)}${rejectInfo.comment.length > 100 ? '...' : ''}`;
+                const cleanComment = TextExtractor.extractText({
+                    textContent: rejectInfo.comment
+                }, { maxLength: 100, removeExtraWhitespace: true });
+                const message = `📢 质检驳回信息: ${cleanComment}${rejectInfo.comment.length > 100 ? '...' : ''}`;
                 notificationManager.add(message, 'error', 8000);
             } else {
                 const message = '✅ 未找到质检驳回信息';
@@ -4480,7 +5264,10 @@
                 `;
 
                 detailButton.onclick = function() {
-                    alert(`详细驳回理由:\n\n${comment}`);
+                    const cleanComment = TextExtractor.extractText({
+                        textContent: comment
+                    }, { preserveNewlines: true, removeExtraWhitespace: true });
+                    alert(`详细驳回理由:\n\n${cleanComment}`);
                 };
 
                 notification.appendChild(detailButton);
@@ -4569,6 +5356,49 @@
         } catch (error) {
             log(LOG_LEVEL.ERROR, '[Appen Data Collector] 测试质检信息提示时出错:', error);
             console.log('[Appen Data Collector] 测试质检信息提示时出错:', error);
+        }
+    }
+
+    // 验证元素定位策略的测试函数
+    function testElementSelectionStrategies() {
+        try {
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 验证元素定位策略');
+            console.log('[Appen Data Collector] 验证元素定位策略');
+
+            // 测试信息图标定位策略
+            const infoIconStrategies = [
+                // 策略1: 原有的ID模式匹配（最精确）
+                { type: 'selector', value: '[id$="_197"]' },
+                // 策略2: 通过SVG内容特征定位（基于用户提供的SVG）
+                { type: 'svg', value: 'M2.5 2.06301V0L1.5 0L1.5 2.06301C0.637386 2.28503 0 3.06808 0 4C0 4.93192 0.637386 5.71497 1.5 5.93699L1.5 10.063C0.637387 10.285 0 11.0681 0 12C0 12.9319 0.637386 13.715 1.5 13.937V16H2.5V13.937C3.36261 13.715 4 12.9319 4 12C4 11.0681 3.36261 10.285 2.5 10.063L2.5 5.93699C3.36261 5.71497 4 4.93192 4 4C4 3.06808 3.36261 2.28503 2.5 2.06301ZM2 11C1.44772 11 1 11.4477 1 12C1 12.5523 1.44772 13 2 13C2.55228 13 3 12.5523 3 12C3 11.4477 2.55228 11 2 11ZM2 5C2.55228 5 3 4.55228 3 4C3 3.44772 2.55228 3 2 3C1.44772 3 1 3.44772 1 4C1 4.55228 1.44772 5 2 5ZM14 4.5L6 4.5V3.5L14 3.5V4.5ZM6 6.5L11 6.5V5.5L6 5.5V6.5ZM14 11.5H6V10.5H14V11.5ZM6 13.5H11V12.5H6V13.5Z' },
+                // 策略3: 通过特定类名和属性特征定位（更精确）
+                { type: 'selector', value: '.anticon-info-circle' },
+                // 策略4: 通过结构定位（在特定容器内）
+                { type: 'structure', parentSelector: '.ant-notification-notice', childIndex: 0 },
+                // 策略5: 通过XPath定位（假定结构）
+                { type: 'xpath', value: '//span[contains(@class, "anticon") and contains(@aria-label, "info") and not(contains(text(), "标注"))]' }
+            ];
+
+            const infoIconResult = EnhancedElementSelector.findElementByMultipleStrategies(infoIconStrategies);
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 信息图标定位结果:', infoIconResult ? infoIconResult.strategy : '未找到');
+
+            // 测试关闭按钮定位策略
+            const closeButtonStrategies = [
+                // 策略1: 原有的ID模式匹配（最精确）
+                { type: 'selector', value: '[id$="_244"]' },
+                // 策略2: 通过特定类名和属性特征定位（更精确）
+                { type: 'selector', value: 'button[aria-label="close"]' },
+                // 策略3: 通过结构定位（父容器特征）
+                { type: 'structure', parentSelector: '.ant-notification-notice', childIndex: 1 }
+            ];
+
+            const closeButtonResult = EnhancedElementSelector.findElementByMultipleStrategies(closeButtonStrategies);
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 关闭按钮定位结果:', closeButtonResult ? closeButtonResult.strategy : '未找到');
+
+            console.log('[Appen Data Collector] 元素定位策略验证完成');
+        } catch (error) {
+            log(LOG_LEVEL.ERROR, '[Appen Data Collector] 验证元素定位策略时出错:', error);
+            console.log('[Appen Data Collector] 验证元素定位策略时出错:', error);
         }
     }
 
