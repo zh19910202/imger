@@ -686,6 +686,7 @@
             // 检查页面文本中是否包含QA驳回信息
             const pageText = document.body.innerText;
             console.log('[Appen-新旧题] [调试] 页面文本总长度:', pageText.length);
+            console.log('[Appen-新旧题] [调试] 当前时间戳:', new Date().toISOString());
 
             // 简化日志输出，只显示关键信息
             console.log('[Appen-新旧题] [调试] 页面是否包含QA驳回信息:');
