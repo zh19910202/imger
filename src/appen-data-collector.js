@@ -679,22 +679,29 @@
         try {
             // 检查页面文本中是否包含QA驳回信息
             const pageText = document.body.innerText;
+            log(LOG_LEVEL.DEBUG, '页面文本前500字符:', pageText.substring(0, 500));
+
             if (pageText.includes("被 QA1 Rejected 请修订")) {
+                log(LOG_LEVEL.DEBUG, '找到QA1驳回信息');
                 return true; // 找到QA1驳回信息
             }
 
             // 检查其他可能的QA驳回模式
             if (pageText.includes("被 QA") && pageText.includes("Rejected") && pageText.includes("请修订")) {
+                log(LOG_LEVEL.DEBUG, '找到其他QA驳回信息');
                 return true; // 找到其他QA的驳回信息
             }
 
             // 检查JavaScript变量中的任务状态
+            log(LOG_LEVEL.DEBUG, 'window.__INITIAL_DATA__:', window.__INITIAL_DATA__);
             if (window.__INITIAL_DATA__ &&
                 window.__INITIAL_DATA__.taskMessage &&
                 window.__INITIAL_DATA__.taskMessage.taskType === "REWORK") {
+                log(LOG_LEVEL.DEBUG, '任务在初始数据中被标记为返修');
                 return true; // 任务在初始数据中被标记为返修
             }
 
+            log(LOG_LEVEL.DEBUG, '没有检测到QA驳回信息');
             return false; // 没有检测到QA驳回
         } catch (error) {
             log(LOG_LEVEL.DEBUG, '检查页面驳回状态时出错:', error);
