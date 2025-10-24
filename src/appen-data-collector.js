@@ -4311,6 +4311,19 @@
         watchUrlChanges();
     }
 
+    // 输出新旧题状态和驳回信息到控制台的调试函数
+    function logNewOldStatusInfo(pageKey, hasRework, isSecondaryRework, pageRejectReason) {
+        const previousHasRework = completionStats.perPage[pageKey] ? completionStats.perPage[pageKey].hasRework : false;
+        console.log('[Appen Data Collector] 新旧题状态判断信息:', {
+            pageKey: pageKey,
+            hasRework: hasRework,
+            previousHasRework: previousHasRework,
+            isSecondaryRework: isSecondaryRework,
+            newOldStatus: hasRework && previousHasRework ? '旧题(二次返修)' : (hasRework ? '新题(一次返修)' : '新题(无返修)'),
+            rejectReason: pageRejectReason || '无驳回理由'
+        });
+    }
+
     // 获取新旧题状态对应的颜色
     function getPageNewOldStatusColor(pageData) {
         if (!pageData) {
