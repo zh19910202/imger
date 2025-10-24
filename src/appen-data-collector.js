@@ -4424,8 +4424,52 @@
         });
     }
 
+    // 全面的页面诊断函数
+    function diagnosePage() {
+        console.log('[Appen Data Collector] 开始全面页面诊断');
+
+        // 检查页面URL
+        console.log('[Appen Data Collector] 当前页面URL:', window.location.href);
+
+        // 检查页面标题
+        console.log('[Appen Data Collector] 页面标题:', document.title);
+
+        // 检查所有可能的QA相关信息
+        const allText = document.body.innerText;
+        console.log('[Appen Data Collector] 页面中包含"QA"的文本片段:');
+        const lines = allText.split('\n');
+        for (let i = 0; i < lines.length; i++) {
+            if (lines[i].includes('QA') || lines[i].includes('驳回') || lines[i].includes('Rejected')) {
+                console.log(`  行 ${i}: ${lines[i].trim()}`);
+            }
+        }
+
+        // 检查所有window对象属性
+        console.log('[Appen Data Collector] window对象中包含"DATA"或"TASK"的属性:');
+        for (const key in window) {
+            if (key.toUpperCase().includes('DATA') || key.toUpperCase().includes('TASK')) {
+                console.log(`  ${key}:`, typeof window[key]);
+            }
+        }
+
+        // 检查页面上的所有元素文本
+        console.log('[Appen Data Collector] 页面上可能包含QA信息的元素:');
+        const allElements = document.querySelectorAll('*');
+        let foundCount = 0;
+        for (let i = 0; i < Math.min(allElements.length, 1000); i++) {
+            const element = allElements[i];
+            const text = element.innerText || element.textContent || '';
+            if ((text.includes('QA') || text.includes('驳回') || text.includes('Rejected')) && text.trim().length > 0) {
+                console.log(`  ${element.tagName} (${element.className || 'no-class'}): ${text.trim().substring(0, 100)}`);
+                foundCount++;
+                if (foundCount > 10) break; // 限制输出数量
+            }
+        }
+    }
+
     // 调用测试函数
     testLogNewOldStatusInfo();
     testNewOldStatusDetection();
+    diagnosePage();
 
 })();
