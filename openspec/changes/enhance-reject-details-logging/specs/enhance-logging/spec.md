@@ -46,25 +46,23 @@ Given a click simulation is in progress
 When the simulation completes
 Then the system SHALL log the completion status
 
-## ADDED Requirements
-
 ### Requirement: Log Reject Details Extraction Process
 The appen-data-collector.js file SHALL log detailed information about the reject details extraction process.
 
 #### Scenario: Log extraction start
 Given a click simulation has completed
 When the reject details extraction process begins
-Then the system SHALL log the start of the extraction process
+Then the system SHALL log the start of the extraction process with detailed debug information
 
 #### Scenario: Log extraction success
 Given a reject details extraction is in progress
 When details are successfully extracted
-Then the system SHALL log the success with extracted content information
+Then the system SHALL log the success with extracted content information and data source
 
 #### Scenario: Log extraction failure
 Given a reject details extraction is in progress
 When the extraction fails
-Then the system SHALL log the failure with error details
+Then the system SHALL log the failure with error details and fallback attempts
 
 ### Requirement: Log Integration with New/Old Status Detection
 The appen-data-collector.js file SHALL log information about integration with new/old status detection.
@@ -72,7 +70,7 @@ The appen-data-collector.js file SHALL log information about integration with ne
 #### Scenario: Log rework status assignment
 Given reject details are available
 When a page is marked as "旧" (rework)
-Then the system SHALL log the status assignment with color information
+Then the system SHALL log the status assignment with color information and data source
 
 #### Scenario: Log regular status assignment
 Given no reject details are available
@@ -85,9 +83,37 @@ The appen-data-collector.js file SHALL log information about data storage and UI
 #### Scenario: Log data storage
 Given reject details have been extracted
 When the details are stored in responseElements.qualityCheckRecord
-Then the system SHALL log the storage with data structure information
+Then the system SHALL log the storage with data structure information and confirmation
 
 #### Scenario: Log UI preparation
 Given reject details are stored
 When the data is prepared for UI display
-Then the system SHALL log the preparation status
+Then the system SHALL log the preparation status and data formatting
+
+## ADDED Requirements
+
+### Requirement: Log Function Entry and Exit Points
+The appen-data-collector.js file SHALL log entry and exit points for key functions.
+
+#### Scenario: Log function entry
+Given a key function is about to be executed
+When the function is called
+Then the system SHALL log the function entry with parameter information
+
+#### Scenario: Log function exit
+Given a key function has completed execution
+When the function returns
+Then the system SHALL log the function exit with return value information
+
+### Requirement: Log Error Handling
+The appen-data-collector.js file SHALL log detailed error handling information.
+
+#### Scenario: Log caught exceptions
+Given an exception is caught in a try-catch block
+When an error occurs during execution
+Then the system SHALL log the error with stack trace and context information
+
+#### Scenario: Log error recovery
+Given an error has occurred
+When the system attempts to recover or use fallback methods
+Then the system SHALL log the recovery attempt and its success status
