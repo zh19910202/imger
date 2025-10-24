@@ -679,7 +679,7 @@
         try {
             // 检查页面文本中是否包含QA驳回信息
             const pageText = document.body.innerText;
-            log(LOG_LEVEL.DEBUG, '页面文本前500字符:', pageText.substring(0, 500));
+            log(LOG_LEVEL.DEBUG, '页面文本前1000字符:', pageText.substring(0, 1000));
 
             if (pageText.includes("被 QA1 Rejected 请修订")) {
                 log(LOG_LEVEL.DEBUG, '找到QA1驳回信息');
@@ -692,13 +692,52 @@
                 return true; // 找到其他QA的驳回信息
             }
 
-            // 检查JavaScript变量中的任务状态
-            log(LOG_LEVEL.DEBUG, 'window.__INITIAL_DATA__:', window.__INITIAL_DATA__);
-            if (window.__INITIAL_DATA__ &&
-                window.__INITIAL_DATA__.taskMessage &&
-                window.__INITIAL_DATA__.taskMessage.taskType === "REWORK") {
-                log(LOG_LEVEL.DEBUG, '任务在初始数据中被标记为返修');
-                return true; // 任务在初始数据中被标记为返修
+            // 检查多种可能的JavaScript变量名
+            const possibleDataVars = [
+                'window.__INITIAL_DATA__',
+                'window.INITIAL_DATA',
+                'window.initialData',
+                'window.appenData',
+                'window.taskData'
+            ];
+
+            let foundData = false;
+            for (const varName of possibleDataVars) {
+                try {
+                    const varValue = eval(varName);
+                    if (varValue) {
+                        log(LOG_LEVEL.DEBUG, `${varName}:`, varValue);
+                        // 检查任务类型
+                        if (varValue.taskMessage && varValue.taskMessage.taskType === "REWORK") {
+                            log(LOG_LEVEL.DEBUG, `任务在${varName}中被标记为返修`);
+                            return true;
+                        }
+                        if (varValue.taskType === "REWORK") {
+                            log(LOG_LEVEL.DEBUG, `任务在${varName}中被标记为返修`);
+                            return true;
+                        }
+                        foundData = true;
+                    }
+                } catch (e) {
+                    // 变量不存在，继续检查下一个
+                }
+            }
+
+            if (!foundData) {
+                log(LOG_LEVEL.DEBUG, '未找到任何初始数据变量');
+            }
+
+            // 检查页面上的特定元素
+            const rejectElements = document.querySelectorAll('[class*="reject"], [class*="Reject"], [class*="驳回"]');
+            log(LOG_LEVEL.DEBUG, '找到可能的驳回相关元素数量:', rejectElements.length);
+
+            for (let i = 0; i < rejectElements.length; i++) {
+                const elementText = rejectElements[i].innerText || rejectElements[i].textContent;
+                log(LOG_LEVEL.DEBUG, `驳回相关元素 ${i}:`, elementText);
+                if (elementText.includes("被 QA") && elementText.includes("Rejected") && elementText.includes("请修订")) {
+                    log(LOG_LEVEL.DEBUG, '在页面元素中找到QA驳回信息');
+                    return true;
+                }
             }
 
             log(LOG_LEVEL.DEBUG, '没有检测到QA驳回信息');
