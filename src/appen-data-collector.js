@@ -4339,4 +4339,13 @@
         return '#2196F3'; // 蓝色（新题）
     }
 
+    // 测试日志输出功能
+    function testLogNewOldStatusInfo() {
+        console.log('[Appen Data Collector] 测试日志输出功能');
+        logNewOldStatusInfo('test-page-key', true, false, '测试驳回理由');
+    }
+
+    // 调用测试函数
+    testLogNewOldStatusInfo();
+
 })();
