@@ -4822,12 +4822,11 @@
             pageState.rejectReasonCollected = false;
             pageState.basicInfoCollected = false;
 
-            // 显示测试提示，确认页面处理已开始
-            log(LOG_LEVEL.INFO, '[Appen Data Collector] 显示页面处理测试提示');
-            console.log('[Appen Data Collector] 显示页面处理测试提示');
-            showTestNotification();
+            // 页面处理开始的日志记录
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 开始处理页面内容');
+            console.log('[Appen Data Collector] 开始处理页面内容');
 
-            // 延迟一段时间，让测试提示显示后再继续
+            // 延迟一段时间再继续
             await new Promise(resolve => setTimeout(resolve, 500));
 
             // 首先判断是否为返修页
@@ -5298,19 +5297,19 @@
             // 延迟1秒后显示新题提示
             setTimeout(() => {
                 const message = '🆕 新题 - 请正常完成标注任务';
-                createSystemNotification(message, 'info', 3000);
+                notificationManager.add(message, 'info', 3000);
             }, 1000);
 
             // 延迟2秒后显示返修题提示
             setTimeout(() => {
                 const message = '🔄 检测到返修题 - 正在自动获取质检驳回信息...';
-                createSystemNotification(message, 'warning', 3000);
+                notificationManager.add(message, 'warning', 3000);
             }, 2000);
 
             // 延迟3秒后显示质检信息提示
             setTimeout(() => {
                 const message = '📢 质检驳回信息: 测试驳回理由';
-                createSystemNotification(message, 'error', 3000);
+                notificationManager.add(message, 'error', 3000);
             }, 3000);
 
         } catch (error) {
