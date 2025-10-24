@@ -436,12 +436,18 @@
                                     elapsedSeconds: 0, // 旧数据没有耗时信息
                                     isValid: true, // 假设旧的完成记录都是有效的
                                     hasRework: false, // 旧数据没有返修信息
+                                    rejectReason: '', // 旧数据没有驳回理由
                                     firstCompletionTime: Date.now(), // 旧数据没有时间戳
                                     lastCompletionTime: Date.now()
                                 };
                             } else if (pageData.hasRework === undefined) {
                                 // 确保所有页面数据都有hasRework字段
                                 pageData.hasRework = false;
+                            }
+
+                            // 确保所有页面数据都有rejectReason字段
+                            if (pageData.rejectReason === undefined) {
+                                pageData.rejectReason = '';
                             }
                         }
                     }
@@ -504,6 +510,11 @@
             const hasRework = !!(collectedData.responseElements?.qualityCheckRecord?.hasRecord &&
                                collectedData.responseElements?.qualityCheckRecord?.latestRecord?.type === 'REJECTED');
 
+            // 获取当前页面的驳回理由（如果有的话）
+            const pageRejectReason = hasRework && collectedData.responseElements?.qualityCheckRecord?.latestRecord?.comment
+                ? collectedData.responseElements.qualityCheckRecord.latestRecord.comment
+                : '';
+
             if (!completionStats.perPage[pageKey]) {
                 completionStats.perPage[pageKey] = {
                     completions: 0,
@@ -512,6 +523,7 @@
                     elapsedSeconds: elapsedSeconds,
                     isValid: true,
                     hasRework: hasRework,
+                    rejectReason: pageRejectReason,
                     firstCompletionTime: currentTime,
                     lastCompletionTime: currentTime
                 };
@@ -522,6 +534,7 @@
             completionStats.perPage[pageKey].elapsedSeconds = elapsedSeconds;
             completionStats.perPage[pageKey].lastCompletionTime = currentTime;
             completionStats.perPage[pageKey].hasRework = hasRework;
+            completionStats.perPage[pageKey].rejectReason = pageRejectReason;
 
             // 如果是返修页面，记录到返修统计中；否则记录到常规统计中
             if (hasRework) {
@@ -564,6 +577,11 @@
             const hasRework = !!(collectedData.responseElements?.qualityCheckRecord?.hasRecord &&
                                collectedData.responseElements?.qualityCheckRecord?.latestRecord?.type === 'REJECTED');
 
+            // 获取当前页面的驳回理由（如果有的话）
+            const pageRejectReason = hasRework && collectedData.responseElements?.qualityCheckRecord?.latestRecord?.comment
+                ? collectedData.responseElements.qualityCheckRecord.latestRecord.comment
+                : '';
+
             if (!completionStats.perPage[pageKey]) {
                 completionStats.perPage[pageKey] = {
                     completions: 0,
@@ -572,6 +590,7 @@
                     elapsedSeconds: elapsedSeconds,
                     isValid: false,
                     hasRework: hasRework,
+                    rejectReason: pageRejectReason,
                     firstCompletionTime: currentTime,
                     lastCompletionTime: currentTime
                 };
@@ -1208,6 +1227,11 @@
             const hasRework = !!(collectedData.responseElements?.qualityCheckRecord?.hasRecord &&
                                collectedData.responseElements?.qualityCheckRecord?.latestRecord?.type === 'REJECTED');
 
+            // 获取当前页面的驳回理由（如果有的话）
+            const pageRejectReason = hasRework && collectedData.responseElements?.qualityCheckRecord?.latestRecord?.comment
+                ? collectedData.responseElements.qualityCheckRecord.latestRecord.comment
+                : '';
+
             if (!completionStats.perPage[pageKey]) {
                 completionStats.perPage[pageKey] = {
                     completions: 0,
@@ -1216,6 +1240,7 @@
                     elapsedSeconds: elapsedSeconds,
                     isValid: userStatus.isValid === true,
                     hasRework: hasRework,
+                    rejectReason: pageRejectReason,
                     firstCompletionTime: currentTime,
                     lastCompletionTime: currentTime
                 };
@@ -1226,6 +1251,7 @@
             completionStats.perPage[pageKey].elapsedSeconds = elapsedSeconds;
             completionStats.perPage[pageKey].lastCompletionTime = currentTime;
             completionStats.perPage[pageKey].hasRework = hasRework;
+            completionStats.perPage[pageKey].rejectReason = pageRejectReason;
 
             // 根据状态和是否有返修信息更新计数器
             if (hasRework) {
@@ -1615,8 +1641,8 @@
                                     })
                                     .slice(0, 5) // 只显示前5条记录
                                     .map(([pageKey, data]) => {
-                                        // 获取驳回理由（如果有的话）
-                                        const rejectReason = collectedData.responseElements?.qualityCheckRecord?.latestRecord?.comment || '无驳回';
+                                        // 获取驳回理由（使用每个页面自己的驳回理由）
+                                        const rejectReason = data.rejectReason || '无驳回';
                                         // 格式化时间戳
                                         const lastCompletionTime = data.lastCompletionTime
                                             ? new Date(data.lastCompletionTime).toLocaleString('zh-CN')
