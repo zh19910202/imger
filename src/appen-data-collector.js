@@ -5224,7 +5224,7 @@
         try {
             log(LOG_LEVEL.INFO, '[Appen Data Collector] 显示返修题提示');
             console.log('[Appen Data Collector] 显示返修题提示');
-            const message = '🔄 返修题 - 正在获取质检信息...';
+            const message = '🔄 检测到返修题...';
             console.log('[Appen Data Collector] 显示返修题提示消息:', message);
             notificationManager.add(message, 'warning', 3000);
         } catch (error) {
@@ -5238,21 +5238,9 @@
         try {
             log(LOG_LEVEL.INFO, '[Appen Data Collector] 显示质检驳回信息提示:', rejectInfo);
             if (rejectInfo && rejectInfo.comment) {
-                // 优化文本显示，更适合通知框
-                const cleanComment = TextExtractor.extractText({
-                    textContent: rejectInfo.comment
-                }, {
-                    maxLength: 80,  // 减少长度以适应通知框
-                    removeExtraWhitespace: true,
-                    preserveNewlines: false  // 移除换行符以保持单行显示
-                });
-                // 进一步清理文本，移除可能的多余空格和特殊字符
-                let displayComment = cleanComment.trim();
-                if (displayComment.length > 80) {
-                    displayComment = displayComment.substring(0, 77) + '...';
-                }
-                const message = `📢 质检驳回: ${displayComment}`;
-                notificationManager.add(message, 'error', 8000);
+                // 显示简洁的工作状态信息，而不是完整的驳回内容
+                const message = '✅ 质检驳回信息已收集...';
+                notificationManager.add(message, 'success', 5000);
             } else {
                 const message = '✅ 未找到质检驳回信息';
                 notificationManager.add(message, 'info', 3000);
@@ -5320,14 +5308,14 @@
 
             // 延迟2秒后显示返修题提示
             setTimeout(() => {
-                const message = '🔄 检测到返修题 - 正在自动获取质检驳回信息...';
+                const message = '🔄 检测到返修题...';
                 notificationManager.add(message, 'warning', 3000);
             }, 2000);
 
             // 延迟3秒后显示质检信息提示
             setTimeout(() => {
-                const message = '📢 质检驳回信息: 测试驳回理由';
-                notificationManager.add(message, 'error', 3000);
+                const message = '✅ 质检驳回信息已收集...';
+                notificationManager.add(message, 'success', 3000);
             }, 3000);
 
         } catch (error) {
