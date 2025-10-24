@@ -674,21 +674,45 @@
         return false;
     }
 
-    // 获取页面的新旧题状态
-    function getPageNewOldStatus(pageData) {
-        if (!pageData) {
-            return '新'; // 如果没有页面数据，认为是新题
-        }
+    // 检查当前页面是否被QA驳回
+    function isCurrentPageRejected() {
+        try {
+            // 检查页面文本中是否包含QA驳回信息
+            const pageText = document.body.innerText;
+            if (pageText.includes("被 QA1 Rejected 请修订")) {
+                return true; // 找到QA1驳回信息
+            }
 
-        // 检查之前是否有返修记录
-        if (pageData.hasRework === true) {
-            return '旧'; // 之前有返修记录
-        }
+            // 检查其他可能的QA驳回模式
+            if (pageText.includes("被 QA") && pageText.includes("Rejected") && pageText.includes("请修订")) {
+                return true; // 找到其他QA的驳回信息
+            }
 
-        // 之前没有返修记录
-        return '新'; // 新题
+            // 检查JavaScript变量中的任务状态
+            if (window.__INITIAL_DATA__ &&
+                window.__INITIAL_DATA__.taskMessage &&
+                window.__INITIAL_DATA__.taskMessage.taskType === "REWORK") {
+                return true; // 任务在初始数据中被标记为返修
+            }
+
+            return false; // 没有检测到QA驳回
+        } catch (error) {
+            log(LOG_LEVEL.DEBUG, '检查页面驳回状态时出错:', error);
+            return false;
+        }
     }
 
+    // 获取页面的新旧题状态
+    // 获取页面的新旧题状态
+    function getPageNewOldStatus(pageData) {
+        // 检查当前页面是否被QA驳回
+        if (isCurrentPageRejected()) {
+            return '旧'; // 当前页面显示QA驳回
+        }
+
+        // 如果没有当前驳回，认为是新题
+        return '新'; // 新题
+    }
     // 获取当前页面的返修状态（新/旧）
     function getCurrentPageReworkStatus() {
         const pageKey = getCurrentPageKey();
@@ -4311,41 +4335,37 @@
         watchUrlChanges();
     }
 
-    // 输出新旧题状态和驳回信息到控制台的调试函数
-    function logNewOldStatusInfo(pageKey, hasRework, isSecondaryRework, pageRejectReason) {
-        const previousHasRework = completionStats.perPage[pageKey] ? completionStats.perPage[pageKey].hasRework : false;
-        console.log('[Appen Data Collector] 新旧题状态判断信息:', {
-            pageKey: pageKey,
-            hasRework: hasRework,
-            previousHasRework: previousHasRework,
-            isSecondaryRework: isSecondaryRework,
-            newOldStatus: hasRework && previousHasRework ? '旧题(二次返修)' : (hasRework ? '新题(一次返修)' : '新题(无返修)'),
-            rejectReason: pageRejectReason || '无驳回理由'
-        });
-    }
-
-    // 获取新旧题状态对应的颜色
-    function getPageNewOldStatusColor(pageData) {
-        if (!pageData) {
-            return '#2196F3'; // 默认蓝色（新题）
-        }
-
-        // 检查之前是否有返修记录
-        if (pageData.hasRework === true) {
-            return '#FF9800'; // 橙色（旧题）
-        }
-
-        // 之前没有返修记录，使用蓝色
-        return '#2196F3'; // 蓝色（新题）
-    }
-
-    // 测试日志输出功能
-    function testLogNewOldStatusInfo() {
-        console.log('[Appen Data Collector] 测试日志输出功能');
-        logNewOldStatusInfo('test-page-key', true, false, '测试驳回理由');
-    }
-
-    // 调用测试函数
-    testLogNewOldStatusInfo();
-
+    // 输出新旧题状态和驳回信息到控制台的调试函数
+    function logNewOldStatusInfo(pageKey, hasRework, isSecondaryRework, pageRejectReason) {
+        const previousHasRework = completionStats.perPage[pageKey] ? completionStats.perPage[pageKey].hasRework : false;
+        console.log('[Appen Data Collector] 新旧题状态判断信息:', {
+            pageKey: pageKey,
+            hasRework: hasRework,
+            previousHasRework: previousHasRework,
+            isSecondaryRework: isSecondaryRework,
+            newOldStatus: hasRework && previousHasRework ? '旧题(二次返修)' : (hasRework ? '新题(一次返修)' : '新题(无返修)'),
+            rejectReason: pageRejectReason || '无驳回理由'
+        });
+    }
+
+    // 获取新旧题状态对应的颜色
+    // 获取新旧题状态对应的颜色
+    function getPageNewOldStatusColor(pageData) {
+        // 检查当前页面是否被QA驳回
+        if (isCurrentPageRejected()) {
+            return '#FF9800'; // 橙色（旧题）
+        }
+
+        // 默认使用蓝色（新题）
+        return '#2196F3'; // 蓝色（新题）
+    }
+    // 测试日志输出功能
+    function testLogNewOldStatusInfo() {
+        console.log('[Appen Data Collector] 测试日志输出功能');
+        logNewOldStatusInfo('test-page-key', true, false, '测试驳回理由');
+    }
+
+    // 调用测试函数
+    testLogNewOldStatusInfo();
+
 })();
