@@ -2440,6 +2440,7 @@
         const currentUrl = window.location.href;
         const isMatch = CONFIG.TARGET_URL_PATTERN.test(currentUrl);
         log(LOG_LEVEL.DEBUG, 'isTargetPage 检查:', { url: currentUrl, pattern: CONFIG.TARGET_URL_PATTERN, isMatch: isMatch });
+        console.log('[Appen Data Collector] isTargetPage 检查结果:', { url: currentUrl, isMatch: isMatch });
         return isMatch;
     }
 
@@ -3500,8 +3501,10 @@
     // 定期检查URL变化和页面内容变化
     function watchUrlChanges() {
         log(LOG_LEVEL.INFO, '[Appen Data Collector] 开始监控URL变化和页面内容变化');
+        console.log('[Appen Data Collector] watchUrlChanges: 开始监控');
         let lastUrl = location.href;
         let lastCheckTime = Date.now();
+        console.log('[Appen Data Collector] watchUrlChanges: 初始URL:', lastUrl);
 
         new MutationObserver(() => {
             const url = location.href;
@@ -3509,6 +3512,7 @@
 
             // 检查 URL 变化
             if (url !== lastUrl) {
+                console.log('[Appen Data Collector] watchUrlChanges: URL变化检测到:', { from: lastUrl, to: url });
                 log(LOG_LEVEL.INFO, '[Appen Data Collector] URL确实发生变化:', { from: lastUrl, to: url });
                 lastUrl = url;
                 onUrlChange();
@@ -3850,6 +3854,8 @@
     // URL变化时的处理函数
     async function onUrlChange() {
         log(LOG_LEVEL.INFO, '[Appen Data Collector] URL变化检测:', window.location.href);
+        console.log('[Appen Data Collector] onUrlChange: 开始处理URL变化');
+        console.log('[Appen Data Collector] onUrlChange: 当前URL:', window.location.href);
 
         // 先从缓存读取用户ID（如果还没有的话）
         if (!collectedData.userId || collectedData.userId === 'unknown_user') {
@@ -3860,10 +3866,14 @@
             }
         }
 
-        if (isTargetPage()) {
+        const isTarget = isTargetPage();
+        console.log('[Appen Data Collector] onUrlChange: isTargetPage():', isTarget);
+        
+        if (isTarget) {
             log(LOG_LEVEL.INFO, '[Appen Data Collector] 检测到标注页面URL变化');
             log(LOG_LEVEL.INFO, '[Appen Data Collector] 当前页面 URL:', window.location.href);
             log(LOG_LEVEL.INFO, '[Appen Data Collector] URL 匹配结果:', isTargetPage());
+            console.log('[Appen Data Collector] onUrlChange: 进入目标页面处理流程');
 
             // 获取当前的目标 div id
             const currentDivId = getTargetDivId();
