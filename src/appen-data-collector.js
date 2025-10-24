@@ -1307,6 +1307,13 @@
                 extractResponseElements();
                 // 附加用户选择状态监听器
                 setTimeout(attachUserSelectionListeners, 500);
+                
+                // 关键修复：在初始化时调用handleAnnotationPage来显示系统提示
+                setTimeout(() => {
+                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 初始化完成后调用handleAnnotationPage');
+                    console.log('[Appen Data Collector] 初始化: 调用handleAnnotationPage()');
+                    handleAnnotationPage();
+                }, 1500); // 等待响应元素和监听器完全设置后再处理页面
             }, 2000); // 等待页面加载完成
         }
 
