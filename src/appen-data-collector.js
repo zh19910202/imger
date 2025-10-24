@@ -1974,8 +1974,8 @@
                     log(LOG_LEVEL.INFO, '[Appen Data Collector] 初始化完成后调用handleAnnotationPage');
                     console.log('[Appen Data Collector] 初始化: 调用handleAnnotationPage()');
                     handleAnnotationPage();
-                }, 1500); // 等待响应元素和监听器完全设置后再处理页面
-            }, 2000); // 等待页面加载完成
+                }, 800); // 减少等待时间，更快响应
+            }, 1000); // 减少等待时间，更快响应
         }
 
         // 获取任务信息
@@ -4826,8 +4826,8 @@
             log(LOG_LEVEL.INFO, '[Appen Data Collector] 开始处理页面内容');
             console.log('[Appen Data Collector] 开始处理页面内容');
 
-            // 延迟一段时间再继续
-            await new Promise(resolve => setTimeout(resolve, 500));
+            // 减少延迟时间，更快响应
+            await new Promise(resolve => setTimeout(resolve, 200));
 
             // 首先判断是否为返修页
             log(LOG_LEVEL.INFO, '[Appen Data Collector] 开始检查页面是否为返修页...');
@@ -4860,8 +4860,8 @@
                 showNewOldStatusNotification(false);
             }
 
-            // 延迟后再收集基础信息
-            await new Promise(resolve => setTimeout(resolve, 300));
+            // 减少延迟时间，更快收集基础信息
+            await new Promise(resolve => setTimeout(resolve, 100));
 
             // 收集基础信息（所有页面都需要）
             log(LOG_LEVEL.INFO, '[Appen Data Collector] 开始收集基础信息...');
@@ -4928,10 +4928,10 @@
                 log(LOG_LEVEL.INFO, '[Appen Data Collector] 未找到关闭通知按钮，尝试直接双击信息图标');
             }
 
-            // 如果点击了关闭按钮，等待一段时间让UI更新
+            // 如果点击了关闭按钮，减少等待时间让UI更新
             if (closeButtonClicked) {
                 log(LOG_LEVEL.INFO, '[Appen Data Collector] 等待UI更新完成...');
-                await new Promise(resolve => setTimeout(resolve, 500));
+                await new Promise(resolve => setTimeout(resolve, 200));
             }
 
             // 步骤2: 查找并双击信息图标（使用多策略定位）
@@ -4986,10 +4986,10 @@
                 log(LOG_LEVEL.WARN, '[Appen Data Collector] 未找到信息图标');
             }
 
-            // 如果双击了信息图标，等待一段时间让内容加载
+            // 如果双击了信息图标，减少等待时间让内容加载
             if (infoIconClicked) {
                 log(LOG_LEVEL.INFO, '[Appen Data Collector] 等待驳回详情内容加载...');
-                await new Promise(resolve => setTimeout(resolve, 800));
+                await new Promise(resolve => setTimeout(resolve, 400));
             }
 
             // 从DOM中提取最新的驳回理由（基于两步交互策略）
@@ -5047,7 +5047,7 @@
             // 如果之前双击了信息图标，再次双击以关闭面板
             if (infoIconClicked) {
                 log(LOG_LEVEL.INFO, '[Appen Data Collector] 关闭驳回详情面板');
-                await new Promise(resolve => setTimeout(resolve, 500));
+                await new Promise(resolve => setTimeout(resolve, 200));
 
                 // 再次使用多策略定位双击信息图标以关闭面板
                 const closePanelResult = EnhancedElementSelector.findElementByMultipleStrategies(infoIconStrategies);
