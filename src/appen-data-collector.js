@@ -677,11 +677,34 @@
         return false;
     }
 
+    // 存储当前页面的驳回状态，避免同一页内状态变化
+    let currentPageRejectedStatus = null;
+    let currentPageKey = null;
+
     // 检查当前页面是否被QA驳回
     function isCurrentPageRejected() {
         try {
             // 强制调试输出，确保函数被调用
             console.log('[Appen-新旧题] [强制调试] isCurrentPageRejected函数被调用');
+
+            // 获取当前页面键值
+            const currentKey = getCurrentPageKey();
+            console.log('[Appen-新旧题] [调试] 当前页面键值:', currentKey);
+            console.log('[Appen-新旧题] [调试] 之前记录的页面键值:', currentPageKey);
+            console.log('[Appen-新旧题] [调试] 之前记录的驳回状态:', currentPageRejectedStatus);
+
+            // 如果是新页面，重置状态缓存
+            if (currentKey !== currentPageKey) {
+                console.log('[Appen-新旧题] [调试] 检测到新页面，重置驳回状态缓存');
+                currentPageRejectedStatus = null;
+                currentPageKey = currentKey;
+            }
+
+            // 如果之前已经检测到驳回状态，直接返回true（状态锁定）
+            if (currentPageRejectedStatus === true) {
+                console.log('[Appen-新旧题] [调试] 状态已锁定为驳回，直接返回true');
+                return true;
+            }
 
             // 检查页面文本中是否包含QA驳回信息
             const pageText = document.body.innerText;
@@ -714,6 +737,7 @@
                 if (line.includes('被 QA1 Rejected 请修订')) {
                     console.log('[Appen-新旧题] [调试] 精确匹配到QA1驳回行:', line.trim());
                     console.log('[Appen-新旧题] [调试] 精确匹配找到QA1驳回信息');
+                    currentPageRejectedStatus = true;
                     return true;
                 }
             }
@@ -724,30 +748,35 @@
                 if (line.includes('被QA1 Rejected，请修订')) {
                     console.log('[Appen-新旧题] [调试] 精确匹配到实际QA1驳回行:', line.trim());
                     console.log('[Appen-新旧题] [调试] 精确匹配找到实际QA1驳回信息');
+                    currentPageRejectedStatus = true;
                     return true;
                 }
             }
 
             if (pageText.includes("被 QA1 Rejected 请修订")) {
                 console.log('[Appen-新旧题] [调试] 找到QA1驳回信息');
+                currentPageRejectedStatus = true;
                 return true; // 找到QA1驳回信息
             }
 
             // 检查实际的QA驳回格式
             if (pageText.includes("被QA1 Rejected，请修订")) {
                 console.log('[Appen-新旧题] [调试] 找到实际QA1驳回信息');
+                currentPageRejectedStatus = true;
                 return true; // 找到实际QA1驳回信息
             }
 
             // 检查其他可能的QA驳回模式
             if (pageText.includes("被 QA") && pageText.includes("Rejected") && pageText.includes("请修订")) {
                 console.log('[Appen-新旧题] [调试] 找到其他QA驳回信息');
+                currentPageRejectedStatus = true;
                 return true; // 找到其他QA的驳回信息
             }
 
             // 检查实际的QA驳回模式
             if (pageText.includes("被QA") && pageText.includes("Rejected") && pageText.includes("请修订")) {
                 console.log('[Appen-新旧题] [调试] 找到其他实际QA驳回信息');
+                currentPageRejectedStatus = true;
                 return true; // 找到其他实际QA的驳回信息
             }
 
@@ -768,10 +797,12 @@
                         // 检查任务类型
                         if (varValue.taskMessage && varValue.taskMessage.taskType === "REWORK") {
                             console.log(`[Appen-新旧题] [调试] 任务在${varName}中被标记为返修`);
+                            currentPageRejectedStatus = true;
                             return true;
                         }
                         if (varValue.taskType === "REWORK") {
                             console.log(`[Appen-新旧题] [调试] 任务在${varName}中被标记为返修`);
+                            currentPageRejectedStatus = true;
                             return true;
                         }
                     }
@@ -788,14 +819,30 @@
                 const elementText = (rejectElements[i].innerText || rejectElements[i].textContent || '').trim();
                 if (elementText.length > 0) {
                     console.log(`[Appen-新旧题] [调试] 驳回相关元素 ${i}:`, elementText.substring(0, 100));
+                    // 检查元素文本中是否包含驳回信息
+                    if (elementText.includes("被 QA") && elementText.includes("Rejected") && elementText.includes("请修订")) {
+                        console.log('[Appen-新旧题] [调试] 在元素中找到QA驳回信息');
+                        currentPageRejectedStatus = true;
+                        return true;
+                    }
+                    if (elementText.includes("被QA") && elementText.includes("Rejected") && elementText.includes("请修订")) {
+                        console.log('[Appen-新旧题] [调试] 在元素中找到实际QA驳回信息');
+                        currentPageRejectedStatus = true;
+                        return true;
+                    }
                 }
             }
 
             console.log('[Appen-新旧题] [调试] 没有检测到QA驳回信息');
-            return false; // 没有检测到QA驳回
+            // 只有在之前没有检测到驳回状态时才设置为false
+            if (currentPageRejectedStatus === null) {
+                currentPageRejectedStatus = false;
+            }
+            return currentPageRejectedStatus;
         } catch (error) {
             console.log('[Appen-新旧题] [调试] 检查页面驳回状态时出错:', error.message);
-            return false;
+            // 发生错误时保持之前的状态
+            return currentPageRejectedStatus === true;
         }
     }
 
