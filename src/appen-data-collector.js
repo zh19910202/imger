@@ -4474,9 +4474,14 @@
         }
     }
 
+    // 强制输出调试信息以确保能看到
+    console.log('[强制调试] 插件已加载，开始执行调试');
+
     // 调用测试函数
     testLogNewOldStatusInfo();
     testNewOldStatusDetection();
     diagnosePage();
+
+    console.log('[强制调试] 调试执行完成');
 
 })();
