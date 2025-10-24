@@ -300,6 +300,68 @@
         pageCompletionCounts: {}
     };
 
+    // 通知队列管理系统
+    const notificationManager = {
+        queue: [],  // 待显示的通知队列
+        activeNotifications: [],  // 当前显示中的通知
+        maxVisible: 3,  // 最多同时显示3个通知
+        notificationHeight: 60,  // 每个通知的高度（像素）
+        spacing: 10,  // 通知之间的间距
+        
+        // 添加通知到队列
+        add: function(message, type = 'info', duration = 5000) {
+            const notification = {
+                message,
+                type,
+                duration,
+                id: Date.now() + Math.random(),
+                element: null
+            };
+            this.queue.push(notification);
+            this.processQueue();
+        },
+        
+        // 处理队列中的通知
+        processQueue: function() {
+            while (this.queue.length > 0 && this.activeNotifications.length < this.maxVisible) {
+                const notification = this.queue.shift();
+                this.display(notification);
+            }
+        },
+        
+        // 显示通知
+        display: function(notification) {
+            const element = createSystemNotification(notification.message, notification.type, notification.duration);
+            if (element) {
+                notification.element = element;
+                this.activeNotifications.push(notification);
+                this.updatePositions();
+                
+                // 通知显示完毕后从活动列表移除
+                setTimeout(() => {
+                    const index = this.activeNotifications.indexOf(notification);
+                    if (index > -1) {
+                        this.activeNotifications.splice(index, 1);
+                        this.updatePositions();
+                    }
+                    this.processQueue();
+                }, notification.duration);
+            } else {
+                this.processQueue();
+            }
+        },
+        
+        // 更新所有通知的位置
+        updatePositions: function() {
+            let topOffset = 20;
+            this.activeNotifications.forEach((notification) => {
+                if (notification.element) {
+                    notification.element.style.top = topOffset + 'px';
+                    topOffset += this.notificationHeight + this.spacing;
+                }
+            });
+        }
+    };
 
     // 用于跟踪上一个任务ID以检测任务变化
     let lastTaskId = null;
@@ -4376,13 +4438,7 @@
             console.log('[Appen Data Collector] 显示返修题提示');
             const message = '🔄 检测到返修题 - 正在自动获取质检驳回信息...';
             console.log('[Appen Data Collector] 显示返修题提示消息:', message);
-            const result = createSystemNotification(message, 'warning', 3000);
-            if (result && typeof result.then === 'function') {
-                result.then(notification => {
-                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 返修题提示创建完成');
-                    console.log('[Appen Data Collector] 返修题提示创建完成');
-                });
-            }
+            notificationManager.add(message, 'warning', 3000);
         } catch (error) {
             log(LOG_LEVEL.ERROR, '[Appen Data Collector] 显示返修题提示时出错:', error);
             console.log('[Appen Data Collector] 显示返修题提示时出错:', error);
@@ -4395,26 +4451,10 @@
             log(LOG_LEVEL.INFO, '[Appen Data Collector] 显示质检驳回信息提示:', rejectInfo);
             if (rejectInfo && rejectInfo.comment) {
                 const message = `📢 质检驳回信息: ${rejectInfo.comment.substring(0, 100)}${rejectInfo.comment.length > 100 ? '...' : ''}`;
-                const result = createSystemNotification(message, 'error', 8000);
-
-                // 处理Promise返回值
-                if (result && typeof result.then === 'function') {
-                    result.then(notification => {
-                        if (notification && rejectInfo.comment.length > 100) {
-                            addDetailButtonToNotification(notification, rejectInfo.comment);
-                        }
-                    });
-                } else if (result && rejectInfo.comment.length > 100) {
-                    addDetailButtonToNotification(result, rejectInfo.comment);
-                }
+                notificationManager.add(message, 'error', 8000);
             } else {
                 const message = '✅ 未找到质检驳回信息';
-                const result = createSystemNotification(message, 'info', 3000);
-                if (result && typeof result.then === 'function') {
-                    result.then(notification => {
-                        log(LOG_LEVEL.INFO, '[Appen Data Collector] 未找到质检信息提示创建完成');
-                    });
-                }
+                notificationManager.add(message, 'info', 3000);
             }
         } catch (error) {
             log(LOG_LEVEL.ERROR, '[Appen Data Collector] 显示质检驳回信息提示时出错:', error);
@@ -4454,43 +4494,7 @@
     function showTestNotification() {
         try {
             log(LOG_LEVEL.INFO, '[Appen Data Collector] 显示测试提示');
-
-            // 创建简单的提示元素
-            const notification = document.createElement('div');
-            notification.textContent = '🔧 Appen数据收集器已加载';
-            notification.style.cssText = `
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                background: #4CAF50;
-                color: white;
-                padding: 12px 20px;
-                border-radius: 4px;
-                font-family: Arial, sans-serif;
-                font-size: 14px;
-                z-index: 999999;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-                transition: opacity 0.3s ease;
-            `;
-
-            // 添加到页面
-            if (document.body) {
-                document.body.appendChild(notification);
-                log(LOG_LEVEL.INFO, '[Appen Data Collector] 测试提示已添加到页面');
-
-                // 3秒后自动移除
-                setTimeout(() => {
-                    notification.style.opacity = '0';
-                    setTimeout(() => {
-                        if (notification.parentNode) {
-                            notification.parentNode.removeChild(notification);
-                            log(LOG_LEVEL.INFO, '[Appen Data Collector] 测试提示已移除');
-                        }
-                    }, 300);
-                }, 3000);
-            } else {
-                log(LOG_LEVEL.ERROR, '[Appen Data Collector] 无法添加测试提示：document.body不存在');
-            }
+            notificationManager.add('🔧 Appen数据收集器已加载', 'success', 3000);
         } catch (error) {
             log(LOG_LEVEL.ERROR, '[Appen Data Collector] 显示测试提示时出错:', error);
         }
@@ -4598,13 +4602,7 @@
             } else {
                 const message = '🆕 新题 - 请正常完成标注任务';
                 console.log('[Appen Data Collector] 显示新题提示:', message);
-                const result = createSystemNotification(message, 'info', 3000);
-                if (result && typeof result.then === 'function') {
-                    result.then(notification => {
-                        log(LOG_LEVEL.INFO, '[Appen Data Collector] 新题提示创建完成');
-                        console.log('[Appen Data Collector] 新题提示创建完成');
-                    });
-                }
+                notificationManager.add(message, 'info', 3000);
             }
         } catch (error) {
             log(LOG_LEVEL.ERROR, '[Appen Data Collector] 显示新旧题状态提示时出错:', error);
