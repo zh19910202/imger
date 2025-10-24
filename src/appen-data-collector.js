@@ -674,11 +674,8 @@
         return false;
     }
 
-    // 获取当前页面的返修状态（新/旧）
-    function getCurrentPageReworkStatus() {
-        const pageKey = getCurrentPageKey();
-        const pageData = completionStats.perPage[pageKey];
-
+    // 获取页面的新旧题状态
+    function getPageNewOldStatus(pageData) {
         if (!pageData) {
             return '新'; // 如果没有页面数据，认为是新题
         }
@@ -688,12 +685,15 @@
             return '旧'; // 二次返修
         }
 
-        // 检查是否是一次返修
-        if (pageData.hasRework === true) {
-            return '新'; // 一次返修
-        }
+        // 检查是否是一次返修或普通题目
+        return '新'; // 一次返修或普通题目都是"新"
+    }
 
-        return '新'; // 普通题目
+    // 获取当前页面的返修状态（新/旧）
+    function getCurrentPageReworkStatus() {
+        const pageKey = getCurrentPageKey();
+        const pageData = completionStats.perPage[pageKey];
+        return getPageNewOldStatus(pageData);
     }
 
     // 更新总题目数（排除返修页面）
@@ -1704,7 +1704,7 @@
                                                 <span>题数: <span style="color: #0066cc;">${data.topicCount}</span></span> |
                                                 <span>耗时: <span style="color: #4CAF50;">${data.elapsedSeconds || 0}秒</span></span> |
                                                 <span>状态: <span style="color: ${data.isValid === true ? '#4CAF50' : data.isValid === false ? '#f44336' : '#9E9E9E'}; font-weight: bold;">${data.isValid === true ? '✓ 有效' : data.isValid === false ? '✗ 无效' : '未知状态'}</span></span> |
-                                                <span>新旧题: <span style="color: ${data.isSecondaryRework ? '#FF9800' : '#2196F3'}; font-weight: bold;">${data.isSecondaryRework ? '旧' : '新'}</span></span>
+                                                <span>新旧题: <span style="color: ${data.isSecondaryRework ? '#FF9800' : '#2196F3'}; font-weight: bold;">${getPageNewOldStatus(data)}</span></span>
                                             </div>
                                             <div style="margin-left: 15px; font-size: 13px;">
                                                 <span>驳回理由: <span style="color: #f44336;">${escapeHtml(rejectReason.substring(0, 30))}${rejectReason.length > 30 ? '...' : ''}</span></span>
