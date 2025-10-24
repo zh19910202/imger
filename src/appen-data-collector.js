@@ -4372,7 +4372,21 @@
         logNewOldStatusInfo('test-page-key', true, false, '测试驳回理由');
     }
 
+    // 测试新旧题状态判断功能
+    function testNewOldStatusDetection() {
+        console.log('[Appen Data Collector] 测试新旧题状态判断功能');
+        const isRejected = isCurrentPageRejected();
+        const status = getPageNewOldStatus(null);
+        const color = getPageNewOldStatusColor(null);
+        console.log('[Appen Data Collector] 测试结果:', {
+            isRejected: isRejected,
+            status: status,
+            color: color
+        });
+    }
+
     // 调用测试函数
     testLogNewOldStatusInfo();
+    testNewOldStatusDetection();
 
 })();
