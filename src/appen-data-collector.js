@@ -678,26 +678,26 @@
     function isCurrentPageRejected() {
         try {
             // 强制调试输出，确保函数被调用
-            console.log('[强制调试] isCurrentPageRejected函数被调用');
+            console.log('[Appen-新旧题] [强制调试] isCurrentPageRejected函数被调用');
 
             // 检查页面文本中是否包含QA驳回信息
             const pageText = document.body.innerText;
-            console.log('[调试] 页面文本总长度:', pageText.length);
+            console.log('[Appen-新旧题] [调试] 页面文本总长度:', pageText.length);
 
             // 简化日志输出，只显示关键信息
-            console.log('[调试] 页面是否包含QA驳回信息:');
-            console.log('[调试] 包含"被 QA1 Rejected 请修订":', pageText.includes("被 QA1 Rejected 请修订"));
-            console.log('[调试] 包含"被 QA":', pageText.includes("被 QA"));
-            console.log('[调试] 包含"Rejected":', pageText.includes("Rejected"));
-            console.log('[调试] 包含"请修订":', pageText.includes("请修订"));
+            console.log('[Appen-新旧题] [调试] 页面是否包含QA驳回信息:');
+            console.log('[Appen-新旧题] [调试] 包含"被 QA1 Rejected 请修订":', pageText.includes("被 QA1 Rejected 请修订"));
+            console.log('[Appen-新旧题] [调试] 包含"被 QA":', pageText.includes("被 QA"));
+            console.log('[Appen-新旧题] [调试] 包含"Rejected":', pageText.includes("Rejected"));
+            console.log('[Appen-新旧题] [调试] 包含"请修订":', pageText.includes("请修订"));
 
             // 显示包含这些关键词的上下文
             const lines = pageText.split('\n');
-            console.log('[调试] 页面总行数:', lines.length);
+            console.log('[Appen-新旧题] [调试] 页面总行数:', lines.length);
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
                 if (line.includes('QA') && line.includes('Rejected')) {
-                    console.log('[调试] 找到QA驳回相关行:', line.trim());
+                    console.log('[Appen-新旧题] [调试] 找到QA驳回相关行:', line.trim());
                 }
             }
 
@@ -705,20 +705,20 @@
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
                 if (line.includes('被 QA1 Rejected 请修订')) {
-                    console.log('[调试] 精确匹配到QA1驳回行:', line.trim());
-                    console.log('[调试] 精确匹配找到QA1驳回信息');
+                    console.log('[Appen-新旧题] [调试] 精确匹配到QA1驳回行:', line.trim());
+                    console.log('[Appen-新旧题] [调试] 精确匹配找到QA1驳回信息');
                     return true;
                 }
             }
 
             if (pageText.includes("被 QA1 Rejected 请修订")) {
-                console.log('[调试] 找到QA1驳回信息');
+                console.log('[Appen-新旧题] [调试] 找到QA1驳回信息');
                 return true; // 找到QA1驳回信息
             }
 
             // 检查其他可能的QA驳回模式
             if (pageText.includes("被 QA") && pageText.includes("Rejected") && pageText.includes("请修订")) {
-                console.log('[调试] 找到其他QA驳回信息');
+                console.log('[Appen-新旧题] [调试] 找到其他QA驳回信息');
                 return true; // 找到其他QA的驳回信息
             }
 
@@ -735,14 +735,14 @@
                 try {
                     const varValue = eval(varName);
                     if (varValue) {
-                        console.log(`[调试] 找到变量 ${varName}:`, typeof varValue);
+                        console.log(`[Appen-新旧题] [调试] 找到变量 ${varName}:`, typeof varValue);
                         // 检查任务类型
                         if (varValue.taskMessage && varValue.taskMessage.taskType === "REWORK") {
-                            console.log(`[调试] 任务在${varName}中被标记为返修`);
+                            console.log(`[Appen-新旧题] [调试] 任务在${varName}中被标记为返修`);
                             return true;
                         }
                         if (varValue.taskType === "REWORK") {
-                            console.log(`[调试] 任务在${varName}中被标记为返修`);
+                            console.log(`[Appen-新旧题] [调试] 任务在${varName}中被标记为返修`);
                             return true;
                         }
                     }
@@ -753,19 +753,19 @@
 
             // 检查页面上的特定元素
             const rejectElements = document.querySelectorAll('[class*="reject"], [class*="Reject"], [class*="驳回"]');
-            console.log('[调试] 找到可能的驳回相关元素数量:', rejectElements.length);
+            console.log('[Appen-新旧题] [调试] 找到可能的驳回相关元素数量:', rejectElements.length);
 
             for (let i = 0; i < Math.min(rejectElements.length, 5); i++) {
                 const elementText = (rejectElements[i].innerText || rejectElements[i].textContent || '').trim();
                 if (elementText.length > 0) {
-                    console.log(`[调试] 驳回相关元素 ${i}:`, elementText.substring(0, 100));
+                    console.log(`[Appen-新旧题] [调试] 驳回相关元素 ${i}:`, elementText.substring(0, 100));
                 }
             }
 
-            console.log('[调试] 没有检测到QA驳回信息');
+            console.log('[Appen-新旧题] [调试] 没有检测到QA驳回信息');
             return false; // 没有检测到QA驳回
         } catch (error) {
-            console.log('[调试] 检查页面驳回状态时出错:', error.message);
+            console.log('[Appen-新旧题] [调试] 检查页面驳回状态时出错:', error.message);
             return false;
         }
     }
@@ -4429,17 +4429,17 @@
     }
     // 测试日志输出功能
     function testLogNewOldStatusInfo() {
-        console.log('[Appen Data Collector] 测试日志输出功能');
+        console.log('[Appen-新旧题] [测试] 测试日志输出功能');
         logNewOldStatusInfo('test-page-key', true, false, '测试驳回理由');
     }
 
     // 测试新旧题状态判断功能
     function testNewOldStatusDetection() {
-        console.log('[Appen Data Collector] 测试新旧题状态判断功能');
+        console.log('[Appen-新旧题] [测试] 测试新旧题状态判断功能');
         const isRejected = isCurrentPageRejected();
         const status = getPageNewOldStatus(null);
         const color = getPageNewOldStatusColor(null);
-        console.log('[Appen Data Collector] 测试结果:', {
+        console.log('[Appen-新旧题] [测试] 测试结果:', {
             isRejected: isRejected,
             status: status,
             color: color
@@ -4448,17 +4448,17 @@
 
     // 全面的页面诊断函数
     function diagnosePage() {
-        console.log('[Appen Data Collector] 开始全面页面诊断');
+        console.log('[Appen-新旧题] [诊断] 开始全面页面诊断');
 
         // 检查页面URL
-        console.log('[Appen Data Collector] 当前页面URL:', window.location.href);
+        console.log('[Appen-新旧题] [诊断] 当前页面URL:', window.location.href);
 
         // 检查页面标题
-        console.log('[Appen Data Collector] 页面标题:', document.title);
+        console.log('[Appen-新旧题] [诊断] 页面标题:', document.title);
 
         // 检查所有可能的QA相关信息
         const allText = document.body.innerText;
-        console.log('[Appen Data Collector] 页面中包含"QA"的文本片段:');
+        console.log('[Appen-新旧题] [诊断] 页面中包含"QA"的文本片段:');
         const lines = allText.split('\n');
         for (let i = 0; i < lines.length; i++) {
             if (lines[i].includes('QA') || lines[i].includes('驳回') || lines[i].includes('Rejected')) {
@@ -4467,7 +4467,7 @@
         }
 
         // 检查所有window对象属性
-        console.log('[Appen Data Collector] window对象中包含"DATA"或"TASK"的属性:');
+        console.log('[Appen-新旧题] [诊断] window对象中包含"DATA"或"TASK"的属性:');
         for (const key in window) {
             if (key.toUpperCase().includes('DATA') || key.toUpperCase().includes('TASK')) {
                 console.log(`  ${key}:`, typeof window[key]);
@@ -4475,7 +4475,7 @@
         }
 
         // 检查页面上的所有元素文本
-        console.log('[Appen Data Collector] 页面上可能包含QA信息的元素:');
+        console.log('[Appen-新旧题] [诊断] 页面上可能包含QA信息的元素:');
         const allElements = document.querySelectorAll('*');
         let foundCount = 0;
         for (let i = 0; i < Math.min(allElements.length, 1000); i++) {
@@ -4490,13 +4490,13 @@
     }
 
     // 强制输出调试信息以确保能看到
-    console.log('[强制调试] 插件已加载，开始执行调试');
+    console.log('[Appen-新旧题] [强制调试] 插件已加载，开始执行调试');
 
     // 调用测试函数
     testLogNewOldStatusInfo();
     testNewOldStatusDetection();
     diagnosePage();
 
-    console.log('[强制调试] 调试执行完成');
+    console.log('[Appen-新旧题] [强制调试] 调试执行完成');
 
 })();
