@@ -436,6 +436,7 @@
                                     elapsedSeconds: 0, // 旧数据没有耗时信息
                                     isValid: true, // 假设旧的完成记录都是有效的
                                     hasRework: false, // 旧数据没有返修信息
+                                    isSecondaryRework: false, // 旧数据没有二次返修标记
                                     rejectReason: '', // 旧数据没有驳回理由
                                     firstCompletionTime: Date.now(), // 旧数据没有时间戳
                                     lastCompletionTime: Date.now()
@@ -448,6 +449,11 @@
                             // 确保所有页面数据都有rejectReason字段
                             if (pageData.rejectReason === undefined) {
                                 pageData.rejectReason = '';
+                            }
+
+                            // 确保所有页面数据都有isSecondaryRework字段
+                            if (pageData.isSecondaryRework === undefined) {
+                                pageData.isSecondaryRework = false;
                             }
                         }
                     }
@@ -515,6 +521,11 @@
                 ? collectedData.responseElements.qualityCheckRecord.latestRecord.comment
                 : '';
 
+            // 检查是否是二次返修（之前已经完成过且有返修记录）
+            const isSecondaryRework = hasRework &&
+                completionStats.perPage[pageKey] &&
+                completionStats.perPage[pageKey].hasRework === true;
+
             if (!completionStats.perPage[pageKey]) {
                 completionStats.perPage[pageKey] = {
                     completions: 0,
@@ -523,6 +534,7 @@
                     elapsedSeconds: elapsedSeconds,
                     isValid: true,
                     hasRework: hasRework,
+                    isSecondaryRework: isSecondaryRework,
                     rejectReason: pageRejectReason,
                     firstCompletionTime: currentTime,
                     lastCompletionTime: currentTime
@@ -534,6 +546,7 @@
             completionStats.perPage[pageKey].elapsedSeconds = elapsedSeconds;
             completionStats.perPage[pageKey].lastCompletionTime = currentTime;
             completionStats.perPage[pageKey].hasRework = hasRework;
+            completionStats.perPage[pageKey].isSecondaryRework = isSecondaryRework;
             completionStats.perPage[pageKey].rejectReason = pageRejectReason;
 
             // 如果是返修页面，记录到返修统计中；否则记录到常规统计中
@@ -582,6 +595,11 @@
                 ? collectedData.responseElements.qualityCheckRecord.latestRecord.comment
                 : '';
 
+            // 检查是否是二次返修（之前已经完成过且有返修记录）
+            const isSecondaryRework = hasRework &&
+                completionStats.perPage[pageKey] &&
+                completionStats.perPage[pageKey].hasRework === true;
+
             if (!completionStats.perPage[pageKey]) {
                 completionStats.perPage[pageKey] = {
                     completions: 0,
@@ -590,6 +608,7 @@
                     elapsedSeconds: elapsedSeconds,
                     isValid: false,
                     hasRework: hasRework,
+                    isSecondaryRework: isSecondaryRework,
                     rejectReason: pageRejectReason,
                     firstCompletionTime: currentTime,
                     lastCompletionTime: currentTime
@@ -653,6 +672,28 @@
 
         // 如果没有明确标记，返回false（默认不是返修页面）
         return false;
+    }
+
+    // 获取当前页面的返修状态（新/旧）
+    function getCurrentPageReworkStatus() {
+        const pageKey = getCurrentPageKey();
+        const pageData = completionStats.perPage[pageKey];
+
+        if (!pageData) {
+            return '新'; // 如果没有页面数据，认为是新题
+        }
+
+        // 检查是否是二次返修
+        if (pageData.isSecondaryRework === true) {
+            return '旧'; // 二次返修
+        }
+
+        // 检查是否是一次返修
+        if (pageData.hasRework === true) {
+            return '新'; // 一次返修
+        }
+
+        return '新'; // 普通题目
     }
 
     // 更新总题目数（排除返修页面）
@@ -1232,6 +1273,11 @@
                 ? collectedData.responseElements.qualityCheckRecord.latestRecord.comment
                 : '';
 
+            // 检查是否是二次返修（之前已经完成过且有返修记录）
+            const isSecondaryRework = hasRework &&
+                completionStats.perPage[pageKey] &&
+                completionStats.perPage[pageKey].hasRework === true;
+
             if (!completionStats.perPage[pageKey]) {
                 completionStats.perPage[pageKey] = {
                     completions: 0,
@@ -1240,6 +1286,7 @@
                     elapsedSeconds: elapsedSeconds,
                     isValid: userStatus.isValid === true,
                     hasRework: hasRework,
+                    isSecondaryRework: isSecondaryRework,
                     rejectReason: pageRejectReason,
                     firstCompletionTime: currentTime,
                     lastCompletionTime: currentTime
@@ -1251,6 +1298,7 @@
             completionStats.perPage[pageKey].elapsedSeconds = elapsedSeconds;
             completionStats.perPage[pageKey].lastCompletionTime = currentTime;
             completionStats.perPage[pageKey].hasRework = hasRework;
+            completionStats.perPage[pageKey].isSecondaryRework = isSecondaryRework;
             completionStats.perPage[pageKey].rejectReason = pageRejectReason;
 
             // 根据状态和是否有返修信息更新计数器
@@ -1584,6 +1632,7 @@
                     <div><strong style="color: #333;">耗时(秒):</strong> <span id="elapsed-time-display" style="color: #0066cc;">${currentElapsedTime}</span></div>
                     <div><strong style="color: #333;">是否有效:</strong> <span id="valid-status-display" style="color: #0066cc;">${collectedData.responseElements?.userSelectionStatus ? (collectedData.responseElements.userSelectionStatus.isValid === true ? '✓ 有效' : collectedData.responseElements.userSelectionStatus.isValid === false ? '✗ 无效' : '未知') : '未检测到'}</span></div>
                     <div><strong style="color: #333;">认证Cookie:</strong> <span id="cookie-status-display" style="color: #0066cc; font-size: 12px;">${collectedData.authCookies ? (Object.keys(collectedData.authCookies).length > 0 ? '已获取(' + Object.keys(collectedData.authCookies).length + '个)' : '无有效Cookie') : '未获取'}</span></div>
+                    <div><strong style="color: #333;">新旧题状态:</strong> <span style="color: #0066cc;">${getCurrentPageReworkStatus()}</span></div>
                     <div><strong style="color: #333;">驳回理由:</strong> <span style="color: #0066cc;">${escapeHtml(collectedData.responseElements?.qualityCheckRecord?.latestRecord?.comment || '')}</span></div>
                 </div>
 
