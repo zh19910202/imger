@@ -5,6 +5,9 @@
 (function() {
     'use strict';
 
+    // 强制调试输出 - 确保脚本开始执行
+    console.log('[Appen-新旧题] ========== 脚本开始执行 ==========');
+
     // 配置参数
     const CONFIG = {
         // 数据推送的API端点
