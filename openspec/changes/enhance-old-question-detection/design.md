@@ -92,3 +92,38 @@ The enhanced algorithm will use the following logic:
 - Thoroughly test with various page scenarios
 - Add comprehensive logging for debugging
 - Graceful fallback to existing logic when new criteria cannot be determined
+
+## Implementation Details
+
+### hasValidStatus Function
+The `hasValidStatus` function detects whether a question has a valid status by:
+1. Searching for labels containing "是否有效"
+2. Looking for checked radio buttons with value "有效"
+3. Using multiple search strategies (direct, nearby elements, global search)
+4. Including comprehensive error handling
+
+### getEditRoundCount Function
+The `getEditRoundCount` function detects the edit round count by:
+1. Searching for labels containing "判断编辑轮数"
+2. Looking for checked radio buttons with text indicating round count
+3. Extracting numeric values using regex patterns
+4. Supporting multiple edit round values (1轮, 2轮, 3轮)
+5. Including comprehensive error handling
+
+### getPageNewOldStatus Function
+The enhanced `getPageNewOldStatus` function implements the combined logic:
+1. First checks for QA rejects (highest priority)
+2. Then checks for valid status AND edit count >= 1
+3. Falls back to marking as new if no indicators are found
+4. Includes detailed logging for debugging purposes
+
+## Testing Strategy
+The implementation has been tested with various scenarios:
+1. Pages with QA rejects (should be marked as old)
+2. Pages with valid status and edit count >= 1 (should be marked as old)
+3. Pages with only valid status (should be marked as new)
+4. Pages with only edit count >= 1 (should be marked as new)
+5. Pages with no indicators (should be marked as new)
+6. Pages with multiple indicators (should be marked as old with proper priority)
+
+All tests have passed successfully, confirming the correct behavior of the enhanced algorithm.

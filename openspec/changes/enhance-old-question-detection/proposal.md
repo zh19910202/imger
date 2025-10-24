@@ -4,7 +4,7 @@
 Enhance Old Question Detection Algorithm with Valid Status and Edit Count
 
 ## Status
-Proposed
+Implemented
 
 ## Summary
 This change proposes to enhance the old question detection algorithm by adding additional criteria for identifying old questions. The new algorithm will consider a question as old if it has a valid status and edit count greater than or equal to 1 after page loading.

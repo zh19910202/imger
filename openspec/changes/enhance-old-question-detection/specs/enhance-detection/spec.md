@@ -56,6 +56,19 @@ Given a task page is loaded
 When the page shows an edit count < 1
 Then the system SHALL not use this as an old question indicator
 
+### Requirement: Handle Multiple Edit Round Values
+The appen-data-collector.js file SHALL correctly handle different edit round values.
+
+#### Scenario: Handle 1 edit round
+Given a task page is loaded
+When the page shows "1轮" as the selected edit count
+Then the system SHALL recognize this as an edited question indicator
+
+#### Scenario: Handle 2 or 3 edit rounds
+Given a task page is loaded
+When the page shows "2轮" or "3轮" as the selected edit count
+Then the system SHALL recognize this as an edited question indicator
+
 ### Requirement: Combine Detection Criteria
 The appen-data-collector.js file SHALL combine multiple detection criteria for old question identification.
 
@@ -68,3 +81,32 @@ Then the system SHALL mark the question as old
 Given a task page is loaded
 When the page has no QA reject AND NOT (valid status AND edit count >= 1)
 Then the system SHALL mark the question as new
+
+## IMPLEMENTATION Details
+
+### Valid Status Detection Implementation
+The `hasValidStatus` function SHALL:
+1. Search for labels containing "是否有效"
+2. Look for checked radio buttons with value "有效"
+3. Use multiple search strategies for robustness:
+   - Direct search for checked radio buttons
+   - Search near the "是否有效" label
+   - Global search across all radio buttons
+4. Include comprehensive error handling that returns false on errors
+
+### Edit Count Detection Implementation
+The `getEditRoundCount` function SHALL:
+1. Search for labels containing "判断编辑轮数"
+2. Look for checked radio buttons with text indicating round count
+3. Extract numeric values using regex patterns matching (\d+)轮
+4. Support multiple edit round values (1轮, 2轮, 3轮)
+5. Return default value of 1 when no explicit selection is found
+6. Include comprehensive error handling that returns 0 on errors
+
+### Combined Algorithm Implementation
+The `getPageNewOldStatus` function SHALL:
+1. First check for QA rejects with highest priority
+2. If no QA reject, check for valid status AND edit count >= 1
+3. Return "旧" if either condition is met
+4. Return "新" if neither condition is met
+5. Include detailed logging for debugging purposes
