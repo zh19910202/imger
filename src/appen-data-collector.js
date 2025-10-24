@@ -275,7 +275,12 @@
 
     let completionStats = {
         totalValidCompletions: 0,
+        totalInvalidCompletions: 0,
+        totalReworkCompletions: 0,
         totalTopicsCompleted: 0,
+        totalReworkTopics: 0,
+        totalQuestions: 0,
+        reworkQuestions: 0,
         perPage: {}
     };
 
@@ -355,7 +360,12 @@
 
     function syncCollectedDataWithCompletionStats() {
         collectedData.totalValidCompletions = completionStats.totalValidCompletions || 0;
+        collectedData.totalInvalidCompletions = completionStats.totalInvalidCompletions || 0;
+        collectedData.totalReworkCompletions = completionStats.totalReworkCompletions || 0;
         collectedData.totalTopicsCompleted = completionStats.totalTopicsCompleted || 0;
+        collectedData.totalReworkTopics = completionStats.totalReworkTopics || 0;
+        collectedData.totalQuestions = completionStats.totalQuestions || 0;
+        collectedData.reworkQuestions = completionStats.reworkQuestions || 0;
         collectedData.pageCompletionCounts = { ...completionStats.perPage };
     }
 
@@ -363,7 +373,12 @@
     async function clearCompletionStats() {
         completionStats = {
             totalValidCompletions: 0,
+            totalInvalidCompletions: 0,
+            totalReworkCompletions: 0,
             totalTopicsCompleted: 0,
+            totalReworkTopics: 0,
+            totalQuestions: 0,
+            reworkQuestions: 0,
             perPage: {}
         };
 
@@ -398,7 +413,12 @@
                 if (stored && typeof stored === 'object') {
                     completionStats = {
                         totalValidCompletions: Number(stored.totalValidCompletions) || 0,
+                        totalInvalidCompletions: Number(stored.totalInvalidCompletions) || 0,
+                        totalReworkCompletions: Number(stored.totalReworkCompletions) || 0,
                         totalTopicsCompleted: Number(stored.totalTopicsCompleted) || 0,
+                        totalReworkTopics: Number(stored.totalReworkTopics) || 0,
+                        totalQuestions: Number(stored.totalQuestions) || 0,
+                        reworkQuestions: Number(stored.reworkQuestions) || 0,
                         perPage: stored.perPage && typeof stored.perPage === 'object' ? stored.perPage : {}
                     };
 
@@ -415,14 +435,21 @@
                                     topicCount: Number(pageData.topicCount) || 0,
                                     elapsedSeconds: 0, // 旧数据没有耗时信息
                                     isValid: true, // 假设旧的完成记录都是有效的
+                                    hasRework: false, // 旧数据没有返修信息
                                     firstCompletionTime: Date.now(), // 旧数据没有时间戳
                                     lastCompletionTime: Date.now()
                                 };
+                            } else if (pageData.hasRework === undefined) {
+                                // 确保所有页面数据都有hasRework字段
+                                pageData.hasRework = false;
                             }
                         }
                     }
                 }
             }
+
+            // 更新总题目数
+            updateTotalQuestions();
 
             syncCollectedDataWithCompletionStats();
             return true;
@@ -473,6 +500,10 @@
             const currentTime = Date.now();
             const elapsedSeconds = Math.floor((currentTime - collectedData.startTime) / 1000);
 
+            // 检查是否有驳回信息（返修页面）
+            const hasRework = !!(collectedData.responseElements?.qualityCheckRecord?.hasRecord &&
+                               collectedData.responseElements?.qualityCheckRecord?.latestRecord?.type === 'REJECTED');
+
             if (!completionStats.perPage[pageKey]) {
                 completionStats.perPage[pageKey] = {
                     completions: 0,
@@ -480,6 +511,7 @@
                     topicCount: topicCount,
                     elapsedSeconds: elapsedSeconds,
                     isValid: true,
+                    hasRework: hasRework,
                     firstCompletionTime: currentTime,
                     lastCompletionTime: currentTime
                 };
@@ -489,8 +521,19 @@
             completionStats.perPage[pageKey].topicCount = topicCount;
             completionStats.perPage[pageKey].elapsedSeconds = elapsedSeconds;
             completionStats.perPage[pageKey].lastCompletionTime = currentTime;
-            completionStats.totalValidCompletions += 1;
-            completionStats.totalTopicsCompleted += topicCount;
+            completionStats.perPage[pageKey].hasRework = hasRework;
+
+            // 如果是返修页面，记录到返修统计中；否则记录到常规统计中
+            if (hasRework) {
+                completionStats.totalReworkCompletions += 1;
+                // 返修页面不计入常规有效完成次数和题目总数
+            } else {
+                completionStats.totalValidCompletions += 1;
+                completionStats.totalTopicsCompleted += topicCount;
+            }
+
+            // 更新总题目数
+            updateTotalQuestions();
 
             syncCollectedDataWithCompletionStats();
 
@@ -499,12 +542,123 @@
             log(LOG_LEVEL.DEBUG, '已记录有效标注完成:', {
                 pageKey,
                 totalValidCompletions: completionStats.totalValidCompletions,
+                totalReworkCompletions: completionStats.totalReworkCompletions,
                 totalTopicsCompleted: completionStats.totalTopicsCompleted,
                 perPage: completionStats.perPage[pageKey]
             });
         } catch (error) {
             ErrorHandler.handle(error, '记录标注完成统计异常', null, LOG_LEVEL.WARN);
         }
+    }
+
+    // 记录无效页面完成
+    async function recordInvalidCompletion() {
+        try {
+            const pageKey = getCurrentPageKey();
+            log(LOG_LEVEL.DEBUG, '记录无效完成 - 页面标识:', pageKey);
+            const topicCount = getTopicCountForRecording();
+            const currentTime = Date.now();
+            const elapsedSeconds = Math.floor((currentTime - collectedData.startTime) / 1000);
+
+            // 检查是否有驳回信息（返修页面）
+            const hasRework = !!(collectedData.responseElements?.qualityCheckRecord?.hasRecord &&
+                               collectedData.responseElements?.qualityCheckRecord?.latestRecord?.type === 'REJECTED');
+
+            if (!completionStats.perPage[pageKey]) {
+                completionStats.perPage[pageKey] = {
+                    completions: 0,
+                    topicId: collectedData.topicId || 'unknown_topic',
+                    topicCount: topicCount,
+                    elapsedSeconds: elapsedSeconds,
+                    isValid: false,
+                    hasRework: hasRework,
+                    firstCompletionTime: currentTime,
+                    lastCompletionTime: currentTime
+                };
+            }
+
+            // 如果页面之前被标记为有效，需要调整计数器
+            if (completionStats.perPage[pageKey].isValid === true) {
+                if (completionStats.perPage[pageKey].hasRework) {
+                    // 如果之前是返修页面，从返修统计中减去
+                    completionStats.totalReworkCompletions = Math.max(0, completionStats.totalReworkCompletions - 1);
+                } else {
+                    // 如果之前是常规页面，从常规统计中减去
+                    completionStats.totalValidCompletions = Math.max(0, completionStats.totalValidCompletions - 1);
+                    completionStats.totalTopicsCompleted = Math.max(0, completionStats.totalTopicsCompleted - completionStats.perPage[pageKey].topicCount);
+                }
+            }
+
+            completionStats.perPage[pageKey].completions += 1;
+            completionStats.perPage[pageKey].topicCount = topicCount;
+            completionStats.perPage[pageKey].elapsedSeconds = elapsedSeconds;
+            completionStats.perPage[pageKey].lastCompletionTime = currentTime;
+            completionStats.perPage[pageKey].isValid = false;
+            completionStats.perPage[pageKey].hasRework = hasRework;
+
+            // 只有当页面之前不是无效状态时才增加计数器
+            if (completionStats.perPage[pageKey].isValid !== false || completionStats.perPage[pageKey].completions === 1) {
+                // 根据是否是返修页面来决定增加哪个计数器
+                if (hasRework) {
+                    completionStats.totalReworkCompletions += 1;
+                    // 返修页面不计入常规无效完成次数
+                } else {
+                    completionStats.totalInvalidCompletions += 1;
+                }
+            }
+
+            // 更新总题目数
+            updateTotalQuestions();
+
+            syncCollectedDataWithCompletionStats();
+
+            await saveCompletionStats();
+
+            log(LOG_LEVEL.DEBUG, '已记录无效标注完成:', {
+                pageKey,
+                totalInvalidCompletions: completionStats.totalInvalidCompletions,
+                totalReworkCompletions: completionStats.totalReworkCompletions,
+                perPage: completionStats.perPage[pageKey]
+            });
+        } catch (error) {
+            ErrorHandler.handle(error, '记录无效标注完成统计异常', null, LOG_LEVEL.WARN);
+        }
+    }
+
+    // 检查页面是否有返修信息（驳回信息）
+    function isReworkPage(pageData) {
+        // 检查页面数据中是否有返修标记
+        if (pageData && typeof pageData === 'object' && pageData.hasRework !== undefined) {
+            return pageData.hasRework === true;
+        }
+
+        // 如果没有明确标记，返回false（默认不是返修页面）
+        return false;
+    }
+
+    // 更新总题目数（排除返修页面）
+    function updateTotalQuestions() {
+        let regularTotal = 0;
+        let reworkTotal = 0;
+
+        for (const [pageKey, pageData] of Object.entries(completionStats.perPage)) {
+            if (typeof pageData === 'object' && pageData !== null) {
+                const topicCount = Number(pageData.topicCount) || 0;
+                if (isReworkPage(pageData)) {
+                    reworkTotal += topicCount;
+                } else {
+                    regularTotal += topicCount;
+                }
+            }
+        }
+
+        completionStats.totalQuestions = regularTotal;
+        completionStats.reworkQuestions = reworkTotal;
+    }
+
+    // 更新返修题目数
+    function updateReworkQuestions() {
+        updateTotalQuestions(); // updateTotalQuestions已经处理了返修题目的计算
     }
 
     // 从缓存获取题目ID
@@ -1038,11 +1192,6 @@
                 return;
             }
 
-            if (userStatus.isValid !== true) {
-                log(LOG_LEVEL.DEBUG, '状态不是有效，跳过记录。当前状态:', userStatus.isValid);
-                return;
-            }
-
             const pageKey = getCurrentPageKey();
             const topicCount = getTopicCountForRecording();
 
@@ -1055,13 +1204,18 @@
             const currentTime = Date.now();
             const elapsedSeconds = Math.floor((currentTime - collectedData.startTime) / 1000);
 
+            // 检查是否有驳回信息（返修页面）
+            const hasRework = !!(collectedData.responseElements?.qualityCheckRecord?.hasRecord &&
+                               collectedData.responseElements?.qualityCheckRecord?.latestRecord?.type === 'REJECTED');
+
             if (!completionStats.perPage[pageKey]) {
                 completionStats.perPage[pageKey] = {
                     completions: 0,
                     topicId: collectedData.topicId || 'unknown_topic',
                     topicCount: topicCount,
                     elapsedSeconds: elapsedSeconds,
-                    isValid: true,
+                    isValid: userStatus.isValid === true,
+                    hasRework: hasRework,
                     firstCompletionTime: currentTime,
                     lastCompletionTime: currentTime
                 };
@@ -1071,8 +1225,67 @@
             completionStats.perPage[pageKey].topicCount = topicCount;
             completionStats.perPage[pageKey].elapsedSeconds = elapsedSeconds;
             completionStats.perPage[pageKey].lastCompletionTime = currentTime;
-            completionStats.totalValidCompletions += 1;
-            completionStats.totalTopicsCompleted += topicCount;
+            completionStats.perPage[pageKey].hasRework = hasRework;
+
+            // 根据状态和是否有返修信息更新计数器
+            if (hasRework) {
+                // 返修页面的处理
+                if (completionStats.perPage[pageKey].hasRework !== true) {
+                    // 如果之前不是返修页面，需要调整计数器
+                    if (completionStats.perPage[pageKey].isValid === true) {
+                        // 之前是有效常规页面
+                        completionStats.totalValidCompletions = Math.max(0, completionStats.totalValidCompletions - 1);
+                        completionStats.totalTopicsCompleted = Math.max(0, completionStats.totalTopicsCompleted - completionStats.perPage[pageKey].topicCount);
+                    } else if (completionStats.perPage[pageKey].isValid === false) {
+                        // 之前是无效常规页面
+                        completionStats.totalInvalidCompletions = Math.max(0, completionStats.totalInvalidCompletions - 1);
+                    }
+                }
+
+                // 更新状态
+                completionStats.perPage[pageKey].isValid = userStatus.isValid === true;
+
+                // 增加返修计数器
+                if (completionStats.perPage[pageKey].hasRework !== true || completionStats.perPage[pageKey].completions === 1) {
+                    completionStats.totalReworkCompletions += 1;
+                }
+
+                // 返修页面不计入常规统计
+            } else {
+                // 常规页面的处理
+                if (completionStats.perPage[pageKey].hasRework === true) {
+                    // 如果之前是返修页面，需要从返修统计中减去
+                    completionStats.totalReworkCompletions = Math.max(0, completionStats.totalReworkCompletions - 1);
+                }
+
+                // 更新状态并按常规方式处理
+                completionStats.perPage[pageKey].isValid = userStatus.isValid === true;
+
+                if (userStatus.isValid === true) {
+                    // 如果页面之前被标记为无效，需要调整计数器
+                    if (completionStats.perPage[pageKey].isValid === false) {
+                        completionStats.totalInvalidCompletions = Math.max(0, completionStats.totalInvalidCompletions - 1);
+                    }
+                    completionStats.totalValidCompletions += 1;
+                    completionStats.totalTopicsCompleted += topicCount;
+                } else if (userStatus.isValid === false) {
+                    // 如果页面之前被标记为有效，需要调整计数器
+                    if (completionStats.perPage[pageKey].isValid === true) {
+                        completionStats.totalValidCompletions = Math.max(0, completionStats.totalValidCompletions - 1);
+                        completionStats.totalTopicsCompleted = Math.max(0, completionStats.totalTopicsCompleted - completionStats.perPage[pageKey].topicCount);
+                    }
+                    // 只有当页面之前不是无效状态时才增加计数器
+                    if (completionStats.perPage[pageKey].isValid !== false || completionStats.perPage[pageKey].completions === 1) {
+                        completionStats.totalInvalidCompletions += 1;
+                    }
+                } else {
+                    // 未知状态，保持原来的状态
+                    log(LOG_LEVEL.DEBUG, '用户状态未知，保持原来的状态');
+                }
+            }
+
+            // 更新总题目数
+            updateTotalQuestions();
 
             syncCollectedDataWithCompletionStats();
 
@@ -1080,7 +1293,11 @@
                 pageKey,
                 completions: completionStats.perPage[pageKey].completions,
                 topicCount: completionStats.perPage[pageKey].topicCount,
+                isValid: completionStats.perPage[pageKey].isValid,
+                hasRework: completionStats.perPage[pageKey].hasRework,
                 totalValidCompletions: completionStats.totalValidCompletions,
+                totalInvalidCompletions: completionStats.totalInvalidCompletions,
+                totalReworkCompletions: completionStats.totalReworkCompletions,
                 totalTopicsCompleted: completionStats.totalTopicsCompleted
             });
 
@@ -1365,12 +1582,37 @@
                             font-size: 12px;
                         ">清0</button>
                     </div>
-                    <div><strong style="color: #333;">总有效完成次数:</strong> <span id="total-completions-display" style="color: #0066cc; font-weight: bold; font-size: 16px;">${completionStats.totalValidCompletions || 0}</span></div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <strong style="color: #333;">总有效完成次数:</strong> <span id="total-completions-display" style="color: #0066cc; font-weight: bold; font-size: 16px;">${completionStats.totalValidCompletions || 0}</span> |
+                            <strong style="color: #333;">无效完成次数:</strong> <span id="total-invalid-completions-display" style="color: #f44336; font-weight: bold; font-size: 16px;">${completionStats.totalInvalidCompletions || 0}</span>
+                        </div>
+                        <div>
+                            <strong style="color: #333;">题目总数:</strong> <span id="total-questions-display" style="color: #0066cc; font-weight: bold; font-size: 16px;">${completionStats.totalQuestions || 0}</span>
+                        </div>
+                    </div>
+                    <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #eee;">
+                        <strong style="color: #333;">返修统计:</strong>
+                        <span style="margin-left: 10px;">
+                            <strong style="color: #FF9800;">返修完成次数:</strong>
+                            <span id="total-rework-completions-display" style="color: #FF9800; font-weight: bold; font-size: 16px;">${completionStats.totalReworkCompletions || 0}</span>
+                        </span>
+                        <span style="margin-left: 15px;">
+                            <strong style="color: #333;">返修题目数:</strong>
+                            <span id="rework-questions-display" style="color: #FF9800; font-weight: bold; font-size: 16px;">${completionStats.reworkQuestions || 0}</span>
+                        </span>
+                    </div>
                     <div style="margin-top: 10px; font-size: 13px; color: #555;">
                         <div style="margin-bottom: 5px;"><strong>各页面完成详情:</strong></div>
                         <div id="page-completions-display" style="margin-left: 15px; line-height: 1.6; max-height: 150px; overflow-y: auto; border: 1px solid #ddd; padding: 5px; border-radius: 3px;">
                             ${Object.keys(completionStats.perPage).length > 0
                                 ? Object.entries(completionStats.perPage)
+                                    .sort((a, b) => {
+                                        // 按最后完成时间降序排列（最新的在前）
+                                        const timeA = a[1].lastCompletionTime || 0;
+                                        const timeB = b[1].lastCompletionTime || 0;
+                                        return timeB - timeA;
+                                    })
                                     .slice(0, 5) // 只显示前5条记录
                                     .map(([pageKey, data]) => {
                                         // 获取驳回理由（如果有的话）
