@@ -879,13 +879,146 @@
         }
     }
 
+    // 检测页面是否具有有效状态
+    function hasValidStatus() {
+        try {
+            log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 开始检测页面是否具有有效状态');
+
+            // 查找包含"是否有效"文本的标签元素
+            const labels = document.querySelectorAll('label');
+            let validityLabel = null;
+            for (const label of labels) {
+                if (label.textContent.includes('是否有效')) {
+                    validityLabel = label;
+                    break;
+                }
+            }
+
+            if (!validityLabel) {
+                log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 未找到"是否有效"标签');
+                return false;
+            }
+
+            // 查找选中的"有效"单选按钮
+            // 首先尝试直接查找被选中的单选按钮
+            let validRadio = document.querySelector('input[type="radio"][value="有效"]:checked');
+            if (validRadio) {
+                log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 找到选中的"有效"单选按钮');
+                return true;
+            }
+
+            // 如果没有找到，尝试在"是否有效"标签附近查找
+            const radioContainer = validityLabel.closest('div, span, p') || validityLabel.parentElement;
+            if (radioContainer) {
+                const radios = radioContainer.querySelectorAll('input[type="radio"]');
+                for (const radio of radios) {
+                    if (radio.checked && radio.value === '有效') {
+                        log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 在标签附近找到选中的"有效"单选按钮');
+                        return true;
+                    }
+                }
+            }
+
+            // 检查页面上所有单选按钮，看是否有"有效"选项被选中
+            const allRadios = document.querySelectorAll('input[type="radio"]');
+            for (const radio of allRadios) {
+                // 检查单选按钮的值是否为"有效"且被选中
+                if (radio.value === '有效' && radio.checked) {
+                    log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 找到选中的"有效"单选按钮（全局搜索）');
+                    return true;
+                }
+
+                // 检查单选按钮旁边的文本是否包含"有效"且被选中
+                const nextElement = radio.nextElementSibling;
+                if (nextElement && nextElement.textContent.includes('有效') && radio.checked) {
+                    log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 找到选中的"有效"单选按钮（通过相邻文本）');
+                    return true;
+                }
+            }
+
+            log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 未找到选中的"有效"单选按钮');
+            return false;
+        } catch (error) {
+            log(LOG_LEVEL.WARN, '[Appen Data Collector] 检测有效状态时出错:', error);
+            return false;
+        }
+    }
+
+    // 检测页面的编辑轮数
+    function getEditRoundCount() {
+        try {
+            log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 开始检测页面的编辑轮数');
+
+            // 查找包含"判断编辑轮数"文本的标签元素
+            const labels = document.querySelectorAll('label');
+            let editRoundLabel = null;
+            for (const label of labels) {
+                if (label.textContent.includes('判断编辑轮数')) {
+                    editRoundLabel = label;
+                    break;
+                }
+            }
+
+            if (!editRoundLabel) {
+                log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 未找到"判断编辑轮数"标签');
+                return 0;
+            }
+
+            // 查找选中的编辑轮数单选按钮
+            // 首先尝试在"判断编辑轮数"标签附近查找
+            const radioContainer = editRoundLabel.closest('div, span, p') || editRoundLabel.parentElement;
+            if (radioContainer) {
+                const radios = radioContainer.querySelectorAll('input[type="radio"]');
+                for (const radio of radios) {
+                    if (radio.checked) {
+                        // 查找单选按钮旁边的文本以确定轮数
+                        const nextElement = radio.nextElementSibling;
+                        if (nextElement) {
+                            const match = nextElement.textContent.match(/(\d+)轮/);
+                            if (match) {
+                                const roundCount = parseInt(match[1]);
+                                log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 找到选中的编辑轮数:', roundCount);
+                                return roundCount;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 检查页面上所有单选按钮，看是否有包含轮数的选项被选中
+            const allRadios = document.querySelectorAll('input[type="radio"]');
+            for (const radio of allRadios) {
+                if (radio.checked) {
+                    // 查找单选按钮旁边的文本以确定轮数
+                    const nextElement = radio.nextElementSibling;
+                    if (nextElement) {
+                        const match = nextElement.textContent.match(/(\d+)轮/);
+                        if (match) {
+                            const roundCount = parseInt(match[1]);
+                            log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 找到选中的编辑轮数（全局搜索）:', roundCount);
+                            return roundCount;
+                        }
+                    }
+                }
+            }
+
+            // 如果没有找到明确选中的单选按钮，检查默认状态
+            // 通常默认是"1轮"
+            log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 未找到明确选中的编辑轮数，返回默认值1');
+            return 1;
+        } catch (error) {
+            log(LOG_LEVEL.WARN, '[Appen Data Collector] 检测编辑轮数时出错:', error);
+            return 0;
+        }
+    }
+
     // 获取页面的新旧题状态
     // 获取页面的新旧题状态
     function getPageNewOldStatus(pageData) {
         log(LOG_LEVEL.INFO, '[Appen Data Collector] 开始获取页面的新旧题状态');
         log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 传入的pageData:', pageData);
 
-        // 检查当前页面是否被QA驳回
+        // 检查当前页面是否被QA驳回（最高优先级）
         const isRejected = isCurrentPageRejected();
         log(LOG_LEVEL.DEBUG, '[Appen Data Collector] isCurrentPageRejected返回值:', isRejected);
 
@@ -894,8 +1027,24 @@
             return '旧'; // 当前页面显示QA驳回
         }
 
-        // 如果没有当前驳回，认为是新题
-        log(LOG_LEVEL.INFO, '[Appen Data Collector] 当前页面未被QA驳回，标记为新题');
+        // 检查是否具有有效状态且编辑轮数>=1（新增的判断条件）
+        try {
+            const isValidStatus = hasValidStatus();
+            const editRoundCount = getEditRoundCount();
+
+            log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 有效状态检测结果:', isValidStatus);
+            log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 编辑轮数检测结果:', editRoundCount);
+
+            if (isValidStatus && editRoundCount >= 1) {
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 页面具有有效状态且编辑轮数>=1，标记为旧题');
+                return '旧';
+            }
+        } catch (error) {
+            log(LOG_LEVEL.WARN, '[Appen Data Collector] 检测新增条件时出错:', error);
+        }
+
+        // 如果没有当前驳回，且不满足新增条件，认为是新题
+        log(LOG_LEVEL.INFO, '[Appen Data Collector] 当前页面未被QA驳回且不满足新增条件，标记为新题');
         return '新'; // 新题
     }
     // 获取当前页面的返修状态（新/旧）
