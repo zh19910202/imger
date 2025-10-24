@@ -1632,7 +1632,11 @@
                     <div><strong style="color: #333;">耗时(秒):</strong> <span id="elapsed-time-display" style="color: #0066cc;">${currentElapsedTime}</span></div>
                     <div><strong style="color: #333;">是否有效:</strong> <span id="valid-status-display" style="color: #0066cc;">${collectedData.responseElements?.userSelectionStatus ? (collectedData.responseElements.userSelectionStatus.isValid === true ? '✓ 有效' : collectedData.responseElements.userSelectionStatus.isValid === false ? '✗ 无效' : '未知') : '未检测到'}</span></div>
                     <div><strong style="color: #333;">认证Cookie:</strong> <span id="cookie-status-display" style="color: #0066cc; font-size: 12px;">${collectedData.authCookies ? (Object.keys(collectedData.authCookies).length > 0 ? '已获取(' + Object.keys(collectedData.authCookies).length + '个)' : '无有效Cookie') : '未获取'}</span></div>
-                    <div><strong style="color: #333;">新旧题状态:</strong> <span style="color: #0066cc;">${getCurrentPageReworkStatus()}</span></div>
+                    <div><strong style="color: #333;">新旧题状态:</strong> <span style="color: ${(() => {
+                        const pageKey = getCurrentPageKey();
+                        const pageData = completionStats.perPage[pageKey];
+                        return getPageNewOldStatusColor(pageData);
+                    })()};">${getCurrentPageReworkStatus()}</span></div>
                     <div><strong style="color: #333;">驳回理由:</strong> <span style="color: #0066cc;">${escapeHtml(collectedData.responseElements?.qualityCheckRecord?.latestRecord?.comment || '')}</span></div>
                 </div>
 
@@ -1704,7 +1708,7 @@
                                                 <span>题数: <span style="color: #0066cc;">${data.topicCount}</span></span> |
                                                 <span>耗时: <span style="color: #4CAF50;">${data.elapsedSeconds || 0}秒</span></span> |
                                                 <span>状态: <span style="color: ${data.isValid === true ? '#4CAF50' : data.isValid === false ? '#f44336' : '#9E9E9E'}; font-weight: bold;">${data.isValid === true ? '✓ 有效' : data.isValid === false ? '✗ 无效' : '未知状态'}</span></span> |
-                                                <span>新旧题: <span style="color: ${data.isSecondaryRework ? '#FF9800' : '#2196F3'}; font-weight: bold;">${getPageNewOldStatus(data)}</span></span>
+                                                <span>新旧题: <span style="color: ${getPageNewOldStatusColor(data)}; font-weight: bold;">${getPageNewOldStatus(data)}</span></span>
                                             </div>
                                             <div style="margin-left: 15px; font-size: 13px;">
                                                 <span>驳回理由: <span style="color: #f44336;">${escapeHtml(rejectReason.substring(0, 30))}${rejectReason.length > 30 ? '...' : ''}</span></span>
@@ -4307,4 +4311,19 @@
         watchUrlChanges();
     }
 
+    // 获取新旧题状态对应的颜色
+    function getPageNewOldStatusColor(pageData) {
+        if (!pageData) {
+            return '#2196F3'; // 默认蓝色（新题）
+        }
+
+        // 检查是否是二次返修
+        if (pageData.isSecondaryRework === true) {
+            return '#FF9800'; // 橙色（旧题）
+        }
+
+        // 一次返修或普通题目都是新题，使用蓝色
+        return '#2196F3'; // 蓝色（新题）
+    }
+
 })();
