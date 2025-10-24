@@ -677,8 +677,12 @@
     // 检查当前页面是否被QA驳回
     function isCurrentPageRejected() {
         try {
+            // 强制调试输出，确保函数被调用
+            console.log('[强制调试] isCurrentPageRejected函数被调用');
+
             // 检查页面文本中是否包含QA驳回信息
             const pageText = document.body.innerText;
+            console.log('[调试] 页面文本总长度:', pageText.length);
 
             // 简化日志输出，只显示关键信息
             console.log('[调试] 页面是否包含QA驳回信息:');
@@ -689,10 +693,21 @@
 
             // 显示包含这些关键词的上下文
             const lines = pageText.split('\n');
+            console.log('[调试] 页面总行数:', lines.length);
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
                 if (line.includes('QA') && line.includes('Rejected')) {
                     console.log('[调试] 找到QA驳回相关行:', line.trim());
+                }
+            }
+
+            // 特别检查包含"被 QA1 Rejected 请修订"的行
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                if (line.includes('被 QA1 Rejected 请修订')) {
+                    console.log('[调试] 精确匹配到QA1驳回行:', line.trim());
+                    console.log('[调试] 精确匹配找到QA1驳回信息');
+                    return true;
                 }
             }
 
