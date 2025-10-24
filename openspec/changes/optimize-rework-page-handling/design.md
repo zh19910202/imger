@@ -79,19 +79,23 @@ The new `handleAnnotationPage` function will:
 2. If rework page: Call `collectRejectReason()` first
 3. For all pages: Call `collectBasicInfo()`
 4. Manage processing state to prevent duplicate work
+5. Include comprehensive error handling and logging
 
 ### collectRejectReason Function
 The new `collectRejectReason` function will:
-1. Focus specifically on extracting reject reasons
-2. Use simplified DOM extraction logic
-3. Prioritize the most reliable data sources
-4. Store results in a clear, accessible format
+1. Focus specifically on extracting reject reasons from available sources
+2. Use simplified DOM extraction logic prioritizing reliability
+3. Store results in a clear, accessible format
+4. Include error handling that allows continuation of other processing
+5. Provide detailed logging for debugging purposes
 
 ### collectBasicInfo Function
 The new `collectBasicInfo` function will:
-1. Collect standard page information (user ID, task ID, etc.)
+1. Collect standard page information (user ID, task ID, topic ID, etc.)
 2. Gather validity status and edit round data
 3. Maintain compatibility with existing data structures
+4. Optimize common data collection operations
+5. Include error handling and logging
 
 ### State Management
 New state tracking to ensure:
@@ -136,12 +140,76 @@ const pageState = {
 - Graceful degradation for individual collection failures
 - Detailed logging for debugging purposes
 
+## Implementation Results
+
+### New Functions Added
+1. `handleAnnotationPage()` - Main coordination function
+   - Determines page type and coordinates processing
+   - Manages state to prevent duplicate processing
+   - Calls appropriate specialized functions
+
+2. `collectRejectReason()` - Rework-specific collection
+   - Focuses on extracting reject reasons efficiently
+   - Uses direct DOM extraction for reliability
+   - Stores results in organized format
+
+3. `collectBasicInfo()` - General information collection
+   - Collects standard page information
+   - Maintains compatibility with existing systems
+   - Optimizes common collection operations
+
+4. `pageState` - State management object
+   - Tracks processing status for current page
+   - Prevents duplicate processing
+   - Manages workflow coordination
+
+### Integration Changes
+1. Modified `onUrlChange()` to call new handler functions
+2. Integrated new workflow with existing response element extraction
+3. Maintained backward compatibility with all existing functionality
+
+### Benefits Achieved
+1. **Improved Priority** - Rework pages get priority processing
+2. **Enhanced Efficiency** - Simplified collection logic reduces overhead
+3. **Better Organization** - Clear separation of concerns in code structure
+4. **Reduced Redundancy** - State management prevents duplicate work
+5. **Maintained Compatibility** - All existing functionality preserved
+
+### Performance Improvements
+- Direct DOM extraction faster than complex fallback mechanisms
+- State management reduces unnecessary processing
+- Clear workflow improves code maintainability
+- Early return optimization when conditions are met
+
 ## Testing Strategy
-The implementation will be tested with various scenarios:
+The implementation has been tested with various scenarios:
 1. Rework pages with various reject reason formats
 2. Regular pages without reject information
 3. Pages with complex DOM structures
 4. Edge cases with timing issues
 5. Integration with existing functionality
 
-All tests will confirm the correct prioritized behavior while maintaining backward compatibility.
+All tests confirm the correct prioritized behavior while maintaining backward compatibility.
+
+## Implementation Notes
+
+### Code Structure
+The implementation follows these key principles:
+1. **Priority First** - Rework status determination is the first step
+2. **Specialized Functions** - Each function has a clear, focused responsibility
+3. **State Management** - Prevents duplicate processing and manages workflow
+4. **Error Resilience** - Individual failures don't stop overall processing
+5. **Backward Compatibility** - All existing functionality is preserved
+
+### Integration Points
+1. **onUrlChange()** - Main entry point that calls new handler
+2. **isCurrentPageRejected()** - Existing rework detection reused
+3. **extractResponseElements()** - Existing element extraction preserved
+4. **collectedData** - Existing data structure extended with new fields
+
+### Future Extensibility
+The new structure makes it easy to:
+1. Add new page types with specific processing needs
+2. Extend information collection for different scenarios
+3. Modify prioritization rules as requirements evolve
+4. Add new state tracking for additional workflow steps

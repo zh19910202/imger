@@ -4,7 +4,7 @@
 Optimize Rework Page Handling with Prioritized Information Collection
 
 ## Status
-Proposed
+Implemented
 
 ## Summary
 This change proposes to optimize the rework page handling process by implementing a prioritized information collection workflow. The new approach will first determine if a page is a rework page, then prioritize collecting reject reasons for rework pages before gathering other basic information.

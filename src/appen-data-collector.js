@@ -4794,7 +4794,15 @@
                     log(LOG_LEVEL.INFO, '[Appen Data Collector] 开始提取响应元素');
                     extractResponseElements();
                     log(LOG_LEVEL.INFO, '[Appen Data Collector] 响应元素提取完成');
+
+                    // 使用新的优化工作流处理页面
+                    setTimeout(() => {
+                        handleAnnotationPage();
+                    }, 500); // 等待响应元素提取完成后再处理页面
                 }, 1000); // 等待页面加载完成
+            } else {
+                // 如果已经有响应元素，直接处理页面
+                handleAnnotationPage();
             }
         } else {
             // 离开标注页面时清除缓存的开始时间
@@ -4802,6 +4810,116 @@
             await clearCachedStartTime();
             // 重置上一个任务ID
             lastTaskId = null;
+        }
+    }
+
+    // 页面状态管理对象
+    const pageState = {
+        isRejected: null,        // 是否为返修页
+        rejectReasonCollected: false, // 驳回理由是否已收集
+        basicInfoCollected: false,    // 基础信息是否已收集
+        lastProcessedUrl: null        // 上次处理的URL
+    };
+
+    // 主页面处理函数
+    async function handleAnnotationPage() {
+        try {
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 开始处理标注页面');
+
+            // 检查是否已经处理过当前页面
+            const currentUrl = window.location.href;
+            if (pageState.lastProcessedUrl === currentUrl) {
+                log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 页面已处理过，跳过重复处理');
+                return;
+            }
+
+            // 更新最后处理的URL
+            pageState.lastProcessedUrl = currentUrl;
+
+            // 重置页面状态
+            pageState.isRejected = null;
+            pageState.rejectReasonCollected = false;
+            pageState.basicInfoCollected = false;
+
+            // 首先判断是否为返修页
+            const isRejected = isCurrentPageRejected();
+            pageState.isRejected = isRejected;
+
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 页面返修状态:', isRejected);
+
+            // 如果是返修页，优先收集驳回理由
+            if (isRejected) {
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 检测到返修页，优先收集驳回理由');
+                await collectRejectReason();
+                pageState.rejectReasonCollected = true;
+            }
+
+            // 收集基础信息（所有页面都需要）
+            await collectBasicInfo();
+            pageState.basicInfoCollected = true;
+
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 页面处理完成');
+        } catch (error) {
+            log(LOG_LEVEL.ERROR, '[Appen Data Collector] 处理标注页面时出错:', error);
+        }
+    }
+
+    // 收集驳回理由函数（返修页专用）
+    async function collectRejectReason() {
+        try {
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 开始收集驳回理由');
+
+            // 直接从DOM中提取驳回理由（最可靠的方式）
+            const rejectInfo = extractLatestQARejectFromDOM();
+
+            if (rejectInfo) {
+                // 保存驳回信息到全局变量
+                if (!collectedData.qualityCheckInfo) {
+                    collectedData.qualityCheckInfo = {};
+                }
+
+                collectedData.qualityCheckInfo.rejectReason = rejectInfo.comment;
+                collectedData.qualityCheckInfo.rejectOperator = rejectInfo.operator;
+                collectedData.qualityCheckInfo.rejectTime = rejectInfo.operateTime;
+
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 驳回理由收集成功:', {
+                    reason: rejectInfo.comment,
+                    operator: rejectInfo.operator,
+                    time: rejectInfo.operateTime
+                });
+
+                // 输出到控制台以便调试
+                console.log('[Appen Data Collector] 驳回理由:', rejectInfo.comment);
+                console.log('[Appen Data Collector] 操作人:', rejectInfo.operator);
+                console.log('[Appen Data Collector] 操作时间:', rejectInfo.operateTime);
+            } else {
+                log(LOG_LEVEL.WARN, '[Appen Data Collector] 未找到驳回理由信息');
+            }
+        } catch (error) {
+            log(LOG_LEVEL.ERROR, '[Appen Data Collector] 收集驳回理由时出错:', error);
+        }
+    }
+
+    // 收集基础信息函数
+    async function collectBasicInfo() {
+        try {
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 开始收集基础信息');
+
+            // 收集用户选择状态（有效/无效，编辑轮数）
+            if (collectedData.responseElements) {
+                detectUserSelectionStatus(collectedData.responseElements);
+                log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 用户选择状态检测完成');
+            }
+
+            // 收集题目相关信息
+            collectTopicInfo();
+            log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 题目信息收集完成');
+
+            // 可以在这里添加其他基础信息收集逻辑
+
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 基础信息收集完成');
+        } catch (error) {
+            log(LOG_LEVEL.ERROR, '[Appen Data Collector] 收集基础信息时出错:', error);
         }
     }
 
