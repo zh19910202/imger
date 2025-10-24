@@ -679,16 +679,31 @@
         try {
             // 检查页面文本中是否包含QA驳回信息
             const pageText = document.body.innerText;
-            log(LOG_LEVEL.DEBUG, '页面文本前1000字符:', pageText.substring(0, 1000));
+
+            // 简化日志输出，只显示关键信息
+            console.log('[调试] 页面是否包含QA驳回信息:');
+            console.log('[调试] 包含"被 QA1 Rejected 请修订":', pageText.includes("被 QA1 Rejected 请修订"));
+            console.log('[调试] 包含"被 QA":', pageText.includes("被 QA"));
+            console.log('[调试] 包含"Rejected":', pageText.includes("Rejected"));
+            console.log('[调试] 包含"请修订":', pageText.includes("请修订"));
+
+            // 显示包含这些关键词的上下文
+            const lines = pageText.split('\n');
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                if (line.includes('QA') && line.includes('Rejected')) {
+                    console.log('[调试] 找到QA驳回相关行:', line.trim());
+                }
+            }
 
             if (pageText.includes("被 QA1 Rejected 请修订")) {
-                log(LOG_LEVEL.DEBUG, '找到QA1驳回信息');
+                console.log('[调试] 找到QA1驳回信息');
                 return true; // 找到QA1驳回信息
             }
 
             // 检查其他可能的QA驳回模式
             if (pageText.includes("被 QA") && pageText.includes("Rejected") && pageText.includes("请修订")) {
-                log(LOG_LEVEL.DEBUG, '找到其他QA驳回信息');
+                console.log('[调试] 找到其他QA驳回信息');
                 return true; // 找到其他QA的驳回信息
             }
 
@@ -701,49 +716,41 @@
                 'window.taskData'
             ];
 
-            let foundData = false;
             for (const varName of possibleDataVars) {
                 try {
                     const varValue = eval(varName);
                     if (varValue) {
-                        log(LOG_LEVEL.DEBUG, `${varName}:`, varValue);
+                        console.log(`[调试] 找到变量 ${varName}:`, typeof varValue);
                         // 检查任务类型
                         if (varValue.taskMessage && varValue.taskMessage.taskType === "REWORK") {
-                            log(LOG_LEVEL.DEBUG, `任务在${varName}中被标记为返修`);
+                            console.log(`[调试] 任务在${varName}中被标记为返修`);
                             return true;
                         }
                         if (varValue.taskType === "REWORK") {
-                            log(LOG_LEVEL.DEBUG, `任务在${varName}中被标记为返修`);
+                            console.log(`[调试] 任务在${varName}中被标记为返修`);
                             return true;
                         }
-                        foundData = true;
                     }
                 } catch (e) {
                     // 变量不存在，继续检查下一个
                 }
             }
 
-            if (!foundData) {
-                log(LOG_LEVEL.DEBUG, '未找到任何初始数据变量');
-            }
-
             // 检查页面上的特定元素
             const rejectElements = document.querySelectorAll('[class*="reject"], [class*="Reject"], [class*="驳回"]');
-            log(LOG_LEVEL.DEBUG, '找到可能的驳回相关元素数量:', rejectElements.length);
+            console.log('[调试] 找到可能的驳回相关元素数量:', rejectElements.length);
 
-            for (let i = 0; i < rejectElements.length; i++) {
-                const elementText = rejectElements[i].innerText || rejectElements[i].textContent;
-                log(LOG_LEVEL.DEBUG, `驳回相关元素 ${i}:`, elementText);
-                if (elementText.includes("被 QA") && elementText.includes("Rejected") && elementText.includes("请修订")) {
-                    log(LOG_LEVEL.DEBUG, '在页面元素中找到QA驳回信息');
-                    return true;
+            for (let i = 0; i < Math.min(rejectElements.length, 5); i++) {
+                const elementText = (rejectElements[i].innerText || rejectElements[i].textContent || '').trim();
+                if (elementText.length > 0) {
+                    console.log(`[调试] 驳回相关元素 ${i}:`, elementText.substring(0, 100));
                 }
             }
 
-            log(LOG_LEVEL.DEBUG, '没有检测到QA驳回信息');
+            console.log('[调试] 没有检测到QA驳回信息');
             return false; // 没有检测到QA驳回
         } catch (error) {
-            log(LOG_LEVEL.DEBUG, '检查页面驳回状态时出错:', error);
+            console.log('[调试] 检查页面驳回状态时出错:', error.message);
             return false;
         }
     }
