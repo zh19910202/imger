@@ -98,3 +98,44 @@ The `isCurrentPageRejected` function SHALL:
 4. Return false if no reject indicators are found
 5. Include detailed logging for debugging purposes
 6. Maintain status locking mechanism to prevent state changes within the same page
+
+## IMPLEMENTATION Results
+
+### New Functions Added
+1. `detectRejectByHtmlElement()` function:
+   - Uses CSS selector `div.flex.flex-row.justify-between.items-center.h-10.px-4`
+   - Verifies element styling (background-color:#fff, color:#0F121A)
+   - Checks for text "被 QA1 Rejected 请修订"
+   - Includes fallback matching and error handling
+
+2. Enhanced `isCurrentPageRejected()` function:
+   - Prioritizes HTML element targeting as first detection method
+   - Maintains all existing detection methods as fallback
+   - Preserves status locking mechanism
+   - Adds comprehensive logging
+
+### Priority Order Implementation
+1. HTML Element Targeting (highest priority)
+   - Direct element selection with styling verification
+   - Immediate return if match found
+2. Existing Text-Based Detection (fallback)
+   - All previous detection methods preserved
+   - Used only if HTML targeting doesn't find results
+
+### Backward Compatibility
+- All existing functionality preserved as fallback mechanisms
+- No breaking changes to existing API
+- Status locking mechanism maintained
+- Existing logging patterns preserved
+
+### Error Handling
+- Comprehensive try/catch blocks in new functions
+- Graceful fallback to existing methods on error
+- Detailed error logging for debugging
+- No interruption of existing functionality on failure
+
+### Performance Improvements
+- Direct element selection faster than full text scanning
+- Reduced false positives from precise targeting
+- Early return optimization when match found
+- Minimal performance impact on pages without QA rejects

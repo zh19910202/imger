@@ -681,6 +681,71 @@
     let currentPageRejectedStatus = null;
     let currentPageKey = null;
 
+    // 通过HTML元素定位检测QA驳回状态
+    function detectRejectByHtmlElement() {
+        try {
+            log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 开始通过HTML元素定位检测QA驳回状态');
+
+            // 使用精确的CSS选择器定位QA驳回元素
+            // 目标HTML结构: <div class="flex flex-row justify-between items-center h-10 px-4" style="background-color:#fff;color:#0F121A">被 QA1 Rejected 请修订<span>...</span></div>
+            const rejectDivs = document.querySelectorAll('div.flex.flex-row.justify-between.items-center.h-10.px-4');
+
+            log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 找到可能的QA驳回div元素数量:', rejectDivs.length);
+
+            for (let i = 0; i < rejectDivs.length; i++) {
+                const div = rejectDivs[i];
+
+                // 验证元素的样式
+                const computedStyle = window.getComputedStyle(div);
+                const bgColor = computedStyle.backgroundColor;
+                const color = computedStyle.color;
+
+                log(LOG_LEVEL.DEBUG, `[Appen Data Collector] div ${i} 样式 - 背景色: ${bgColor}, 文字颜色: ${color}`);
+
+                // 检查是否具有预期的样式
+                const hasExpectedStyling = bgColor.includes('255, 255, 255') || bgColor === 'rgb(255, 255, 255)' || bgColor.includes('#fff');
+                const hasExpectedTextColor = color.includes('15, 18, 26') || color === 'rgb(15, 18, 26)' || color.includes('#0F121A');
+
+                // 检查元素文本内容
+                const divText = (div.innerText || div.textContent || '').trim();
+                const hasRejectText = divText.includes('被 QA1 Rejected 请修订');
+
+                log(LOG_LEVEL.DEBUG, `[Appen Data Collector] div ${i} 检查结果 - 样式匹配: ${hasExpectedStyling && hasExpectedTextColor}, 文本匹配: ${hasRejectText}`);
+                log(LOG_LEVEL.DEBUG, `[Appen Data Collector] div ${i} 文本内容: ${divText.substring(0, 100)}`);
+
+                // 如果元素具有预期的样式和文本内容，则确认为QA驳回
+                if ((hasExpectedStyling && hasExpectedTextColor) && hasRejectText) {
+                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 通过HTML元素定位检测到QA驳回状态');
+                    log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 匹配的div元素:', div);
+                    return true;
+                }
+            }
+
+            // 如果没有找到匹配的元素，尝试更宽松的匹配
+            log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 尝试宽松匹配...');
+
+            // 查找包含特定类名和文本的元素
+            const potentialRejectElements = document.querySelectorAll('div[class*="flex"][class*="row"][class*="justify-between"]');
+
+            for (let i = 0; i < potentialRejectElements.length; i++) {
+                const element = potentialRejectElements[i];
+                const elementText = (element.innerText || element.textContent || '').trim();
+
+                if (elementText.includes('被 QA1 Rejected 请修订')) {
+                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 通过宽松匹配检测到QA驳回状态');
+                    log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 宽松匹配的元素文本:', elementText.substring(0, 100));
+                    return true;
+                }
+            }
+
+            log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 未通过HTML元素定位检测到QA驳回状态');
+            return false;
+        } catch (error) {
+            log(LOG_LEVEL.WARN, '[Appen Data Collector] HTML元素定位检测QA驳回状态时出错:', error);
+            return false;
+        }
+    }
+
     // 检查当前页面是否被QA驳回
     function isCurrentPageRejected() {
         try {
@@ -707,6 +772,15 @@
             if (currentPageRejectedStatus === true) {
                 log(LOG_LEVEL.INFO, '[Appen Data Collector] 状态已锁定为驳回，直接返回true');
                 console.log('[Appen-新旧题] [调试] 状态已锁定为驳回，直接返回true');
+                return true;
+            }
+
+            // 首先尝试通过HTML元素定位检测QA驳回状态（最高优先级）
+            const isRejectedByHtml = detectRejectByHtmlElement();
+            if (isRejectedByHtml) {
+                log(LOG_LEVEL.INFO, '[Appen Data Collector] 通过HTML元素定位检测到QA驳回状态');
+                console.log('[Appen-新旧题] [调试] 通过HTML元素定位检测到QA驳回状态');
+                currentPageRejectedStatus = true;
                 return true;
             }
 

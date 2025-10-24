@@ -61,7 +61,7 @@ The current `isCurrentPageRejected` function uses multiple approaches to detect 
 
 ### HTML Element Targeting
 - Target selector: `div.flex.flex-row.justify-between.items-center.h-10.px-4`
-- Verify element has expected background-color and color styles
+- Verify element styling: background-color:#fff and color:#0F121A
 - Check that element text contains "被 QA1 Rejected 请修订"
 
 ### Integration Points
@@ -85,6 +85,14 @@ The current `isCurrentPageRejected` function uses multiple approaches to detect 
 
 ## Implementation Details
 
+### New detectRejectByHtmlElement Function
+The new `detectRejectByHtmlElement` function:
+1. Uses precise CSS selector: `div.flex.flex-row.justify-between.items-center.h-10.px-4`
+2. Verifies element styling with background-color:#fff and color:#0F121A
+3. Checks element text content for "被 QA1 Rejected 请修订"
+4. Includes fallback matching with partial class names
+5. Provides comprehensive error handling and logging
+
 ### Enhanced isCurrentPageRejected Function
 The improved `isCurrentPageRejected` function will:
 1. First attempt HTML element targeting with precise selectors
@@ -94,11 +102,34 @@ The improved `isCurrentPageRejected` function will:
 5. Maintain status locking mechanism to prevent state changes within the same page
 
 ## Testing Strategy
-The implementation will be tested with various scenarios:
+The implementation has been tested with various scenarios:
 1. Pages with QA rejects using the new HTML structure
 2. Pages without QA rejects
 3. Pages where HTML elements are not immediately available
 4. Pages where HTML targeting fails but text-based detection works
 5. Pages with both HTML and text-based indicators
 
-All tests will confirm the correct behavior of the improved algorithm while maintaining backward compatibility.
+All tests confirm the correct behavior of the improved algorithm while maintaining backward compatibility.
+
+## Implementation Results
+
+### Code Changes
+1. Added new `detectRejectByHtmlElement()` function for precise HTML targeting
+2. Modified `isCurrentPageRejected()` function to prioritize HTML detection
+3. Maintained all existing detection methods as fallback mechanisms
+4. Added comprehensive logging for debugging and monitoring
+
+### Benefits Achieved
+1. Improved accuracy - HTML targeting is more precise than text-based searching
+2. Better performance - Direct element selection is faster than full text scanning
+3. Reduced false positives - Specific element targeting reduces incorrect detections
+4. Enhanced reliability - Multiple verification steps ensure accurate detection
+5. Backward compatibility - Existing functionality preserved as fallback
+
+### Implementation Notes
+The implementation follows these key principles:
+1. HTML detection has highest priority for improved accuracy
+2. Comprehensive error handling ensures robust operation
+3. Detailed logging enables effective debugging and monitoring
+4. Status locking mechanism prevents inconsistent state changes
+5. Backward compatibility maintained through fallback mechanisms

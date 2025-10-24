@@ -4,7 +4,7 @@
 Improve QA Reject Detection with Precise HTML Element Targeting
 
 ## Status
-Proposed
+Implemented
 
 ## Summary
 This change proposes to improve the QA reject detection algorithm by using precise HTML element targeting instead of text-based searching. The new approach will target specific HTML structures to more accurately identify QA reject status.
