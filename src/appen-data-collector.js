@@ -904,8 +904,8 @@
         queue: [],  // 待显示的通知队列
         activeNotifications: [],  // 当前显示中的通知
         maxVisible: 3,  // 最多同时显示3个通知
-        notificationHeight: 60,  // 每个通知的高度（像素）
-        spacing: 10,  // 通知之间的间距
+        notificationHeight: 80,  // 每个通知的高度（像素），增加以适应多行文本
+        spacing: 15,  // 通知之间的间距，增加以提供更好的视觉分离
         
         // 添加通知到队列
         add: function(message, type = 'info', duration = 5000) {
@@ -956,7 +956,9 @@
             this.activeNotifications.forEach((notification) => {
                 if (notification.element) {
                     notification.element.style.top = topOffset + 'px';
-                    topOffset += this.notificationHeight + this.spacing;
+                    // 使用通知的实际高度而不是固定高度
+                    const actualHeight = notification.element.offsetHeight || this.notificationHeight;
+                    topOffset += actualHeight + this.spacing;
                 }
             });
         }
@@ -5182,6 +5184,12 @@
                 z-index: 999999;
                 box-shadow: 0 2px 10px rgba(0,0,0,0.2);
                 transition: opacity 0.3s ease;
+                max-width: 400px;
+                width: max-content;
+                min-width: 200px;
+                white-space: normal;
+                word-wrap: break-word;
+                line-height: 1.4;
             `;
 
             // 添加到页面
@@ -5216,7 +5224,7 @@
         try {
             log(LOG_LEVEL.INFO, '[Appen Data Collector] 显示返修题提示');
             console.log('[Appen Data Collector] 显示返修题提示');
-            const message = '🔄 检测到返修题 - 正在自动获取质检驳回信息...';
+            const message = '🔄 返修题 - 正在获取质检信息...';
             console.log('[Appen Data Collector] 显示返修题提示消息:', message);
             notificationManager.add(message, 'warning', 3000);
         } catch (error) {
@@ -5230,10 +5238,20 @@
         try {
             log(LOG_LEVEL.INFO, '[Appen Data Collector] 显示质检驳回信息提示:', rejectInfo);
             if (rejectInfo && rejectInfo.comment) {
+                // 优化文本显示，更适合通知框
                 const cleanComment = TextExtractor.extractText({
                     textContent: rejectInfo.comment
-                }, { maxLength: 100, removeExtraWhitespace: true });
-                const message = `📢 质检驳回信息: ${cleanComment}${rejectInfo.comment.length > 100 ? '...' : ''}`;
+                }, {
+                    maxLength: 80,  // 减少长度以适应通知框
+                    removeExtraWhitespace: true,
+                    preserveNewlines: false  // 移除换行符以保持单行显示
+                });
+                // 进一步清理文本，移除可能的多余空格和特殊字符
+                let displayComment = cleanComment.trim();
+                if (displayComment.length > 80) {
+                    displayComment = displayComment.substring(0, 77) + '...';
+                }
+                const message = `📢 质检驳回: ${displayComment}`;
                 notificationManager.add(message, 'error', 8000);
             } else {
                 const message = '✅ 未找到质检驳回信息';
@@ -5280,7 +5298,7 @@
     function showTestNotification() {
         try {
             log(LOG_LEVEL.INFO, '[Appen Data Collector] 显示测试提示');
-            notificationManager.add('🔧 Appen数据收集器已加载', 'success', 3000);
+            notificationManager.add('🔧 数据收集器已加载', 'success', 3000);
         } catch (error) {
             log(LOG_LEVEL.ERROR, '[Appen Data Collector] 显示测试提示时出错:', error);
         }
@@ -5296,7 +5314,7 @@
 
             // 延迟1秒后显示新题提示
             setTimeout(() => {
-                const message = '🆕 新题 - 请正常完成标注任务';
+                const message = '🆕 新题 - 请正常标注';
                 notificationManager.add(message, 'info', 3000);
             }, 1000);
 
@@ -5429,7 +5447,7 @@
                 console.log('[Appen Data Collector] 当前为返修题，新旧题状态提示已跳过');
                 return;
             } else {
-                const message = '🆕 新题 - 请正常完成标注任务';
+                const message = '🆕 新题 - 请正常标注';
                 console.log('[Appen Data Collector] 显示新题提示:', message);
                 notificationManager.add(message, 'info', 3000);
             }
