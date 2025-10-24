@@ -32,7 +32,7 @@
     };
 
     // 生产环境使用WARN级别，开发环境可以使用DEBUG级别
-    const CURRENT_LOG_LEVEL = LOG_LEVEL.WARN;
+    const CURRENT_LOG_LEVEL = LOG_LEVEL.DEBUG;
 
     // 统一日志函数
     function log(level, message, data = null) {
