@@ -2835,37 +2835,7 @@
                     </div>
                 </div>
 
-                <div style="
-                    background: #f5f5f5;
-                    padding: 15px;
-                    border-radius: 4px;
-                    margin-top: 15px;
-                    margin-bottom: 15px;
-                ">
-                    <div style="margin-bottom: 10px;">
-                        <label style="color: #333; font-weight: bold; display: block; margin-bottom: 5px; font-size: 14px;">设置 lastTopicId:</label>
-                        <input type="text" id="lastTopicIdInput" placeholder="输入新的 lastTopicId 值" style="
-                            width: 100%;
-                            padding: 8px;
-                            border: 1px solid #ccc;
-                            border-radius: 4px;
-                            box-sizing: border-box;
-                            font-size: 13px;
-                        ">
-                    </div>
-                    <button id="set-lasttopicid-btn" style="
-                        background: #FF5722;
-                        color: white;
-                        border: none;
-                        padding: 8px 15px;
-                        border-radius: 4px;
-                        cursor: pointer;
-                        font-weight: bold;
-                        font-size: 13px;
-                        width: 100%;
-                    ">设置 lastTopicId</button>
-                </div>
-
+                
                 <div style="
                     margin-top: 20px;
                     display: flex;
@@ -2873,16 +2843,7 @@
                     justify-content: center;
                     flex-wrap: wrap;
                 ">
-                    <button id="copy-data-btn" style="
-                        background: #4CAF50;
-                        color: white;
-                        border: none;
-                        padding: 10px 20px;
-                        border-radius: 4px;
-                        cursor: pointer;
-                        font-weight: bold;
-                    ">复制数据</button>
-                    <button id="push-data-btn" style="
+                                        <button id="push-data-btn" style="
                         background: #2196F3;
                         color: white;
                         border: none;
@@ -2940,40 +2901,7 @@
             modal.remove();
         });
 
-        // 复制数据按钮事件
-        document.getElementById('copy-data-btn').addEventListener('click', function() {
-            // 重新计算当前耗时，并限制最大值
-            let elapsedTimeForCopy = Math.floor((Date.now() - collectedData.startTime) / 1000);
-            if (elapsedTimeForCopy > CONFIG.MAX_ELAPSED_TIME / 1000) {
-                elapsedTimeForCopy = CONFIG.MAX_ELAPSED_TIME / 1000;
-            }
-            
-            const dataToSend = {
-                userId: collectedData.userId || 'unknown_user',
-                taskId: collectedData.taskId || 'unknown_task',
-                topicId: collectedData.topicId || 'unknown_topic',
-                topicUrl: collectedData.topicUrl || window.location.href,
-                isValid: collectedData.responseElements?.userSelectionStatus?.isValid !== null ? 
-                        collectedData.responseElements.userSelectionStatus.isValid : true,
-                editRounds: collectedData.responseElements?.userSelectionStatus?.editRounds || null,
-                isRedo: false,
-                updateTime: new Date().toISOString(),
-                elapsedTime: elapsedTimeForCopy,
-                isReplace: false,
-                topicNum: collectedData.responseElements?.userSelectionStatus?.topicCount || collectedData.responseElements?.userSelectionStatus?.editRounds || collectedData.topicNum || 0,
-                userSelectionStatus: collectedData.responseElements?.userSelectionStatus || null,
-                qualityCheckRecord: collectedData.responseElements?.qualityCheckRecord || null
-            };
-
-            const jsonString = JSON.stringify(dataToSend, null, 2);
-            navigator.clipboard.writeText(jsonString).then(() => {
-                alert('数据已复制到剪贴板！');
-            }).catch(err => {
-                log(LOG_LEVEL.ERROR, '复制失败:', err);
-                alert('复制失败，请手动复制');
-            });
-        });
-
+        
         // 推送数据按钮事件
         document.getElementById('push-data-btn').addEventListener('click', function() {
             pushDataOnSubmission();
@@ -3032,48 +2960,7 @@
             }
         });
 
-        // 设置 lastTopicId 按钮事件
-        document.getElementById('set-lasttopicid-btn').addEventListener('click', function() {
-            const input = document.getElementById('lastTopicIdInput');
-            const newValue = input.value.trim();
-            
-            if (!newValue) {
-                alert('请输入 lastTopicId 值');
-                return;
-            }
-            
-            const oldTopicId = collectedData.topicId;
-            
-            lastTopicId = newValue;
-            collectedData.topicId = newValue;
-            specifiedElementIdAsTopicId = newValue;
-            
-            const topicIdDisplay = document.getElementById('topic-id-display');
-            if (topicIdDisplay) {
-                topicIdDisplay.textContent = escapeHtml(newValue);
-                log(LOG_LEVEL.DEBUG, '更新模态框中的题目ID显示:', newValue);
-            }
-
-            if (oldTopicId !== newValue) {
-                const newStartTime = Date.now();
-                collectedData.startTime = newStartTime;
-                log(LOG_LEVEL.DEBUG, '检测到题目ID变化，重置计时器');
-                log(LOG_LEVEL.DEBUG, '旧题目ID:', oldTopicId, '新题目ID:', newValue);
-                log(LOG_LEVEL.DEBUG, '新的开始时间:', new Date(newStartTime).toISOString());
-
-                const elapsedTimeDisplay = document.getElementById('elapsed-time-display');
-                if (elapsedTimeDisplay) {
-                    elapsedTimeDisplay.textContent = '0';
-                    log(LOG_LEVEL.DEBUG, '已重置模态框中的耗时显示为0');
-                }
-            }
-
-            log(LOG_LEVEL.DEBUG, 'lastTopicId 已设置为:', lastTopicId);
-            alert('lastTopicId 已设置为: ' + newValue + '\n计时器已重置');
-            
-            input.value = '';
-        });
-
+        
         // 清除标注完成统计按钮事件
         document.getElementById('clear-completion-stats-btn').addEventListener('click', async function() {
             if (confirm('确定要清除所有标注完成统计吗？')) {
