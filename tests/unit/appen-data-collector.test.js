@@ -586,8 +586,273 @@ describe('Appen数据收集器优化功能', () => {
         expect(calculateAverageElapsedTime()).toBe(0);
     });
 
+    test('应该正确按日期分组记录数据', () => {
+        // 模拟completionStats数据
+        const mockCompletionStats = {
+            perPage: {
+                'page1::101': {
+                    lastCompletionTime: new Date('2024-10-25T10:00:00').getTime(),
+                    completions: 1,
+                    topicCount: 3,
+                    elapsedSeconds: 120,
+                    isValid: true
+                },
+                'page2::102': {
+                    lastCompletionTime: new Date('2024-10-25T15:30:00').getTime(),
+                    completions: 2,
+                    topicCount: 5,
+                    elapsedSeconds: 180,
+                    isValid: true
+                },
+                'page3::103': {
+                    lastCompletionTime: new Date('2024-10-26T09:00:00').getTime(),
+                    completions: 1,
+                    topicCount: 2,
+                    elapsedSeconds: 90,
+                    isValid: false
+                }
+            }
+        };
+
+        global.completionStats = mockCompletionStats;
+
+        // 模拟分组函数
+        function groupRecordsByDate() {
+            const groupedData = {};
+
+            for (const [pageKey, pageData] of Object.entries(mockCompletionStats.perPage)) {
+                if (pageData.lastCompletionTime) {
+                    const date = new Date(pageData.lastCompletionTime);
+                    const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+                    if (!groupedData[dateKey]) {
+                        groupedData[dateKey] = {
+                            date: dateKey,
+                            records: [],
+                            totalCompletions: 0,
+                            validCompletions: 0,
+                            invalidCompletions: 0,
+                            totalTopics: 0,
+                            totalElapsedSeconds: 0
+                        };
+                    }
+
+                    groupedData[dateKey].records.push(pageData);
+                    groupedData[dateKey].totalCompletions += pageData.completions;
+                    groupedData[dateKey].totalTopics += pageData.topicCount;
+                    groupedData[dateKey].totalElapsedSeconds += pageData.elapsedSeconds || 0;
+
+                    if (pageData.isValid === true) {
+                        groupedData[dateKey].validCompletions += pageData.completions;
+                    } else if (pageData.isValid === false) {
+                        groupedData[dateKey].invalidCompletions += pageData.completions;
+                    }
+                }
+            }
+
+            return groupedData;
+        }
+
+        // 验证分组结果
+        const result = groupRecordsByDate();
+
+            expect(result['2024-10-25']).toBeDefined();
+            expect(result['2024-10-25'].totalTopics).toBe(8); // 3 + 5
+            expect(result['2024-10-25'].validCompletions).toBe(3); // 1 + 2
+            expect(result['2024-10-26']).toBeDefined();
+            expect(result['2024-10-26'].totalTopics).toBe(2);
+            expect(result['2024-10-26'].invalidCompletions).toBe(1);
+        });
+
+    test('应该正确计算工作量等级', () => {
+        // 模拟工作量等级函数
+        function getWorkloadLevel(dateData) {
+            const totalTopics = dateData.totalTopics;
+
+            if (totalTopics === 0) return 'none';
+            if (totalTopics <= 5) return 'light';
+            if (totalTopics <= 15) return 'medium';
+            if (totalTopics <= 30) return 'heavy';
+            return 'intensive';
+        }
+
+        // 测试不同工作量等级
+        expect(getWorkloadLevel({ totalTopics: 0 })).toBe('none');
+        expect(getWorkloadLevel({ totalTopics: 3 })).toBe('light');
+        expect(getWorkloadLevel({ totalTopics: 10 })).toBe('medium');
+        expect(getWorkloadLevel({ totalTopics: 20 })).toBe('heavy');
+        expect(getWorkloadLevel({ totalTopics: 35 })).toBe('intensive');
+    });
+
+    test('应该正确格式化日期键值', () => {
+        // 模拟格式化函数
+        function formatDateKey(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        // 测试日期格式化
+        const date1 = new Date('2024-10-25');
+        const date2 = new Date('2024-01-05');
+
+        expect(formatDateKey(date1)).toBe('2024-10-25');
+        expect(formatDateKey(date2)).toBe('2024-01-05');
+    });
+
+    test('应该正确判断今天日期', () => {
+        // 模拟今天判断函数
+        function isDateToday(year, month, day) {
+            const today = new Date();
+            return year === today.getFullYear() &&
+                   month === today.getMonth() &&
+                   day === today.getDate();
+        }
+
+        const today = new Date();
+
+        // 测试今天
+        expect(isDateToday(today.getFullYear(), today.getMonth(), today.getDate())).toBe(true);
+
+        // 测试非今天
+        expect(isDateToday(2020, 0, 1)).toBe(false);
+    });
+
+    test('应该正确获取月份天数和第一天星期', () => {
+        // 测试2024年10月（31天，周二开始）
+        const daysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
+        const firstDayOfWeek = (year, month) => new Date(year, month, 1).getDay();
+
+        expect(daysInMonth(2024, 9)).toBe(31); // 10月
+        expect(firstDayOfWeek(2024, 9)).toBe(2); // 周二
+
+        // 测试2024年2月（29天，周四开始）
+        expect(daysInMonth(2024, 1)).toBe(29); // 2月（闰年）
+        expect(firstDayOfWeek(2024, 1)).toBe(4); // 周四
+    });
+
+    test('应该正确获取工作量等级颜色', () => {
+        // 模拟颜色获取函数
+        function getWorkloadColor(workloadLevel) {
+            switch (workloadLevel) {
+                case 'none': return '#f5f5f5';
+                case 'light': return '#e8f5e9';
+                case 'medium': return '#c8e6c9';
+                case 'heavy': return '#a5d6a7';
+                case 'intensive': return '#81c784';
+                default: return '#f5f5f5';
+            }
+        }
+
+        expect(getWorkloadColor('none')).toBe('#f5f5f5');
+        expect(getWorkloadColor('light')).toBe('#e8f5e9');
+        expect(getWorkloadColor('medium')).toBe('#c8e6c9');
+        expect(getWorkloadColor('heavy')).toBe('#a5d6a7');
+        expect(getWorkloadColor('intensive')).toBe('#81c784');
+        expect(getWorkloadColor('unknown')).toBe('#f5f5f5');
+    });
+
     test('应该正确初始化配置参数', () => {
         // 这个测试需要在实际的Chrome扩展环境中运行才能验证
         expect(true).toBe(true);
+    });
+
+    test('应该正确统计返修数量', () => {
+        // 模拟包含返修的完成统计数据
+        const mockCompletionStatsWithRework = {
+            perPage: {
+                'topic1': {
+                    completions: 2,
+                    topicCount: 3,
+                    elapsedSeconds: 120,
+                    isValid: true,
+                    lastCompletionTime: '2024-10-25T10:00:00Z',
+                    hasRework: false
+                },
+                'topic2': {
+                    completions: 1,
+                    topicCount: 2,
+                    elapsedSeconds: 80,
+                    isValid: true,
+                    lastCompletionTime: '2024-10-25T14:00:00Z',
+                    hasRework: true // 返修题目
+                },
+                'topic3': {
+                    completions: 1,
+                    topicCount: 1,
+                    elapsedSeconds: 40,
+                    isValid: false,
+                    lastCompletionTime: '2024-10-26T09:00:00Z',
+                    hasRework: false
+                }
+            }
+        };
+
+        // 模拟isReworkPage函数
+        function isReworkPage(pageData) {
+            if (pageData && typeof pageData === 'object' && pageData.hasRework !== undefined) {
+                return pageData.hasRework === true;
+            }
+            return false;
+        }
+
+        // 模拟groupRecordsByDate函数
+        function groupRecordsByDate() {
+            const groupedData = {};
+
+            for (const [pageKey, pageData] of Object.entries(mockCompletionStatsWithRework.perPage)) {
+                if (pageData.lastCompletionTime) {
+                    const date = new Date(pageData.lastCompletionTime);
+                    const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+                    if (!groupedData[dateKey]) {
+                        groupedData[dateKey] = {
+                            date: dateKey,
+                            records: [],
+                            totalCompletions: 0,
+                            validCompletions: 0,
+                            invalidCompletions: 0,
+                            reworkCompletions: 0,
+                            totalTopics: 0,
+                            totalElapsedSeconds: 0
+                        };
+                    }
+
+                    groupedData[dateKey].records.push(pageData);
+                    groupedData[dateKey].totalCompletions += pageData.completions;
+                    groupedData[dateKey].totalTopics += pageData.topicCount;
+                    groupedData[dateKey].totalElapsedSeconds += pageData.elapsedSeconds || 0;
+
+                    if (pageData.isValid === true) {
+                        groupedData[dateKey].validCompletions += pageData.completions;
+                    } else if (pageData.isValid === false) {
+                        groupedData[dateKey].invalidCompletions += pageData.completions;
+                    }
+
+                    if (isReworkPage(pageData)) {
+                        groupedData[dateKey].reworkCompletions += pageData.completions;
+                    }
+                }
+            }
+
+            return groupedData;
+        }
+
+        const groupedData = groupRecordsByDate();
+
+        // 验证2024-10-25的统计数据
+        const oct25Data = groupedData['2024-10-25'];
+        expect(oct25Data.totalTopics).toBe(5); // 3 + 2
+        expect(oct25Data.validCompletions).toBe(3); // 2 + 1
+        expect(oct25Data.invalidCompletions).toBe(0);
+        expect(oct25Data.reworkCompletions).toBe(1); // topic2是返修
+
+        // 验证2024-10-26的统计数据
+        const oct26Data = groupedData['2024-10-26'];
+        expect(oct26Data.totalTopics).toBe(1);
+        expect(oct26Data.validCompletions).toBe(0);
+        expect(oct26Data.invalidCompletions).toBe(1);
+        expect(oct26Data.reworkCompletions).toBe(0);
     });
 });

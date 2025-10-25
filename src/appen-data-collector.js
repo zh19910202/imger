@@ -3402,6 +3402,7 @@
                         totalCompletions: 0,
                         validCompletions: 0,
                         invalidCompletions: 0,
+                        reworkCompletions: 0,
                         totalTopics: 0,
                         totalElapsedSeconds: 0
                     };
@@ -3416,6 +3417,11 @@
                     groupedData[dateKey].validCompletions += pageData.completions;
                 } else if (pageData.isValid === false) {
                     groupedData[dateKey].invalidCompletions += pageData.completions;
+                }
+
+                // 统计返修数量
+                if (isReworkPage(pageData)) {
+                    groupedData[dateKey].reworkCompletions += pageData.completions;
                 }
             }
         }
@@ -3593,9 +3599,10 @@
             <div style="font-weight: bold; color: #333; margin-bottom: 4px;">${dayNumber}</div>
             <div style="font-size: 12px; color: #666;">
                 <div>${dayData.totalTopics}题</div>
-                <div style="display: flex; gap: 4px;">
+                <div style="display: flex; gap: 4px; flex-wrap: wrap;">
                     <span style="color: #4CAF50;">${dayData.validCompletions}✓</span>
                     ${dayData.invalidCompletions > 0 ? `<span style="color: #f44336;">${dayData.invalidCompletions}✗</span>` : ''}
+                    ${dayData.reworkCompletions > 0 ? `<span style="color: #FF9800;">${dayData.reworkCompletions}↻</span>` : ''}
                 </div>
             </div>
         </div>`;
@@ -3631,14 +3638,20 @@
             );
             const topicId = pageKey ? (pageKey.includes('::') ? pageKey.split('::').pop() : pageKey) : 'unknown';
 
-            return `<div style="
+            const isRework = isReworkPage(record);
+        const borderColor = isRework ? '#FF9800' : (record.isValid === true ? '#4CAF50' : '#f44336');
+
+        return `<div style="
                 margin-bottom: 8px;
                 padding: 8px;
                 background: white;
                 border-radius: 3px;
-                border-left: 3px solid ${record.isValid === true ? '#4CAF50' : '#f44336'};
+                border-left: 3px solid ${borderColor};
             ">
-                <div style="font-weight: bold; color: #333;">题目ID: ${topicId}</div>
+                <div style="font-weight: bold; color: #333;">
+                    题目ID: ${topicId}
+                    ${isRework ? '<span style="background: #FF9800; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; margin-left: 5px;">返修</span>' : ''}
+                </div>
                 <div style="font-size: 12px; color: #666; margin-top: 4px;">
                     完成: ${record.completions}次 | 题数: ${record.topicCount} | 耗时: ${record.elapsedSeconds || 0}秒
                 </div>
@@ -3659,6 +3672,11 @@
                     <div>完成题目: <strong style="color: #e65100;">${dayData.totalTopics}题</strong></div>
                     <div>总耗时: <strong style="color: #4CAF50;">${formatElapsedTime(dayData.totalElapsedSeconds)}</strong></div>
                     <div>平均耗时: <strong style="color: #2196F3;">${formatElapsedTime(Math.round(dayData.totalElapsedSeconds / dayData.totalTopics))}/题</strong></div>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 15px; flex-wrap: wrap;">
+                    <div>有效完成: <strong style="color: #4CAF50;">${dayData.validCompletions}次</strong></div>
+                    <div>无效完成: <strong style="color: #f44336;">${dayData.invalidCompletions}次</strong></div>
+                    <div>返修完成: <strong style="color: #FF9800;">${dayData.reworkCompletions}次</strong></div>
                 </div>
                 <div style="margin-bottom: 10px; font-weight: bold; color: #333;">完成记录:</div>
                 <div style="max-height: 200px; overflow-y: auto;">
