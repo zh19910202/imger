@@ -23,7 +23,7 @@
 	"data": {
 		"taskAppleId": 2,
 		"recordId": 2,
-		"appleUserId": "user123",
+		"userId": "user123",
 		"taskId": "task456",
 		"updateTime": "2025-10-24T20:45:59"
 	}

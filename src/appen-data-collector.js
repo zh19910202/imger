@@ -2707,6 +2707,20 @@
                 currentElapsedTime = CONFIG.MAX_ELAPSED_TIME / 1000;
             }
 
+            // 创建背景覆盖层（用于点击关闭）
+            const overlay = document.createElement('div');
+            overlay.id = 'appen-modal-overlay';
+            overlay.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.5);
+                z-index: 99998;
+                cursor: pointer;
+            `;
+
             // 创建模态容器
             const modal = document.createElement('div');
             modal.id = 'appen-data-modal';
@@ -2722,12 +2736,15 @@
                 padding: 20px;
                 z-index: 99999;
                 box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-                max-width: 500px;
+                max-width: 550px;
                 width: 90%;
-                max-height: 80vh;
-                overflow-y: auto;
+                max-height: 95vh;
+                overflow: hidden;
+                min-height: 300px;
+                height: auto;
                 font-family: Arial, sans-serif;
-            ">
+                cursor: default;
+            " onclick="event.stopPropagation()">
                 <div style="
                     display: flex;
                     justify-content: space-between;
@@ -2747,127 +2764,193 @@
                         font-weight: bold;
                     ">关闭</button>
                 </div>
-                
-                <div style="
-                    background: #f5f5f5;
-                    padding: 15px;
-                    border-radius: 4px;
-                    line-height: 1.8;
-                    font-size: 14px;
-                ">
-                    <div><strong style="color: #333;">用户ID:</strong> <span style="color: #0066cc;">${escapeHtml(collectedData.userId || 'N/A')}</span></div>
-                    <div><strong style="color: #333;">任务ID:</strong> <span style="color: #0066cc;">${escapeHtml(collectedData.taskId || 'N/A')}</span></div>
-                    <div><strong style="color: #333;">任务名称:</strong> <span style="color: #0066cc;">${escapeHtml(collectedData.responseElements?.title || 'N/A')}</span></div>
-                    <div><strong style="color: #333;">题目ID:</strong> <span id="topic-id-display" style="color: #0066cc;">${escapeHtml(collectedData.topicId || 'N/A')}</span></div>
-                    <div><strong style="color: #333;">租户ID:</strong> <span style="color: #0066cc;">${escapeHtml(collectedData.responseElements?.jobTenantId || 'N/A')}</span></div>
-                    <div><strong style="color: #333;">项目ID:</strong> <span style="color: #0066cc;">${escapeHtml(collectedData.responseElements?.projectId || 'N/A')}</span></div>
-                    <div><strong style="color: #333;">项目显示ID:</strong> <span style="color: #0066cc;">${escapeHtml(collectedData.responseElements?.projectDisplayId || 'N/A')}</span></div>
-                    <div><strong style="color: #333;">题目数量:</strong> <span id="topic-count-display" style="color: #0066cc;">${collectedData.responseElements?.userSelectionStatus?.topicCount || collectedData.responseElements?.userSelectionStatus?.editRounds || collectedData.topicNum || 0}</span></div>
-                    <div><strong style="color: #333;">耗时(秒):</strong> <span id="elapsed-time-display" style="color: #0066cc;">${currentElapsedTime}</span></div>
-                    <div><strong style="color: #333;">是否有效:</strong> <span id="valid-status-display" style="color: #0066cc;">${collectedData.responseElements?.userSelectionStatus ? (collectedData.responseElements.userSelectionStatus.isValid === true ? '✓ 有效' : collectedData.responseElements.userSelectionStatus.isValid === false ? '✗ 无效' : '未知') : '未检测到'}</span></div>
-                    <div><strong style="color: #333;">认证Cookie:</strong> <span id="cookie-status-display" style="color: #0066cc; font-size: 12px;">${collectedData.authCookies ? (Object.keys(collectedData.authCookies).length > 0 ? '已获取(' + Object.keys(collectedData.authCookies).length + '个)' : '无有效Cookie') : '未获取'}</span></div>
-                    <div><strong style="color: #333;">新旧题状态:</strong> <span style="color: ${(() => {
-                        const pageKey = getCurrentPageKey();
-                        const pageData = completionStats.perPage[pageKey];
-                        console.log('[Appen-新旧题] [模态框] 计算新旧题状态 - 页面键值:', pageKey);
-                        console.log('[Appen-新旧题] [模态框] 页面数据:', pageData);
-                        const color = getPageNewOldStatusColor(pageData);
-                        console.log('[Appen-新旧题] [模态框] 计算得到的颜色:', color);
-                        return color;
-                    })()};">${(() => {
-                        const status = getCurrentPageReworkStatus();
-                        console.log('[Appen-新旧题] [模态框] 计算得到的状态:', status);
-                        return status;
-                    })()}</span></div>
-                    <div><strong style="color: #333;">驳回理由:</strong> <span style="color: #0066cc;">${escapeHtml(collectedData.responseElements?.qualityCheckRecord?.latestRecord?.comment || '')}</span></div>
-                </div>
 
+                <!-- 标签页导航 -->
                 <div style="
-                    background: #e8f5e9;
-                    padding: 15px;
-                    border-radius: 4px;
-                    margin-top: 15px;
+                    display: flex;
+                    border-bottom: 1px solid #ddd;
                     margin-bottom: 15px;
-                    border-left: 4px solid #4CAF50;
                 ">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <div style="font-weight: bold; color: #2e7d32; font-size: 15px;">✓ 标注完成统计</div>
-                        <button id="clear-completion-stats-btn" style="
-                            background: #f44336;
-                            color: white;
-                            border: none;
-                            padding: 5px 10px;
-                            border-radius: 4px;
-                            cursor: pointer;
-                            font-weight: bold;
-                            font-size: 12px;
-                        ">清0</button>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <strong style="color: #333;">总有效完成次数:</strong> <span id="total-completions-display" style="color: #0066cc; font-weight: bold; font-size: 16px;">${completionStats.totalValidCompletions || 0}</span> |
-                            <strong style="color: #333;">无效完成次数:</strong> <span id="total-invalid-completions-display" style="color: #f44336; font-weight: bold; font-size: 16px;">${completionStats.totalInvalidCompletions || 0}</span>
-                        </div>
-                        <div>
-                            <strong style="color: #333;">题目总数:</strong> <span id="total-questions-display" style="color: #0066cc; font-weight: bold; font-size: 16px;">${completionStats.totalQuestions || 0}</span>
-                        </div>
-                    </div>
-                    <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #eee;">
-                        <strong style="color: #333;">返修统计:</strong>
-                        <span style="margin-left: 10px;">
-                            <strong style="color: #FF9800;">返修完成次数:</strong>
-                            <span id="total-rework-completions-display" style="color: #FF9800; font-weight: bold; font-size: 16px;">${completionStats.totalReworkCompletions || 0}</span>
-                        </span>
-                        <span style="margin-left: 15px;">
-                            <strong style="color: #333;">返修题目数:</strong>
-                            <span id="rework-questions-display" style="color: #FF9800; font-weight: bold; font-size: 16px;">${completionStats.reworkQuestions || 0}</span>
-                        </span>
-                    </div>
-                    <div style="margin-top: 10px; font-size: 13px; color: #555;">
-                        <div style="margin-bottom: 5px;"><strong>各页面完成详情:</strong></div>
-                        <div id="page-completions-display" style="margin-left: 15px; line-height: 1.6; max-height: 150px; overflow-y: auto; border: 1px solid #ddd; padding: 5px; border-radius: 3px;">
-                            ${Object.keys(completionStats.perPage).length > 0
-                                ? Object.entries(completionStats.perPage)
-                                    .sort((a, b) => {
-                                        // 按最后完成时间降序排列（最新的在前）
-                                        const timeA = a[1].lastCompletionTime || 0;
-                                        const timeB = b[1].lastCompletionTime || 0;
-                                        return timeB - timeA;
-                                    })
-                                    .map(([pageKey, data], index) => {
-                                        // 获取驳回理由（使用每个页面自己的驳回理由）
-                                        const rejectReason = data.rejectReason || '无驳回';
-                                        // 格式化时间戳
-                                        const lastCompletionTime = data.lastCompletionTime
-                                            ? new Date(data.lastCompletionTime).toLocaleString('zh-CN')
-                                            : '未知';
+                    <button class="modal-tab" data-tab="basic" style="
+                        flex: 1;
+                        padding: 10px 5px;
+                        background: #e3f2fd;
+                        border: none;
+                        border-bottom: 2px solid #2196f3;
+                        cursor: pointer;
+                        font-size: 14px;
+                        font-weight: bold;
+                        color: #1976d2;
+                    ">基本信息</button>
+                    <button class="modal-tab" data-tab="status" style="
+                        flex: 1;
+                        padding: 10px 5px;
+                        background: #f5f5f5;
+                        border: none;
+                        border-bottom: 2px solid transparent;
+                        cursor: pointer;
+                        font-size: 14px;
+                        font-weight: normal;
+                        color: #666;
+                    ">实时状态</button>
+                    <button class="modal-tab" data-tab="history" style="
+                        flex: 1;
+                        padding: 10px 5px;
+                        background: #f5f5f5;
+                        border: none;
+                        border-bottom: 2px solid transparent;
+                        cursor: pointer;
+                        font-size: 14px;
+                        font-weight: normal;
+                        color: #666;
+                    ">历史统计</button>
+                </div>
 
-                                        return `<div style="margin-bottom: 8px; padding: 5px; border-bottom: 1px solid #eee;">
-                                            <div><strong>${index + 1}. 题目ID:</strong> <span style="color: #0066cc;">${escapeHtml(pageKey.includes('::') ? pageKey.split('::').pop() : pageKey)}</span></div>
-                                            <div style="margin-left: 15px; font-size: 13px;">
-                                                <span>完成次数: <span style="color: #f57c00; font-weight: bold;">${data.completions}</span></span> |
-                                                <span>题数: <span style="color: #0066cc;">${data.topicCount}</span></span> |
-                                                <span>耗时: <span style="color: #4CAF50;">${data.elapsedSeconds || 0}秒</span></span> |
-                                                <span>状态: <span style="color: ${data.isValid === true ? '#4CAF50' : data.isValid === false ? '#f44336' : '#9E9E9E'}; font-weight: bold;">${data.isValid === true ? '✓ 有效' : data.isValid === false ? '✗ 无效' : '未知状态'}</span></span> |
-                                                <span>新旧题: <span style="color: ${getPageNewOldStatusColor(data)}; font-weight: bold;">${getPageNewOldStatus(data)}</span></span>
-                                            </div>
-                                            <div style="margin-left: 15px; font-size: 13px;">
-                                                <span>驳回理由: <span style="color: #f44336;">${escapeHtml(rejectReason.substring(0, 30))}${rejectReason.length > 30 ? '...' : ''}</span></span>
-                                            </div>
-                                            <div style="margin-left: 15px; font-size: 12px; color: #777;">
-                                                最后完成: ${lastCompletionTime}
-                                            </div>
-                                        </div>`;
-                                    }).join('')
-                                : '<div style="color: #999;">暂无完成记录</div>'}
+                <!-- 标签页内容区域 -->
+                <div style="max-height: calc(95vh - 140px); overflow-y: auto;
+                min-height: 200px;">
+                    <!-- 基本信息 标签页 -->
+                    <div class="tab-content" data-tab="basic" style="
+                        background: #e3f2fd;
+                        padding: 15px;
+                        border-radius: 4px;
+                        line-height: 1.8;
+                        font-size: 14px;
+                        display: block;
+                    ">
+                        <div><strong style="color: #1976d2;">用户ID:</strong> <span style="color: #0066cc;">${escapeHtml(collectedData.userId || 'N/A')}</span></div>
+                        <div><strong style="color: #1976d2;">任务ID:</strong> <span style="color: #0066cc;">${escapeHtml(collectedData.taskId || 'N/A')}</span></div>
+                        <div><strong style="color: #1976d2;">任务名称:</strong> <span style="color: #0066cc;">${escapeHtml(collectedData.responseElements?.title || 'N/A')}</span></div>
+                        <div><strong style="color: #1976d2;">题目ID:</strong> <span id="topic-id-display" style="color: #0066cc;">${escapeHtml(collectedData.topicId || 'N/A')}</span></div>
+                        <div><strong style="color: #1976d2;">租户ID:</strong> <span style="color: #0066cc;">${escapeHtml(collectedData.responseElements?.jobTenantId || 'N/A')}</span></div>
+                        <div><strong style="color: #1976d2;">项目ID:</strong> <span style="color: #0066cc;">${escapeHtml(collectedData.responseElements?.projectId || 'N/A')}</span></div>
+                        <div><strong style="color: #1976d2;">项目显示ID:</strong> <span style="color: #0066cc;">${escapeHtml(collectedData.responseElements?.projectDisplayId || 'N/A')}</span></div>
+                    </div>
+
+                    <!-- 实时状态 标签页 -->
+                    <div class="tab-content" data-tab="status" style="
+                        background: #e8f5e9;
+                        padding: 15px;
+                        border-radius: 4px;
+                        line-height: 1.8;
+                        font-size: 14px;
+                        display: none;
+                    ">
+                        <div><strong style="color: #2e7d32;">题目数量:</strong> <span id="topic-count-display" style="color: #0066cc;">${collectedData.responseElements?.userSelectionStatus?.topicCount || collectedData.responseElements?.userSelectionStatus?.editRounds || collectedData.topicNum || 0}</span></div>
+                        <div><strong style="color: #2e7d32;">耗时(秒):</strong> <span id="elapsed-time-display" style="color: #0066cc;">${currentElapsedTime}</span></div>
+                        <div><strong style="color: #2e7d32;">是否有效:</strong> <span id="valid-status-display" style="color: #0066cc;">${collectedData.responseElements?.userSelectionStatus ? (collectedData.responseElements.userSelectionStatus.isValid === true ? '✓ 有效' : collectedData.responseElements.userSelectionStatus.isValid === false ? '✗ 无效' : '未知') : '未检测到'}</span></div>
+                        <div><strong style="color: #2e7d32;">认证Cookie:</strong> <span id="cookie-status-display" style="color: #0066cc; font-size: 12px;">${collectedData.authCookies ? (Object.keys(collectedData.authCookies).length > 0 ? '已获取(' + Object.keys(collectedData.authCookies).length + '个)' : '无有效Cookie') : '未获取'}</span></div>
+                        <div><strong style="color: #2e7d32;">新旧题状态:</strong> <span style="color: ${(() => {
+                            const pageKey = getCurrentPageKey();
+                            const pageData = completionStats.perPage[pageKey];
+                            console.log('[Appen-新旧题] [模态框] 计算新旧题状态 - 页面键值:', pageKey);
+                            console.log('[Appen-新旧题] [模态框] 页面数据:', pageData);
+                            const color = getPageNewOldStatusColor(pageData);
+                            console.log('[Appen-新旧题] [模态框] 计算得到的颜色:', color);
+                            return color;
+                        })()};">${(() => {
+                            const status = getCurrentPageReworkStatus();
+                            console.log('[Appen-新旧题] [模态框] 计算得到的状态:', status);
+                            return status;
+                        })()}</span></div>
+                        <div><strong style="color: #2e7d32;">驳回理由:</strong> <span style="color: #0066cc;">${escapeHtml(collectedData.responseElements?.qualityCheckRecord?.latestRecord?.comment || '')}</span></div>
+                    </div>
+
+                    <!-- 历史统计 标签页 -->
+                    <div class="tab-content" data-tab="history" style="
+                        background: #fff3e0;
+                        padding: 15px;
+                        border-radius: 4px;
+                        line-height: 1.6;
+                        font-size: 14px;
+                        display: none;
+                    ">
+                        <div style="
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: center;
+                            margin-bottom: 15px;
+                            padding-bottom: 10px;
+                            border-bottom: 2px solid #ff9800;
+                        ">
+                            <div style="font-weight: bold; color: #e65100; font-size: 16px;">✓ 标注完成统计</div>
+                            <button id="clear-completion-stats-btn" style="
+                                background: #f44336;
+                                color: white;
+                                border: none;
+                                padding: 5px 10px;
+                                border-radius: 4px;
+                                cursor: pointer;
+                                font-weight: bold;
+                                font-size: 12px;
+                            ">Clear</button>
                         </div>
-                        ${Object.keys(completionStats.perPage).length > 0
-                            ? `<div style="margin-top: 5px; font-size: 12px; color: #777;">共${Object.keys(completionStats.perPage).length}条记录。滚动查看全部。</div>`
-                            : ''}
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <strong style="color: #e65100;">总有效完成次数:</strong> <span id="total-completions-display" style="color: #0066cc; font-weight: bold; font-size: 16px;">${completionStats.totalValidCompletions || 0}</span> |
+                                <strong style="color: #e65100;">无效完成次数:</strong> <span id="total-invalid-completions-display" style="color: #f44336; font-weight: bold; font-size: 16px;">${completionStats.totalInvalidCompletions || 0}</span>
+                            </div>
+                            <div>
+                                <strong style="color: #e65100;">题目总数:</strong> <span id="total-questions-display" style="color: #0066cc; font-weight: bold; font-size: 16px;">${completionStats.totalQuestions || 0}</span>
+                            </div>
+                        </div>
+                        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #eee;">
+                            <strong style="color: #e65100;">返修统计:</strong>
+                            <span style="margin-left: 10px;">
+                                <strong style="color: #FF9800;">返修完成次数:</strong>
+                                <span id="total-rework-completions-display" style="color: #FF9800; font-weight: bold; font-size: 16px;">${completionStats.totalReworkCompletions || 0}</span>
+                            </span>
+                            <span style="margin-left: 15px;">
+                                <strong style="color: #e65100;">返修题目数:</strong>
+                                <span id="rework-questions-display" style="color: #FF9800; font-weight: bold; font-size: 16px;">${completionStats.reworkQuestions || 0}</span>
+                            </span>
+                        </div>
+                        <div style="margin-top: 10px; font-size: 13px; color: #555;">
+                            <div style="margin-bottom: 5px;"><strong>各页面完成详情:</strong></div>
+                            <div id="page-completions-display" style="margin-left: 15px; line-height: 1.6; border: 1px solid #ddd; padding: 5px; border-radius: 3px;">
+                                ${Object.keys(completionStats.perPage).length > 0
+                                    ? Object.entries(completionStats.perPage)
+                                        .sort((a, b) => {
+                                            // 按最后完成时间降序排列（最新的在前）
+                                            const timeA = a[1].lastCompletionTime || 0;
+                                            const timeB = b[1].lastCompletionTime || 0;
+                                            return timeB - timeA;
+                                        })
+                                        .map(([pageKey, data], index) => {
+                                            // 获取驳回理由（使用每个页面自己的驳回理由）
+                                            const rejectReason = data.rejectReason || '无驳回';
+                                            // 格式化时间戳
+                                            const lastCompletionTime = data.lastCompletionTime
+                                                ? new Date(data.lastCompletionTime).toLocaleString('zh-CN')
+                                                : '未知';
+
+                                            return `<div style="margin-bottom: 8px; padding: 5px; border-bottom: 1px solid #eee;">
+                                                <div><strong>${index + 1}. 题目ID:</strong> <span style="color: #0066cc;">${escapeHtml(pageKey.includes('::') ? pageKey.split('::').pop() : pageKey)}</span></div>
+                                                <div style="margin-left: 15px; font-size: 13px;">
+                                                    <span>完成次数: <span style="color: #f57c00; font-weight: bold;">${data.completions}</span></span> |
+                                                    <span>题数: <span style="color: #0066cc;">${data.topicCount}</span></span> |
+                                                    <span>耗时: <span style="color: #4CAF50;">${data.elapsedSeconds || 0}秒</span></span> |
+                                                    <span>状态: <span style="color: ${data.isValid === true ? '#4CAF50' : data.isValid === false ? '#f44336' : '#9E9E9E'}; font-weight: bold;">${data.isValid === true ? '✓ 有效' : data.isValid === false ? '✗ 无效' : '未知状态'}</span></span> |
+                                                    <span>新旧题: <span style="color: ${getPageNewOldStatusColor(data)}; font-weight: bold;">${getPageNewOldStatus(data)}</span></span>
+                                                </div>
+                                                <div style="margin-left: 15px; font-size: 13px;">
+                                                    <span>驳回理由: <span style="color: #f44336;">${escapeHtml(rejectReason.substring(0, 30))}${rejectReason.length > 30 ? '...' : ''}</span></span>
+                                                </div>
+                                                <div style="margin-left: 15px; font-size: 12px; color: #777;">
+                                                    最后完成: ${lastCompletionTime}
+                                                </div>
+                                            </div>`;
+                                        }).join('')
+                                    : '<div style="color: #999;">暂无完成记录</div>'}
+                            </div>
+                            ${Object.keys(completionStats.perPage).length > 0
+                                ? `<div style="margin-top: 5px; font-size: 12px; color: #777;">共${Object.keys(completionStats.perPage).length}条记录。滚动查看全部。</div>`
+                                : ''}
+                        </div>
                     </div>
                 </div>
 
-                
+                <!-- 按钮操作区域 -->
                 <div style="
                     margin-top: 20px;
                     display: flex;
@@ -2906,7 +2989,92 @@
             </div>
         `;
 
+        // 插入覆盖层和模态框
+        document.body.appendChild(overlay);
         document.body.appendChild(modal);
+
+        // 实现模态框自适应高度功能
+        function adjustModalHeight() {
+            const modalElement = document.getElementById('appen-data-modal');
+            const tabContentArea = modalElement.querySelector('div[style*="max-height: calc"]');
+            const activeTab = modalElement.querySelector('.tab-content[style*="display: block"]');
+
+            if (modalElement && tabContentArea && activeTab) {
+                // 临时显示活动标签页以测量其内容高度
+                const originalHeight = tabContentArea.style.height;
+                tabContentArea.style.height = 'auto';
+                tabContentArea.style.overflow = 'visible';
+
+                // 测量内容高度
+                const contentHeight = activeTab.scrollHeight;
+                const headerHeight = 140; // 头部区域高度（标题栏 + 标签页导航）
+                const padding = 40; // 上下padding
+                const totalHeight = contentHeight + headerHeight + padding;
+
+                // 恢复滚动设置
+                tabContentArea.style.height = originalHeight;
+                tabContentArea.style.overflow = 'auto';
+
+                // 设置模态框高度
+                const maxHeight = window.innerHeight * 0.95; // 最大95vh
+                const finalHeight = Math.min(totalHeight, maxHeight);
+                const minHeight = 300; // 最小高度
+
+                modalElement.style.height = Math.max(finalHeight, minHeight) + 'px';
+
+                // 调整标签页内容区域高度
+                const tabAreaHeight = finalHeight - headerHeight;
+                tabContentArea.style.maxHeight = tabAreaHeight + 'px';
+            }
+        }
+
+        // 初始调整高度
+        setTimeout(adjustModalHeight, 100);
+
+        // 添加标签页切换功能
+        const tabs = modal.querySelectorAll('.modal-tab');
+        const tabContents = modal.querySelectorAll('.tab-content');
+
+        function switchTab(targetTab) {
+            // 重置所有标签页样式
+            tabs.forEach(tab => {
+                if (tab.dataset.tab === targetTab) {
+                    tab.style.background = '#e3f2fd';
+                    tab.style.borderBottom = '2px solid #2196f3';
+                    tab.style.fontWeight = 'bold';
+                    tab.style.color = '#1976d2';
+                } else {
+                    tab.style.background = '#f5f5f5';
+                    tab.style.borderBottom = '2px solid transparent';
+                    tab.style.fontWeight = 'normal';
+                    tab.style.color = '#666';
+                }
+            });
+
+            // 切换内容显示
+            tabContents.forEach(content => {
+                content.style.display = content.dataset.tab === targetTab ? 'block' : 'none';
+            });
+
+            // 标签页切换后重新调整高度
+            setTimeout(adjustModalHeight, 50);
+        }
+
+        // 添加标签页点击事件
+        tabs.forEach(tab => {
+            tab.addEventListener('click', function() {
+                switchTab(this.dataset.tab);
+            });
+        });
+
+        // 默认显示实时状态标签页
+        switchTab('status');
+
+        // 背景点击关闭功能
+        overlay.addEventListener('click', function() {
+            modal.remove();
+            overlay.remove();
+        });
 
         // 更新驳回理由显示（确保显示最新的）
         const updateRejectReasonDisplay = function() {

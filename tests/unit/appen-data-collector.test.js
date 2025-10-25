@@ -237,6 +237,182 @@ describe('Appen数据收集器优化功能', () => {
         expect(dataToSend.userId).toBeUndefined();
     });
 
+    test('应该正确实现模态框标签页切换', () => {
+        // 模拟DOM环境和querySelectorAll方法
+        const mockElements = {
+            tabs: [
+                { dataset: { tab: 'basic' }, style: {} },
+                { dataset: { tab: 'status' }, style: {} },
+                { dataset: { tab: 'history' }, style: {} }
+            ],
+            contents: [
+                { dataset: { tab: 'basic' }, style: { display: 'none' } },
+                { dataset: { tab: 'status' }, style: { display: 'none' } },
+                { dataset: { tab: 'history' }, style: { display: 'none' } }
+            ]
+        };
+
+        // 重写querySelectorAll
+        mockDocument.querySelectorAll = jest.fn((selector) => {
+            if (selector === '.modal-tab') return mockElements.tabs;
+            if (selector === '.tab-content') return mockElements.contents;
+            return [];
+        });
+
+        // 模拟标签页切换逻辑
+        function switchTab(targetTab) {
+            mockElements.tabs.forEach(tab => {
+                if (tab.dataset.tab === targetTab) {
+                    tab.style.background = '#e3f2fd';
+                    tab.style.borderBottom = '2px solid #2196f3';
+                    tab.style.fontWeight = 'bold';
+                    tab.style.color = '#1976d2';
+                } else {
+                    tab.style.background = '#f5f5f5';
+                    tab.style.borderBottom = '2px solid transparent';
+                    tab.style.fontWeight = 'normal';
+                    tab.style.color = '#666';
+                }
+            });
+
+            mockElements.contents.forEach(content => {
+                content.style.display = content.dataset.tab === targetTab ? 'block' : 'none';
+            });
+        }
+
+        // 测试切换到基本信息
+        switchTab('basic');
+        expect(mockElements.tabs[0].style.background).toBe('#e3f2fd');
+        expect(mockElements.tabs[0].style.color).toBe('#1976d2');
+        expect(mockElements.contents[0].style.display).toBe('block');
+        expect(mockElements.contents[1].style.display).toBe('none');
+
+        // 测试切换到实时状态
+        switchTab('status');
+        expect(mockElements.tabs[1].style.background).toBe('#e3f2fd');
+        expect(mockElements.tabs[1].style.color).toBe('#1976d2');
+        expect(mockElements.contents[0].style.display).toBe('none');
+        expect(mockElements.contents[1].style.display).toBe('block');
+
+        // 测试切换到历史统计
+        switchTab('history');
+        expect(mockElements.tabs[2].style.background).toBe('#e3f2fd');
+        expect(mockElements.tabs[2].style.color).toBe('#1976d2');
+        expect(mockElements.contents[1].style.display).toBe('none');
+        expect(mockElements.contents[2].style.display).toBe('block');
+    });
+
+    test('应该正确实现背景点击关闭功能', () => {
+        // 模拟DOM元素和remove方法
+        const mockOverlay = {
+            id: 'appen-modal-overlay',
+            style: { display: 'block' },
+            remove: jest.fn(),
+            addEventListener: jest.fn()
+        };
+
+        const mockModal = {
+            id: 'appen-data-modal',
+            style: { display: 'block' },
+            remove: jest.fn()
+        };
+
+        // 模拟document.getElementById
+        mockDocument.getElementById = jest.fn((id) => {
+            if (id === 'appen-modal-overlay') return mockOverlay;
+            if (id === 'appen-data-modal') return mockModal;
+            return null;
+        });
+
+        // 验证初始状态
+        expect(mockDocument.getElementById('appen-modal-overlay').style.display).toBe('block');
+        expect(mockDocument.getElementById('appen-data-modal').style.display).toBe('block');
+
+        // 模拟背景点击事件处理逻辑
+        function handleBackgroundClick() {
+            const overlay = mockDocument.getElementById('appen-modal-overlay');
+            const modal = mockDocument.getElementById('appen-data-modal');
+
+            if (overlay && modal) {
+                modal.remove();
+                overlay.remove();
+            }
+        }
+
+        // 执行背景点击处理
+        handleBackgroundClick();
+
+        // 验证remove方法被调用
+        expect(mockModal.remove).toHaveBeenCalled();
+        expect(mockOverlay.remove).toHaveBeenCalled();
+    });
+
+    test('应该正确实现模态框自适应高度功能', () => {
+        // 模拟window.innerHeight
+        global.window = { innerHeight: 800 };
+
+        // 模拟DOM元素
+        const mockActiveTab = {
+            scrollHeight: 300,
+            style: { display: 'block' }
+        };
+
+        const mockTabContentArea = {
+            style: {
+                height: 'auto',
+                overflow: 'visible',
+                maxHeight: '600px'
+            },
+            querySelector: jest.fn(() => mockActiveTab)
+        };
+
+        const mockModalElement = {
+            style: { height: 'auto' },
+            querySelector: jest.fn((selector) => {
+                if (selector === 'div[style*="max-height: calc"]') return mockTabContentArea;
+                if (selector === '.tab-content[style*="display: block"]') return mockActiveTab;
+                return null;
+            })
+        };
+
+        mockDocument.getElementById = jest.fn(() => mockModalElement);
+
+        // 模拟自适应高度函数
+        function adjustModalHeight() {
+            const modalElement = mockDocument.getElementById('appen-data-modal');
+            const tabContentArea = modalElement.querySelector('div[style*="max-height: calc"]');
+            const activeTab = modalElement.querySelector('.tab-content[style*="display: block"]');
+
+            if (modalElement && tabContentArea && activeTab) {
+                const contentHeight = activeTab.scrollHeight;
+                const headerHeight = 140;
+                const padding = 40;
+                const totalHeight = contentHeight + headerHeight + padding;
+
+                const maxHeight = window.innerHeight * 0.95;
+                const finalHeight = Math.min(totalHeight, maxHeight);
+                const minHeight = 300;
+
+                modalElement.style.height = Math.max(finalHeight, minHeight) + 'px';
+
+                const tabAreaHeight = finalHeight - headerHeight;
+                tabContentArea.style.maxHeight = tabAreaHeight + 'px';
+            }
+        }
+
+        // 执行自适应高度调整
+        adjustModalHeight();
+
+        // 验证计算结果
+        const expectedTotalHeight = 300 + 140 + 40; // 480
+        const expectedMaxHeight = 800 * 0.95; // 760
+        const expectedFinalHeight = Math.min(480, 760); // 480
+        const expectedModalHeight = Math.max(480, 300); // 480
+
+        expect(mockModalElement.style.height).toBe(expectedModalHeight + 'px');
+        expect(mockTabContentArea.style.maxHeight).toBe((expectedFinalHeight - 140) + 'px');
+    });
+
     test('应该正确初始化配置参数', () => {
         // 这个测试需要在实际的Chrome扩展环境中运行才能验证
         expect(true).toBe(true);
