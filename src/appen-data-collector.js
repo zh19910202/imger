@@ -3404,6 +3404,7 @@
                         invalidCompletions: 0,
                         reworkCompletions: 0,
                         totalTopics: 0,
+                        validTopics: 0, // 有效题目数（用于计算平均耗时）
                         totalElapsedSeconds: 0
                     };
                 }
@@ -3411,10 +3412,15 @@
                 groupedData[dateKey].records.push(pageData);
                 groupedData[dateKey].totalCompletions += pageData.completions;
                 groupedData[dateKey].totalTopics += pageData.topicCount;
-                groupedData[dateKey].totalElapsedSeconds += pageData.elapsedSeconds || 0;
+
+                // 只计算有效完成的耗时（与列表视图保持一致）
+                if (pageData.isValid !== false) {
+                    groupedData[dateKey].totalElapsedSeconds += pageData.elapsedSeconds || 0;
+                }
 
                 if (pageData.isValid === true) {
                     groupedData[dateKey].validCompletions += pageData.completions;
+                    groupedData[dateKey].validTopics += pageData.topicCount; // 统计有效题目数
                 } else if (pageData.isValid === false) {
                     groupedData[dateKey].invalidCompletions += pageData.completions;
                 }
@@ -3671,7 +3677,7 @@
                 <div style="display: flex; justify-content: space-between; margin-bottom: 15px; flex-wrap: wrap;">
                     <div>完成题目: <strong style="color: #e65100;">${dayData.totalTopics}题</strong></div>
                     <div>总耗时: <strong style="color: #4CAF50;">${formatElapsedTime(dayData.totalElapsedSeconds)}</strong></div>
-                    <div>平均耗时: <strong style="color: #2196F3;">${formatElapsedTime(Math.round(dayData.totalElapsedSeconds / dayData.totalTopics))}/题</strong></div>
+                    <div>平均耗时: <strong style="color: #2196F3;">${formatElapsedTime(dayData.validTopics > 0 ? Math.round(dayData.totalElapsedSeconds / dayData.validTopics) : 0)}/题</strong></div>
                 </div>
                 <div style="display: flex; justify-content: space-between; margin-bottom: 15px; flex-wrap: wrap;">
                     <div>有效完成: <strong style="color: #4CAF50;">${dayData.validCompletions}次</strong></div>

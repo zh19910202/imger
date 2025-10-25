@@ -815,6 +815,7 @@ describe('Appen数据收集器优化功能', () => {
                             invalidCompletions: 0,
                             reworkCompletions: 0,
                             totalTopics: 0,
+                            validTopics: 0,
                             totalElapsedSeconds: 0
                         };
                     }
@@ -822,10 +823,15 @@ describe('Appen数据收集器优化功能', () => {
                     groupedData[dateKey].records.push(pageData);
                     groupedData[dateKey].totalCompletions += pageData.completions;
                     groupedData[dateKey].totalTopics += pageData.topicCount;
-                    groupedData[dateKey].totalElapsedSeconds += pageData.elapsedSeconds || 0;
+
+                    // 只计算有效完成的耗时（与列表视图保持一致）
+                    if (pageData.isValid !== false) {
+                        groupedData[dateKey].totalElapsedSeconds += pageData.elapsedSeconds || 0;
+                    }
 
                     if (pageData.isValid === true) {
                         groupedData[dateKey].validCompletions += pageData.completions;
+                        groupedData[dateKey].validTopics += pageData.topicCount; // 统计有效题目数
                     } else if (pageData.isValid === false) {
                         groupedData[dateKey].invalidCompletions += pageData.completions;
                     }
@@ -844,15 +850,19 @@ describe('Appen数据收集器优化功能', () => {
         // 验证2024-10-25的统计数据
         const oct25Data = groupedData['2024-10-25'];
         expect(oct25Data.totalTopics).toBe(5); // 3 + 2
+        expect(oct25Data.validTopics).toBe(5); // 两个都是有效完成
         expect(oct25Data.validCompletions).toBe(3); // 2 + 1
         expect(oct25Data.invalidCompletions).toBe(0);
         expect(oct25Data.reworkCompletions).toBe(1); // topic2是返修
+        expect(oct25Data.totalElapsedSeconds).toBe(200); // 120 + 80（只计算有效完成的耗时）
 
         // 验证2024-10-26的统计数据
         const oct26Data = groupedData['2024-10-26'];
         expect(oct26Data.totalTopics).toBe(1);
+        expect(oct26Data.validTopics).toBe(0); // 无效完成，不统计有效题目数
         expect(oct26Data.validCompletions).toBe(0);
         expect(oct26Data.invalidCompletions).toBe(1);
         expect(oct26Data.reworkCompletions).toBe(0);
+        expect(oct26Data.totalElapsedSeconds).toBe(0); // 无效完成不计算耗时
     });
 });
