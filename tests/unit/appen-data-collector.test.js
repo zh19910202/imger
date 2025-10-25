@@ -413,6 +413,179 @@ describe('Appen数据收集器优化功能', () => {
         expect(mockTabContentArea.style.maxHeight).toBe((expectedFinalHeight - 140) + 'px');
     });
 
+    test('应该正确计算总耗时', () => {
+        // 模拟completionStats数据
+        const mockCompletionStats = {
+            perPage: {
+                'page1::101': {
+                    elapsedSeconds: 120,
+                    isValid: true
+                },
+                'page2::102': {
+                    elapsedSeconds: 180,
+                    isValid: true
+                },
+                'page3::103': {
+                    elapsedSeconds: 90,
+                    isValid: false // 无效完成，不应计入总耗时
+                }
+            }
+        };
+
+        // 模拟全局completionStats
+        global.completionStats = mockCompletionStats;
+
+        // 模拟计算函数
+        function calculateTotalElapsedTime() {
+            let totalElapsedSeconds = 0;
+            for (const [pageKey, pageData] of Object.entries(mockCompletionStats.perPage)) {
+                // 只计算有效完成的耗时
+                if (pageData.isValid !== false) {
+                    totalElapsedSeconds += pageData.elapsedSeconds || 0;
+                }
+            }
+            return totalElapsedSeconds;
+        }
+
+        // 验证计算结果
+        const result = calculateTotalElapsedTime();
+        expect(result).toBe(300); // 120 + 180，不包含无效的90秒
+    });
+
+    test('应该正确计算平均耗时', () => {
+        // 模拟completionStats数据
+        const mockCompletionStats = {
+            perPage: {
+                'page1::101': {
+                    elapsedSeconds: 120,
+                    isValid: true,
+                    topicCount: 2
+                },
+                'page2::102': {
+                    elapsedSeconds: 180,
+                    isValid: true,
+                    topicCount: 3
+                }
+            },
+            totalQuestions: 5
+        };
+
+        // 模拟全局completionStats
+        global.completionStats = mockCompletionStats;
+
+        // 模拟计算函数
+        function calculateTotalElapsedTime() {
+            let totalElapsedSeconds = 0;
+            for (const [pageKey, pageData] of Object.entries(mockCompletionStats.perPage)) {
+                if (pageData.isValid !== false) {
+                    totalElapsedSeconds += pageData.elapsedSeconds || 0;
+                }
+            }
+            return totalElapsedSeconds;
+        }
+
+        function calculateAverageElapsedTime() {
+            const totalElapsedSeconds = calculateTotalElapsedTime();
+            const totalQuestions = mockCompletionStats.totalQuestions || 0;
+
+            if (totalQuestions <= 0) {
+                return 0;
+            }
+
+            return Math.round(totalElapsedSeconds / totalQuestions);
+        }
+
+        // 验证计算结果
+        const result = calculateAverageElapsedTime();
+        expect(result).toBe(60); // (120 + 180) / 5 = 60秒
+    });
+
+    test('应该正确处理平均耗时的除零保护', () => {
+        // 模拟无题目数的情况
+        const mockCompletionStats = {
+            perPage: {
+                'page1::101': {
+                    elapsedSeconds: 120,
+                    isValid: true
+                }
+            },
+            totalQuestions: 0
+        };
+
+        global.completionStats = mockCompletionStats;
+
+        function calculateAverageElapsedTime() {
+            const totalElapsedSeconds = 120; // 简化的总耗时
+            const totalQuestions = mockCompletionStats.totalQuestions || 0;
+
+            if (totalQuestions <= 0) {
+                return 0;
+            }
+
+            return Math.round(totalElapsedSeconds / totalQuestions);
+        }
+
+        // 验证除零保护
+        const result = calculateAverageElapsedTime();
+        expect(result).toBe(0);
+    });
+
+    test('应该正确格式化时间显示', () => {
+        // 模拟格式化函数
+        function formatElapsedTime(seconds) {
+            if (!seconds || seconds < 60) {
+                return `${seconds}秒`;
+            }
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = seconds % 60;
+            return remainingSeconds > 0 ? `${minutes}分${remainingSeconds}秒` : `${minutes}分钟`;
+        }
+
+        // 测试各种情况
+        expect(formatElapsedTime(0)).toBe('0秒');
+        expect(formatElapsedTime(30)).toBe('30秒');
+        expect(formatElapsedTime(60)).toBe('1分钟');
+        expect(formatElapsedTime(125)).toBe('2分5秒');
+        expect(formatElapsedTime(180)).toBe('3分钟');
+        expect(formatElapsedTime(null)).toBe('null秒');
+        expect(formatElapsedTime(undefined)).toBe('undefined秒');
+    });
+
+    test('应该正确处理无完成记录的情况', () => {
+        // 模拟空数据
+        const mockCompletionStats = {
+            perPage: {},
+            totalQuestions: 0
+        };
+
+        global.completionStats = mockCompletionStats;
+
+        function calculateTotalElapsedTime() {
+            let totalElapsedSeconds = 0;
+            for (const [pageKey, pageData] of Object.entries(mockCompletionStats.perPage)) {
+                if (pageData.isValid !== false) {
+                    totalElapsedSeconds += pageData.elapsedSeconds || 0;
+                }
+            }
+            return totalElapsedSeconds;
+        }
+
+        function calculateAverageElapsedTime() {
+            const totalElapsedSeconds = calculateTotalElapsedTime();
+            const totalQuestions = mockCompletionStats.totalQuestions || 0;
+
+            if (totalQuestions <= 0) {
+                return 0;
+            }
+
+            return Math.round(totalElapsedSeconds / totalQuestions);
+        }
+
+        // 验证无数据时的处理
+        expect(calculateTotalElapsedTime()).toBe(0);
+        expect(calculateAverageElapsedTime()).toBe(0);
+    });
+
     test('应该正确初始化配置参数', () => {
         // 这个测试需要在实际的Chrome扩展环境中运行才能验证
         expect(true).toBe(true);

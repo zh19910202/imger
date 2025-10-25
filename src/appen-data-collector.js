@@ -2905,6 +2905,21 @@
                                 <span id="rework-questions-display" style="color: #FF9800; font-weight: bold; font-size: 16px;">${completionStats.reworkQuestions || 0}</span>
                             </span>
                         </div>
+                        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #eee;">
+                            <strong style="color: #e65100;">耗时统计:</strong>
+                            <span style="margin-left: 10px;">
+                                <strong style="color: #4CAF50;">总耗时:</strong>
+                                <span id="total-elapsed-time-display" style="color: #4CAF50; font-weight: bold; font-size: 16px;">
+                                    ${formatElapsedTime(calculateTotalElapsedTime())}
+                                </span>
+                            </span>
+                            <span style="margin-left: 15px;">
+                                <strong style="color: #2196F3;">平均耗时:</strong>
+                                <span id="average-elapsed-time-display" style="color: #2196F3; font-weight: bold; font-size: 16px;">
+                                    ${formatElapsedTime(calculateAverageElapsedTime())}/题
+                                </span>
+                            </span>
+                        </div>
                         <div style="margin-top: 10px; font-size: 13px; color: #555;">
                             <div style="margin-bottom: 5px;"><strong>各页面完成详情:</strong></div>
                             <div id="page-completions-display" style="margin-left: 15px; line-height: 1.6; border: 1px solid #ddd; padding: 5px; border-radius: 3px;">
@@ -3190,6 +3205,41 @@
             "'": '&#039;'
         };
         return text.toString().replace(/[&<>"']/g, m => map[m]);
+    }
+
+    // 计算总耗时
+    function calculateTotalElapsedTime() {
+        let totalElapsedSeconds = 0;
+        for (const [pageKey, pageData] of Object.entries(completionStats.perPage)) {
+            // 只计算有效完成的耗时
+            if (pageData.isValid !== false) {
+                totalElapsedSeconds += pageData.elapsedSeconds || 0;
+            }
+        }
+        return totalElapsedSeconds;
+    }
+
+    // 计算平均耗时
+    function calculateAverageElapsedTime() {
+        const totalElapsedSeconds = calculateTotalElapsedTime();
+        const totalQuestions = completionStats.totalQuestions || 0;
+
+        // 防止除零错误
+        if (totalQuestions <= 0) {
+            return 0;
+        }
+
+        return Math.round(totalElapsedSeconds / totalQuestions);
+    }
+
+    // 格式化时间显示
+    function formatElapsedTime(seconds) {
+        if (!seconds || seconds < 60) {
+            return `${seconds}秒`;
+        }
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+        return remainingSeconds > 0 ? `${minutes}分${remainingSeconds}秒` : `${minutes}分钟`;
     }
 
     // 检查是否为特定目标页面
