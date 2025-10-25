@@ -1,5 +1,5 @@
 {
-    "userId": "user123",           // 平台用户编号 (必填, 最大长度50)
+    "appleUserId": "user123",           // 平台用户编号 (必填, 最大长度50)
     "taskId": "task456",           // 任务id (必填, 最大长度50)
     "taskName": "苹果任务测试",     // 任务名称 (必填, 最大长度50)
     "jobTenantId":"aaaaaaaa-pppp-pppp-eeee-nnnnnnnnnnnn",
@@ -23,7 +23,7 @@
 	"data": {
 		"taskAppleId": 2,
 		"recordId": 2,
-		"userId": "user123",
+		"appleUserId": "user123",
 		"taskId": "task456",
 		"updateTime": "2025-10-24T20:45:59"
 	}

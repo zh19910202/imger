@@ -2605,7 +2605,7 @@
         // - projectDisplayId: 项目显示ID，从URL参数提取
         // - topicUrl: 标注访问页面URL，可选字段默认为空
         const dataToSend = {
-            userId: collectedData.userId || 'unknown_user',
+            appleUserId: collectedData.userId || 'unknown_user',
             taskId: collectedData.taskId || 'unknown_task',
             taskName: collectedData.responseElements?.title || 'unknown_task', // 任务名称使用URL title参数
             topicId: collectedData.topicId || 'unknown_topic',

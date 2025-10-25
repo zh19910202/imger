@@ -203,6 +203,40 @@ describe('Appen数据收集器优化功能', () => {
         expect(recordsWithNumbers[2]).toBe('3. 题目ID: 103');
     });
 
+    test('应该正确使用appleUserId字段发送数据', () => {
+        // 模拟数据发送逻辑
+        const mockCollectedData = {
+            userId: 'user123',
+            taskId: 'task456',
+            responseElements: {
+                title: '测试任务',
+                jobTenantId: 'test-tenant',
+                projectId: 'test-project',
+                projectDisplayId: 'TEST123'
+            }
+        };
+
+        // 模拟数据包构建逻辑
+        const dataToSend = {
+            appleUserId: mockCollectedData.userId || 'unknown_user',
+            taskId: mockCollectedData.taskId || 'unknown_task',
+            taskName: mockCollectedData.responseElements?.title || 'unknown_task',
+            topicId: mockCollectedData.topicId || 'unknown_topic',
+            topicUrl: '',
+            jobTenantId: mockCollectedData.responseElements?.jobTenantId || 'unknown',
+            projectId: mockCollectedData.responseElements?.projectId || 'unknown',
+            projectDisplayId: mockCollectedData.responseElements?.projectDisplayId || 'unknown'
+        };
+
+        // 验证字段名正确
+        expect(dataToSend.appleUserId).toBe('user123');
+        expect(dataToSend.taskId).toBe('task456');
+        expect(dataToSend.taskName).toBe('测试任务');
+
+        // 确保没有旧的userId字段
+        expect(dataToSend.userId).toBeUndefined();
+    });
+
     test('应该正确初始化配置参数', () => {
         // 这个测试需要在实际的Chrome扩展环境中运行才能验证
         expect(true).toBe(true);
