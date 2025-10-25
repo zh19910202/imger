@@ -2798,9 +2798,29 @@
                         break;
                 }
 
-                // 应用尺寸限制
-                newWidth = Math.max(MODAL_CONFIG.MIN_WIDTH, Math.min(newWidth, MODAL_CONFIG.MAX_WIDTH));
-                newHeight = Math.max(MODAL_CONFIG.MIN_HEIGHT, Math.min(newHeight, MODAL_CONFIG.MAX_HEIGHT));
+                // 应用尺寸限制（必须在位置调整之前）
+                const minWidth = MODAL_CONFIG.MIN_WIDTH;
+                const minHeight = MODAL_CONFIG.MIN_HEIGHT;
+
+                if (newWidth < minWidth) {
+                    newWidth = minWidth;
+                    // 如果从左边拖拽，需要调整左边位置以保持右边界
+                    if (resizeDirection.includes('w')) {
+                        newLeft = resizeStartLeft + (resizeStartWidth - minWidth);
+                    }
+                }
+
+                if (newHeight < minHeight) {
+                    newHeight = minHeight;
+                    // 如果从上边拖拽，需要调整上边位置以保持下边界
+                    if (resizeDirection.includes('n')) {
+                        newTop = resizeStartTop + (resizeStartHeight - minHeight);
+                    }
+                }
+
+                // 限制最大尺寸
+                newWidth = Math.min(newWidth, MODAL_CONFIG.MAX_WIDTH);
+                newHeight = Math.min(newHeight, MODAL_CONFIG.MAX_HEIGHT);
 
                 // 确保位置不超出边界
                 const bounds = constrainToBounds(newLeft, newTop, newWidth, newHeight);
@@ -2819,9 +2839,9 @@
                 isDragging = true;
                 dragStartX = e.clientX;
                 dragStartY = e.clientY;
-                const rect = modalContainer.getBoundingClientRect();
-                modalStartX = rect.left;
-                modalStartY = rect.top;
+                // 从样式中获取当前位置，而不是使用 getBoundingClientRect
+                modalStartX = parseInt(modalContainer.style.left) || 0;
+                modalStartY = parseInt(modalContainer.style.top) || 0;
                 modalContainer.classList.add('modal-dragging');
                 document.addEventListener('mousemove', handleMouseMove);
                 document.addEventListener('mouseup', handleMouseUp);
@@ -2834,11 +2854,11 @@
                 resizeDirection = direction;
                 dragStartX = e.clientX;
                 dragStartY = e.clientY;
-                const rect = modalContainer.getBoundingClientRect();
-                resizeStartWidth = rect.width;
-                resizeStartHeight = rect.height;
-                resizeStartLeft = rect.left;
-                resizeStartTop = rect.top;
+                // 从样式和 offsetWidth/offsetHeight 中获取当前状态，而不是使用 getBoundingClientRect
+                resizeStartWidth = modalContainer.offsetWidth;
+                resizeStartHeight = modalContainer.offsetHeight;
+                resizeStartLeft = parseInt(modalContainer.style.left) || 0;
+                resizeStartTop = parseInt(modalContainer.style.top) || 0;
                 modalContainer.classList.add('modal-resizing');
                 document.addEventListener('mousemove', handleMouseMove);
                 document.addEventListener('mouseup', handleMouseUp);
@@ -3301,6 +3321,22 @@
         // 插入覆盖层和模态框
         document.body.appendChild(overlay);
         document.body.appendChild(modal);
+
+        // 初始化模态框位置：从居中transform转换为固定的left/top坐标
+        // 这样可以支持后续的拖动操作
+        const initializeModalPosition = () => {
+            const rect = modalContainer.getBoundingClientRect();
+            const left = rect.left;
+            const top = rect.top;
+
+            modalContainer.style.position = 'fixed';
+            modalContainer.style.left = left + 'px';
+            modalContainer.style.top = top + 'px';
+            modalContainer.style.transform = 'none';
+        };
+
+        // 使用 setTimeout 确保 DOM 已完全渲染
+        setTimeout(initializeModalPosition, 10);
 
         // 实现模态框自适应高度功能
         function adjustModalHeight() {
