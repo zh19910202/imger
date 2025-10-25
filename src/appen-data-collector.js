@@ -2723,9 +2723,11 @@
                         let newX = modalStartX + deltaX;
                         let newY = modalStartY + deltaY;
 
-                        const bounds = constrainToBounds(newX, newY, modal.offsetWidth, modal.offsetHeight);
-                        modal.style.left = bounds.x + 'px';
-                        modal.style.top = bounds.y + 'px';
+                        const bounds = constrainToBounds(newX, newY, modalContainer.offsetWidth, modalContainer.offsetHeight);
+                        modalContainer.style.left = bounds.x + 'px';
+                        modalContainer.style.top = bounds.y + 'px';
+                        modalContainer.style.position = 'fixed';
+                        modalContainer.style.transform = 'none';
                     });
                 } else if (isResizing) {
                     if (rafId) cancelAnimationFrame(rafId);
@@ -2740,7 +2742,7 @@
                     isDragging = false;
                     isResizing = false;
                     resizeDirection = null;
-                    modal.classList.remove('modal-dragging', 'modal-resizing');
+                    modalContainer.classList.remove('modal-dragging', 'modal-resizing');
                     cleanupEvents();
                 }
             }
@@ -2800,10 +2802,12 @@
                 const bounds = constrainToBounds(newLeft, newTop, newWidth, newHeight);
 
                 // 应用新尺寸和位置
-                modal.style.width = newWidth + 'px';
-                modal.style.height = newHeight + 'px';
-                modal.style.left = bounds.x + 'px';
-                modal.style.top = bounds.y + 'px';
+                modalContainer.style.width = newWidth + 'px';
+                modalContainer.style.height = newHeight + 'px';
+                modalContainer.style.left = bounds.x + 'px';
+                modalContainer.style.top = bounds.y + 'px';
+                modalContainer.style.position = 'fixed';
+                modalContainer.style.transform = 'none';
             }
 
             // 开始拖动
@@ -2811,10 +2815,10 @@
                 isDragging = true;
                 dragStartX = e.clientX;
                 dragStartY = e.clientY;
-                const rect = modal.getBoundingClientRect();
+                const rect = modalContainer.getBoundingClientRect();
                 modalStartX = rect.left;
                 modalStartY = rect.top;
-                modal.classList.add('modal-dragging');
+                modalContainer.classList.add('modal-dragging');
                 document.addEventListener('mousemove', handleMouseMove);
                 document.addEventListener('mouseup', handleMouseUp);
                 e.preventDefault();
@@ -2826,12 +2830,12 @@
                 resizeDirection = direction;
                 dragStartX = e.clientX;
                 dragStartY = e.clientY;
-                const rect = modal.getBoundingClientRect();
+                const rect = modalContainer.getBoundingClientRect();
                 resizeStartWidth = rect.width;
                 resizeStartHeight = rect.height;
                 resizeStartLeft = rect.left;
                 resizeStartTop = rect.top;
-                modal.classList.add('modal-resizing');
+                modalContainer.classList.add('modal-resizing');
                 document.addEventListener('mousemove', handleMouseMove);
                 document.addEventListener('mouseup', handleMouseUp);
                 e.preventDefault();
@@ -2892,17 +2896,23 @@
             // 创建模态容器
             const modal = document.createElement('div');
             modal.id = 'appen-data-modal';
-            modal.innerHTML = `
-            <div class="modal-container" style="
+            modal.style.cssText = `
                 position: fixed;
                 top: 50%;
                 left: 50%;
                 transform: translate(-50%, -50%);
+                z-index: 99999;
+                pointer-events: none;
+            `;
+
+            // 创建模态框内容容器
+            const modalContainer = document.createElement('div');
+            modalContainer.className = 'modal-container';
+            modalContainer.style.cssText = `
                 background: white;
                 border: 2px solid #333;
                 border-radius: 8px;
                 padding: 20px;
-                z-index: 99999;
                 box-shadow: 0 4px 20px rgba(0,0,0,0.3);
                 max-width: 550px;
                 width: 90%;
@@ -2912,7 +2922,11 @@
                 height: auto;
                 font-family: Arial, sans-serif;
                 cursor: default;
-            " onclick="event.stopPropagation()">
+                pointer-events: auto;
+                position: relative;
+            `;
+
+            modalContainer.innerHTML = `
                 <!-- 伸缩控制点 -->
                 <div class="resize-handle resize-handle-nw" data-direction="nw"></div>
                 <div class="resize-handle resize-handle-ne" data-direction="ne"></div>
@@ -3212,8 +3226,10 @@
                         font-weight: bold;
                     ">同步认证信息</button>
                 </div>
-            </div>
         `;
+
+        // 将内容容器添加到模态框
+        modal.appendChild(modalContainer);
 
         // 添加交互样式
         const modalStyles = document.createElement('style');
@@ -3281,9 +3297,6 @@
         // 插入覆盖层和模态框
         document.body.appendChild(overlay);
         document.body.appendChild(modal);
-
-        // 获取模态框容器元素
-        const modalContainer = modal.querySelector('.modal-container');
 
         // 实现模态框自适应高度功能
         function adjustModalHeight() {
@@ -3363,8 +3376,8 @@
         switchTab('status');
 
         // 绑定拖动和伸缩事件
-        const modalHeader = modal.querySelector('.modal-header');
-        const resizeHandles = modal.querySelectorAll('.resize-handle');
+        const modalHeader = modalContainer.querySelector('.modal-header');
+        const resizeHandles = modalContainer.querySelectorAll('.resize-handle');
 
         // 标题栏拖动事件
         if (modalHeader) {
@@ -3388,7 +3401,7 @@
         if (modalHeader) {
             modalHeader.addEventListener('dblclick', function(e) {
                 if (!e.target.closest('button')) {
-                    const container = modal.querySelector('.modal-container');
+                    const container = modalContainer;
                     if (container.style.width === '90vw') {
                         // 还原到原始大小
                         container.style.width = '';
