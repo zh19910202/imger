@@ -2497,6 +2497,10 @@
 
             saveCompletionStats();
 
+            // 自动发送数据到服务器
+            log(LOG_LEVEL.DEBUG, '确认完成记录完成，自动发送数据到服务器');
+            pushDataOnSubmission();
+
         } catch (error) {
             ErrorHandler.handle(error, '记录确认完成时的标注信息异常', null, LOG_LEVEL.WARN);
         }
