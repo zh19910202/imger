@@ -11,7 +11,7 @@
     // 配置参数
     const CONFIG = {
         // 数据推送的API端点
-        API_ENDPOINT: 'http://www.skytree.ink/api/Task/add',
+        API_ENDPOINT: 'http://192.168.31.74:1145/api/Task/apple/add', //http://192.168.31.74:1145/api/Task/apple/add  http://www.skytree.ink/api/Task/add
         // 认证信息同步的API端点
         AUTH_SYNC_ENDPOINT: 'http://www.skytree.ink/api/Task/apple/sync',
         // 最大重试次数
