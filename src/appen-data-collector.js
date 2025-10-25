@@ -2885,84 +2885,111 @@
                                 font-size: 12px;
                             ">Clear</button>
                         </div>
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <strong style="color: #e65100;">总有效完成次数:</strong> <span id="total-completions-display" style="color: #0066cc; font-weight: bold; font-size: 16px;">${completionStats.totalValidCompletions || 0}</span> |
-                                <strong style="color: #e65100;">无效完成次数:</strong> <span id="total-invalid-completions-display" style="color: #f44336; font-weight: bold; font-size: 16px;">${completionStats.totalInvalidCompletions || 0}</span>
-                            </div>
-                            <div>
-                                <strong style="color: #e65100;">题目总数:</strong> <span id="total-questions-display" style="color: #0066cc; font-weight: bold; font-size: 16px;">${completionStats.totalQuestions || 0}</span>
-                            </div>
-                        </div>
-                        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #eee;">
-                            <strong style="color: #e65100;">返修统计:</strong>
-                            <span style="margin-left: 10px;">
-                                <strong style="color: #FF9800;">返修完成次数:</strong>
-                                <span id="total-rework-completions-display" style="color: #FF9800; font-weight: bold; font-size: 16px;">${completionStats.totalReworkCompletions || 0}</span>
-                            </span>
-                            <span style="margin-left: 15px;">
-                                <strong style="color: #e65100;">返修题目数:</strong>
-                                <span id="rework-questions-display" style="color: #FF9800; font-weight: bold; font-size: 16px;">${completionStats.reworkQuestions || 0}</span>
-                            </span>
-                        </div>
-                        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #eee;">
-                            <strong style="color: #e65100;">耗时统计:</strong>
-                            <span style="margin-left: 10px;">
-                                <strong style="color: #4CAF50;">总耗时:</strong>
-                                <span id="total-elapsed-time-display" style="color: #4CAF50; font-weight: bold; font-size: 16px;">
-                                    ${formatElapsedTime(calculateTotalElapsedTime())}
-                                </span>
-                            </span>
-                            <span style="margin-left: 15px;">
-                                <strong style="color: #2196F3;">平均耗时:</strong>
-                                <span id="average-elapsed-time-display" style="color: #2196F3; font-weight: bold; font-size: 16px;">
-                                    ${formatElapsedTime(calculateAverageElapsedTime())}/题
-                                </span>
-                            </span>
-                        </div>
-                        <div style="margin-top: 10px; font-size: 13px; color: #555;">
-                            <div style="margin-bottom: 5px;"><strong>各页面完成详情:</strong></div>
-                            <div id="page-completions-display" style="margin-left: 15px; line-height: 1.6; border: 1px solid #ddd; padding: 5px; border-radius: 3px;">
-                                ${Object.keys(completionStats.perPage).length > 0
-                                    ? Object.entries(completionStats.perPage)
-                                        .sort((a, b) => {
-                                            // 按最后完成时间降序排列（最新的在前）
-                                            const timeA = a[1].lastCompletionTime || 0;
-                                            const timeB = b[1].lastCompletionTime || 0;
-                                            return timeB - timeA;
-                                        })
-                                        .map(([pageKey, data], index) => {
-                                            // 获取驳回理由（使用每个页面自己的驳回理由）
-                                            const rejectReason = data.rejectReason || '无驳回';
-                                            // 格式化时间戳
-                                            const lastCompletionTime = data.lastCompletionTime
-                                                ? new Date(data.lastCompletionTime).toLocaleString('zh-CN')
-                                                : '未知';
 
-                                            return `<div style="margin-bottom: 8px; padding: 5px; border-bottom: 1px solid #eee;">
-                                                <div><strong>${index + 1}. 题目ID:</strong> <span style="color: #0066cc;">${escapeHtml(pageKey.includes('::') ? pageKey.split('::').pop() : pageKey)}</span></div>
-                                                <div style="margin-left: 15px; font-size: 13px;">
-                                                    <span>完成次数: <span style="color: #f57c00; font-weight: bold;">${data.completions}</span></span> |
-                                                    <span>题数: <span style="color: #0066cc;">${data.topicCount}</span></span> |
-                                                    <span>耗时: <span style="color: #4CAF50;">${data.elapsedSeconds || 0}秒</span></span> |
-                                                    <span>状态: <span style="color: ${data.isValid === true ? '#4CAF50' : data.isValid === false ? '#f44336' : '#9E9E9E'}; font-weight: bold;">${data.isValid === true ? '✓ 有效' : data.isValid === false ? '✗ 无效' : '未知状态'}</span></span> |
-                                                    <span>新旧题: <span style="color: ${getPageNewOldStatusColor(data)}; font-weight: bold;">${getPageNewOldStatus(data)}</span></span>
-                                                </div>
-                                                <div style="margin-left: 15px; font-size: 13px;">
-                                                    <span>驳回理由: <span style="color: #f44336;">${escapeHtml(rejectReason.substring(0, 30))}${rejectReason.length > 30 ? '...' : ''}</span></span>
-                                                </div>
-                                                <div style="margin-left: 15px; font-size: 12px; color: #777;">
-                                                    最后完成: ${lastCompletionTime}
-                                                </div>
-                                            </div>`;
-                                        }).join('')
-                                    : '<div style="color: #999;">暂无完成记录</div>'}
-                            </div>
-                            ${Object.keys(completionStats.perPage).length > 0
-                                ? `<div style="margin-top: 5px; font-size: 12px; color: #777;">共${Object.keys(completionStats.perPage).length}条记录。滚动查看全部。</div>`
-                                : ''}
+                        <!-- 视图切换按钮 -->
+                        <div style="margin-bottom: 15px; text-align: center;">
+                            <button id="list-view-btn" class="view-toggle active" data-view="list" style="
+                                padding: 8px 16px;
+                                border: 1px solid #ddd;
+                                background: #e3f2fd;
+                                color: #1976d2;
+                                cursor: pointer;
+                                margin-right: 5px;
+                                border-radius: 4px;
+                                font-weight: bold;
+                            ">列表视图</button>
+                            <button id="calendar-view-btn" class="view-toggle" data-view="calendar" style="
+                                padding: 8px 16px;
+                                border: 1px solid #ddd;
+                                background: #f5f5f5;
+                                color: #666;
+                                cursor: pointer;
+                                margin-left: 5px;
+                                border-radius: 4px;
+                                font-weight: normal;
+                            ">日历视图</button>
                         </div>
-                    </div>
+
+                        <!-- 列表视图容器 -->
+                        <div id="list-view-container">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <strong style="color: #e65100;">总有效完成次数:</strong> <span id="total-completions-display" style="color: #0066cc; font-weight: bold; font-size: 16px;">${completionStats.totalValidCompletions || 0}</span> |
+                                    <strong style="color: #e65100;">无效完成次数:</strong> <span id="total-invalid-completions-display" style="color: #f44336; font-weight: bold; font-size: 16px;">${completionStats.totalInvalidCompletions || 0}</span>
+                                </div>
+                                <div>
+                                    <strong style="color: #e65100;">题目总数:</strong> <span id="total-questions-display" style="color: #0066cc; font-weight: bold; font-size: 16px;">${completionStats.totalQuestions || 0}</span>
+                                </div>
+                            </div>
+                            <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #eee;">
+                                <strong style="color: #e65100;">返修统计:</strong>
+                                <span style="margin-left: 10px;">
+                                    <strong style="color: #FF9800;">返修完成次数:</strong>
+                                    <span id="total-rework-completions-display" style="color: #FF9800; font-weight: bold; font-size: 16px;">${completionStats.totalReworkCompletions || 0}</span>
+                                </span>
+                                <span style="margin-left: 15px;">
+                                    <strong style="color: #e65100;">返修题目数:</strong>
+                                    <span id="rework-questions-display" style="color: #FF9800; font-weight: bold; font-size: 16px;">${completionStats.reworkQuestions || 0}</span>
+                                </span>
+                            </div>
+                            <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #eee;">
+                                <strong style="color: #e65100;">耗时统计:</strong>
+                                <span style="margin-left: 10px;">
+                                    <strong style="color: #4CAF50;">总耗时:</strong>
+                                    <span id="total-elapsed-time-display" style="color: #4CAF50; font-weight: bold; font-size: 16px;">
+                                        ${formatElapsedTime(calculateTotalElapsedTime())}
+                                    </span>
+                                </span>
+                                <span style="margin-left: 15px;">
+                                    <strong style="color: #2196F3;">平均耗时:</strong>
+                                    <span id="average-elapsed-time-display" style="color: #2196F3; font-weight: bold; font-size: 16px;">
+                                        ${formatElapsedTime(calculateAverageElapsedTime())}/题
+                                    </span>
+                                </span>
+                            </div>
+                            <div style="margin-top: 10px; font-size: 13px; color: #555;">
+                                <div style="margin-bottom: 5px;"><strong>各页面完成详情:</strong></div>
+                                <div id="page-completions-display" style="margin-left: 15px; line-height: 1.6; border: 1px solid #ddd; padding: 5px; border-radius: 3px;">
+                                    ${Object.keys(completionStats.perPage).length > 0
+                                        ? Object.entries(completionStats.perPage)
+                                            .sort((a, b) => {
+                                                // 按最后完成时间降序排列（最新的在前）
+                                                const timeA = a[1].lastCompletionTime || 0;
+                                                const timeB = b[1].lastCompletionTime || 0;
+                                                return timeB - timeA;
+                                            })
+                                            .map(([pageKey, data], index) => {
+                                                // 获取驳回理由（使用每个页面自己的驳回理由）
+                                                const rejectReason = data.rejectReason || '无驳回';
+                                                // 格式化时间戳
+                                                const lastCompletionTime = data.lastCompletionTime
+                                                    ? new Date(data.lastCompletionTime).toLocaleString('zh-CN')
+                                                    : '未知';
+
+                                                return `<div style="margin-bottom: 8px; padding: 5px; border-bottom: 1px solid #eee;">
+                                                    <div><strong>${index + 1}. 题目ID:</strong> <span style="color: #0066cc;">${escapeHtml(pageKey.includes('::') ? pageKey.split('::').pop() : pageKey)}</span></div>
+                                                    <div style="margin-left: 15px; font-size: 13px;">
+                                                        <span>完成次数: <span style="color: #f57c00; font-weight: bold;">${data.completions}</span></span> |
+                                                        <span>题数: <span style="color: #0066cc;">${data.topicCount}</span></span> |
+                                                        <span>耗时: <span style="color: #4CAF50;">${data.elapsedSeconds || 0}秒</span></span> |
+                                                        <span>状态: <span style="color: ${data.isValid === true ? '#4CAF50' : data.isValid === false ? '#f44336' : '#9E9E9E'}; font-weight: bold;">${data.isValid === true ? '✓ 有效' : data.isValid === false ? '✗ 无效' : '未知状态'}</span></span> |
+                                                        <span>新旧题: <span style="color: ${getPageNewOldStatusColor(data)}; font-weight: bold;">${getPageNewOldStatus(data)}</span></span>
+                                                    </div>
+                                                    <div style="margin-left: 15px; font-size: 13px;">
+                                                        <span>驳回理由: <span style="color: #f44336;">${escapeHtml(rejectReason.substring(0, 30))}${rejectReason.length > 30 ? '...' : ''}</span></span>
+                                                    </div>
+                                                    <div style="margin-left: 15px; font-size: 12px; color: #777;">
+                                                        最后完成: ${lastCompletionTime}
+                                                    </div>
+                                                </div>`;
+                                            }).join('')
+                                        : '<div style="color: #999;">暂无完成记录</div>'}
+                                </div>
+                                ${Object.keys(completionStats.perPage).length > 0
+                                    ? `<div style="margin-top: 5px; font-size: 12px; color: #777;">共${Object.keys(completionStats.perPage).length}条记录。滚动查看全部。</div>`
+                                    : ''}
+                            </div>
+                        </div>
                 </div>
 
                 <!-- 按钮操作区域 -->
@@ -3084,6 +3111,118 @@
 
         // 默认显示实时状态标签页
         switchTab('status');
+
+        // 日历功能相关变量
+        let currentYear = new Date().getFullYear();
+        let currentMonth = new Date().getMonth();
+        let selectedDate = null;
+
+        // 视图切换功能
+        function switchView(viewType) {
+            const listView = document.getElementById('list-view-container');
+            const calendarView = document.getElementById('calendar-view-container');
+            const listBtn = document.getElementById('list-view-btn');
+            const calendarBtn = document.getElementById('calendar-view-btn');
+
+            if (viewType === 'list') {
+                if (listView) listView.style.display = 'block';
+                if (calendarView) calendarView.style.display = 'none';
+                if (listBtn) {
+                    listBtn.style.background = '#e3f2fd';
+                    listBtn.style.color = '#1976d2';
+                    listBtn.style.fontWeight = 'bold';
+                }
+                if (calendarBtn) {
+                    calendarBtn.style.background = '#f5f5f5';
+                    calendarBtn.style.color = '#666';
+                    calendarBtn.style.fontWeight = 'normal';
+                }
+            } else {
+                if (listView) listView.style.display = 'none';
+                if (calendarView) calendarView.style.display = 'block';
+                if (listBtn) {
+                    listBtn.style.background = '#f5f5f5';
+                    listBtn.style.color = '#666';
+                    listBtn.style.fontWeight = 'normal';
+                }
+                if (calendarBtn) {
+                    calendarBtn.style.background = '#e3f2fd';
+                    calendarBtn.style.color = '#1976d2';
+                    calendarBtn.style.fontWeight = 'bold';
+                }
+
+                // 初始化日历
+                updateCalendar();
+            }
+        }
+
+        // 更新日历显示
+        function updateCalendar() {
+            const calendarContainer = document.getElementById('calendar-view-container');
+            if (!calendarContainer) return;
+
+            calendarContainer.innerHTML = generateCalendarHTML(currentYear, currentMonth);
+
+            // 添加月份导航事件
+            const prevBtn = document.getElementById('prev-month');
+            const nextBtn = document.getElementById('next-month');
+
+            if (prevBtn) {
+                prevBtn.addEventListener('click', function() {
+                    currentMonth--;
+                    if (currentMonth < 0) {
+                        currentMonth = 11;
+                        currentYear--;
+                    }
+                    updateCalendar();
+                });
+            }
+
+            if (nextBtn) {
+                nextBtn.addEventListener('click', function() {
+                    currentMonth++;
+                    if (currentMonth > 11) {
+                        currentMonth = 0;
+                        currentYear++;
+                    }
+                    updateCalendar();
+                });
+            }
+
+            // 添加日期点击事件
+            const dateDays = calendarContainer.querySelectorAll('.calendar-day:not(.empty)');
+            dateDays.forEach(day => {
+                day.addEventListener('click', function() {
+                    // 移除之前的选中状态
+                    calendarContainer.querySelectorAll('.calendar-day').forEach(d => {
+                        d.style.border = d.style.border.replace('2px solid #ff9800', '');
+                    });
+
+                    // 添加选中状态
+                    this.style.border = '2px solid #ff9800';
+                    selectedDate = this.dataset.date;
+
+                    // 显示详情
+                    showDateDetails(selectedDate);
+                });
+            });
+        }
+
+        // 添加视图切换按钮事件
+        const listViewBtn = document.getElementById('list-view-btn');
+        const calendarViewBtn = document.getElementById('calendar-view-btn');
+
+        if (listViewBtn) {
+            listViewBtn.addEventListener('click', function() {
+                switchView('list');
+            });
+        }
+
+        if (calendarViewBtn) {
+            calendarViewBtn.addEventListener('click', function() {
+                switchView('calendar');
+            });
+        }
 
         // 背景点击关闭功能
         overlay.addEventListener('click', function() {
@@ -3240,6 +3379,293 @@
         const minutes = Math.floor(seconds / 60);
         const remainingSeconds = seconds % 60;
         return remainingSeconds > 0 ? `${minutes}分${remainingSeconds}秒` : `${minutes}分钟`;
+    }
+
+    // 按日期分组记录数据
+    function groupRecordsByDate() {
+        const groupedData = {};
+
+        for (const [pageKey, pageData] of Object.entries(completionStats.perPage)) {
+            if (pageData.lastCompletionTime) {
+                const date = new Date(pageData.lastCompletionTime);
+                const dateKey = formatDateKey(date); // YYYY-MM-DD格式
+
+                if (!groupedData[dateKey]) {
+                    groupedData[dateKey] = {
+                        date: dateKey,
+                        records: [],
+                        totalCompletions: 0,
+                        validCompletions: 0,
+                        invalidCompletions: 0,
+                        totalTopics: 0,
+                        totalElapsedSeconds: 0
+                    };
+                }
+
+                groupedData[dateKey].records.push(pageData);
+                groupedData[dateKey].totalCompletions += pageData.completions;
+                groupedData[dateKey].totalTopics += pageData.topicCount;
+                groupedData[dateKey].totalElapsedSeconds += pageData.elapsedSeconds || 0;
+
+                if (pageData.isValid === true) {
+                    groupedData[dateKey].validCompletions += pageData.completions;
+                } else if (pageData.isValid === false) {
+                    groupedData[dateKey].invalidCompletions += pageData.completions;
+                }
+            }
+        }
+
+        return groupedData;
+    }
+
+    // 获取工作量等级
+    function getWorkloadLevel(dateData) {
+        const totalTopics = dateData.totalTopics;
+
+        if (totalTopics === 0) return 'none';        // 无工作
+        if (totalTopics <= 5) return 'light';        // 轻量工作
+        if (totalTopics <= 15) return 'medium';      // 中等工作
+        if (totalTopics <= 30) return 'heavy';       // 重度工作
+        return 'intensive';                          // 密集工作
+    }
+
+    // 格式化日期键值
+    function formatDateKey(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
+    // 判断是否为今天
+    function isDateToday(year, month, day) {
+        const today = new Date();
+        return year === today.getFullYear() &&
+               month === today.getMonth() &&
+               day === today.getDate();
+    }
+
+    // 获取月份天数
+    function getDaysInMonth(year, month) {
+        return new Date(year, month + 1, 0).getDate();
+    }
+
+    // 获取月份第一天是星期几
+    function getFirstDayOfWeek(year, month) {
+        return new Date(year, month, 1).getDay();
+    }
+
+    // 获取工作量等级颜色
+    function getWorkloadColor(workloadLevel) {
+        switch (workloadLevel) {
+            case 'none': return '#f5f5f5';
+            case 'light': return '#e8f5e9';
+            case 'medium': return '#c8e6c9';
+            case 'heavy': return '#a5d6a7';
+            case 'intensive': return '#81c784';
+            default: return '#f5f5f5';
+        }
+    }
+
+    // 生成日历HTML
+    function generateCalendarHTML(year, month) {
+        const firstDay = getFirstDayOfWeek(year, month);
+        const daysInMonth = getDaysInMonth(year, month);
+        const groupedData = groupRecordsByDate();
+
+        let html = `
+            <div class="calendar-header" style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 15px;
+                padding: 10px;
+                background: #fff3e0;
+                border-radius: 4px;
+            ">
+                <button id="prev-month" style="
+                    background: #ff9800;
+                    color: white;
+                    border: none;
+                    padding: 8px 12px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-weight: bold;
+                ">←</button>
+                <span class="current-month" style="
+                    font-weight: bold;
+                    color: #e65100;
+                    font-size: 16px;
+                ">${year}年${month + 1}月</span>
+                <button id="next-month" style="
+                    background: #ff9800;
+                    color: white;
+                    border: none;
+                    padding: 8px 12px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-weight: bold;
+                ">→</button>
+            </div>
+            <div class="calendar-grid" style="
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                overflow: hidden;
+            ">
+                <div class="weekday-headers" style="
+                    display: grid;
+                    grid-template-columns: repeat(7, 1fr);
+                    background: #ff9800;
+                    color: white;
+                    font-weight: bold;
+                    text-align: center;
+                    padding: 8px 0;
+                ">
+                    <div>日</div><div>一</div><div>二</div><div>三</div>
+                    <div>四</div><div>五</div><div>六</div>
+                </div>
+                <div class="calendar-days" style="
+                    display: grid;
+                    grid-template-columns: repeat(7, 1fr);
+                    gap: 1px;
+                    background: #ddd;
+                ">
+        `;
+
+        // 添加空白日期
+        for (let i = 0; i < firstDay; i++) {
+            html += '<div class="calendar-day empty" style="background: #fafafa; padding: 10px; min-height: 60px;"></div>';
+        }
+
+        // 添加日期
+        for (let day = 1; day <= daysInMonth; day++) {
+            const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const dayData = groupedData[dateKey];
+            const workloadLevel = dayData ? getWorkloadLevel(dayData) : 'none';
+            const isToday = isDateToday(year, month, day);
+
+            html += generateDayHTML(dateKey, day, dayData, workloadLevel, isToday);
+        }
+
+        html += `
+                </div>
+            </div>
+            <div id="date-details-container" style="margin-top: 20px;"></div>
+        `;
+
+        return html;
+    }
+
+    // 生成单个日期HTML
+    function generateDayHTML(dateKey, dayNumber, dayData, workloadLevel, isToday) {
+        const bgColor = getWorkloadColor(workloadLevel);
+        const borderStyle = isToday ? 'border: 2px solid #2196f3;' : '';
+        const cursorStyle = dayData ? 'cursor: pointer;' : 'cursor: default;';
+
+        if (!dayData) {
+            return `<div class="calendar-day empty" data-date="${dateKey}" style="
+                background: ${bgColor};
+                padding: 10px;
+                min-height: 60px;
+                ${borderStyle}
+                ${cursorStyle}
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: #999;
+                font-size: 14px;
+            ">${dayNumber}</div>`;
+        }
+
+        return `<div class="calendar-day ${workloadLevel}" data-date="${dateKey}" style="
+            background: ${bgColor};
+            padding: 8px;
+            min-height: 60px;
+            ${borderStyle}
+            ${cursorStyle}
+            border-bottom: 1px solid #ddd;
+        ">
+            <div style="font-weight: bold; color: #333; margin-bottom: 4px;">${dayNumber}</div>
+            <div style="font-size: 12px; color: #666;">
+                <div>${dayData.totalTopics}题</div>
+                <div style="display: flex; gap: 4px;">
+                    <span style="color: #4CAF50;">${dayData.validCompletions}✓</span>
+                    ${dayData.invalidCompletions > 0 ? `<span style="color: #f44336;">${dayData.invalidCompletions}✗</span>` : ''}
+                </div>
+            </div>
+        </div>`;
+    }
+
+    // 显示选中日期的详情
+    function showDateDetails(dateKey) {
+        const groupedData = groupRecordsByDate();
+        const dayData = groupedData[dateKey];
+
+        if (!dayData) {
+            const detailsContainer = document.getElementById('date-details-container');
+            if (detailsContainer) {
+                detailsContainer.innerHTML = `
+                    <div style="
+                        padding: 15px;
+                        background: #f8f9fa;
+                        border-radius: 4px;
+                        border-left: 4px solid #ff9800;
+                        text-align: center;
+                        color: #666;
+                    ">
+                        ${dateKey} 无工作记录
+                    </div>
+                `;
+            }
+            return;
+        }
+
+        const recordsHTML = dayData.records.map((record, index) => {
+            const pageKey = Object.keys(completionStats.perPage).find(key =>
+                completionStats.perPage[key] === record
+            );
+            const topicId = pageKey ? (pageKey.includes('::') ? pageKey.split('::').pop() : pageKey) : 'unknown';
+
+            return `<div style="
+                margin-bottom: 8px;
+                padding: 8px;
+                background: white;
+                border-radius: 3px;
+                border-left: 3px solid ${record.isValid === true ? '#4CAF50' : '#f44336'};
+            ">
+                <div style="font-weight: bold; color: #333;">题目ID: ${topicId}</div>
+                <div style="font-size: 12px; color: #666; margin-top: 4px;">
+                    完成: ${record.completions}次 | 题数: ${record.topicCount} | 耗时: ${record.elapsedSeconds || 0}秒
+                </div>
+            </div>`;
+        }).join('');
+
+        const detailsHTML = `
+            <div style="
+                padding: 15px;
+                background: #f8f9fa;
+                border-radius: 4px;
+                border-left: 4px solid #ff9800;
+            ">
+                <h4 style="margin: 0 0 15px 0; color: #e65100;">
+                    ${dateKey} 工作详情
+                </h4>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 15px; flex-wrap: wrap;">
+                    <div>完成题目: <strong style="color: #e65100;">${dayData.totalTopics}题</strong></div>
+                    <div>总耗时: <strong style="color: #4CAF50;">${formatElapsedTime(dayData.totalElapsedSeconds)}</strong></div>
+                    <div>平均耗时: <strong style="color: #2196F3;">${formatElapsedTime(Math.round(dayData.totalElapsedSeconds / dayData.totalTopics))}/题</strong></div>
+                </div>
+                <div style="margin-bottom: 10px; font-weight: bold; color: #333;">完成记录:</div>
+                <div style="max-height: 200px; overflow-y: auto;">
+                    ${recordsHTML}
+                </div>
+            </div>
+        `;
+
+        const detailsContainer = document.getElementById('date-details-container');
+        if (detailsContainer) {
+            detailsContainer.innerHTML = detailsHTML;
+        }
     }
 
     // 检查是否为特定目标页面
