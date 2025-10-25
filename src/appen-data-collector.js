@@ -11,9 +11,9 @@
     // 配置参数
     const CONFIG = {
         // 数据推送的API端点
-        API_ENDPOINT: 'http://192.168.31.79:1145/api/Task/add',
+        API_ENDPOINT: 'http://www.skytree.ink/api/Task/add',
         // 认证信息同步的API端点
-        AUTH_SYNC_ENDPOINT: 'http://192.168.31.79:1145/api/Task/apple/sync',
+        AUTH_SYNC_ENDPOINT: 'http://www.skytree.ink/api/Task/apple/sync',
         // 最大重试次数
         MAX_RETRY_ATTEMPTS: 3,
         // 重试间隔（毫秒）
@@ -2108,6 +2108,7 @@
             const jobId = urlParams.get('jobId');
             const projectId = urlParams.get('projectId');
             const projectDisplayId = urlParams.get('projectDisplayId');
+            const jobTenantId = urlParams.get('jobTenantId');
 
             if (jobId) {
                 log(LOG_LEVEL.DEBUG, '从URL提取jobId:', jobId);
@@ -2118,16 +2119,16 @@
             if (projectDisplayId) {
                 log(LOG_LEVEL.DEBUG, '从URL提取projectDisplayId:', projectDisplayId);
             }
+            if (jobTenantId) {
+                log(LOG_LEVEL.DEBUG, '从URL提取jobTenantId:', jobTenantId);
+            }
 
-            // 优先使用title参数作为任务ID
-            const titleParam = urlParams.get('title');
-            if (titleParam) {
-                // 解码URL编码的title值
-                const decodedTitle = decodeURIComponent(titleParam);
-                log(LOG_LEVEL.DEBUG, '从URL title参数获取任务ID:', decodedTitle);
-                collectedData.taskId = decodedTitle;
+            // 任务ID直接使用jobId参数
+            if (jobId) {
+                log(LOG_LEVEL.DEBUG, '从URL jobId参数获取任务ID:', jobId);
+                collectedData.taskId = jobId;
             } else {
-                // 如果没有title参数，则使用原来的逻辑
+                // 如果没有jobId参数，则尝试其他参数
                 collectedData.taskId = urlParams.get('task_id') ||
                                      urlParams.get('taskId') ||
                                      extractTaskIdFromURL();
@@ -2172,6 +2173,7 @@
             const jobId = urlParams.get('jobId');
             const projectId = urlParams.get('projectId');
             const projectDisplayId = urlParams.get('projectDisplayId');
+            const jobTenantId = urlParams.get('jobTenantId');
 
             // 记录提取到的URL参数
             if (jobId) {
@@ -2183,18 +2185,24 @@
             if (projectDisplayId) {
                 log(LOG_LEVEL.DEBUG, '从URL提取projectDisplayId:', projectDisplayId);
             }
+            if (jobTenantId) {
+                log(LOG_LEVEL.DEBUG, '从URL提取jobTenantId:', jobTenantId);
+            }
 
             // 优先使用指定元素 ID 作为题目 ID
             if (specifiedElementIdAsTopicId && specifiedElementIdAsTopicId !== 'no-id') {
                 log(LOG_LEVEL.DEBUG, '使用指定元素 ID 作为题目 ID:', specifiedElementIdAsTopicId);
-                collectedData.topicId = specifiedElementIdAsTopicId;
+                collectedData.topicId = extractNumericTopicId(specifiedElementIdAsTopicId);
             } else {
                 // 从URL中提取主题ID
                 const url = new URL(collectedData.topicUrl);
-                collectedData.topicId = url.searchParams.get('topic_id') ||
-                                      url.searchParams.get('topicId') ||
-                                      extractTopicIdFromURL() ||
-                                      'unknown_topic';
+                let topicId = url.searchParams.get('topic_id') ||
+                             url.searchParams.get('topicId') ||
+                             extractTopicIdFromURL() ||
+                             'unknown_topic';
+
+                // 只保留数字部分
+                collectedData.topicId = extractNumericTopicId(topicId);
                 log(LOG_LEVEL.DEBUG, '使用URL或其他方式提取的题目 ID:', collectedData.topicId);
             }
 
@@ -2225,6 +2233,13 @@
         return taskIdMatch ? taskIdMatch[1] : null;
     }
 
+    // 题目ID处理：只保留数字部分
+    function extractNumericTopicId(topicId) {
+        if (!topicId) return topicId;
+        const numericPart = topicId.match(/\d+/);
+        return numericPart ? numericPart[0] : topicId;
+    }
+
     // 从URL中提取主题ID
     function extractTopicIdFromURL() {
         const url = window.location.href;
@@ -2232,7 +2247,11 @@
         const topicIdMatch = url.match(/topic[_\-]([a-zA-Z0-9]+)/) ||
                             url.match(/subject[_\-]([a-zA-Z0-9]+)/) ||
                             url.match(/question[_\-]([a-zA-Z0-9]+)/);
-        return topicIdMatch ? topicIdMatch[1] : null;
+        if (!topicIdMatch) return null;
+
+        // 只保留数字部分
+        const numericPart = topicIdMatch[1].match(/\d+/);
+        return numericPart ? numericPart[0] : topicIdMatch[1];
     }
 
     // 附加事件监听器
@@ -2579,11 +2598,21 @@
         collectedData.elapsedTime = Math.floor(elapsedTime / 1000);
 
         // 构造符合API要求的数据（使用camelCase）
+        // 新增字段说明：
+        // - taskName: 任务名称，使用当前任务ID对应的值
+        // - jobTenantId: 租户ID，从URL参数提取
+        // - projectId: 项目ID，从URL参数提取
+        // - projectDisplayId: 项目显示ID，从URL参数提取
+        // - topicUrl: 标注访问页面URL，可选字段默认为空
         const dataToSend = {
             userId: collectedData.userId || 'unknown_user',
             taskId: collectedData.taskId || 'unknown_task',
+            taskName: collectedData.responseElements?.title || 'unknown_task', // 任务名称使用URL title参数
             topicId: collectedData.topicId || 'unknown_topic',
-            topicUrl: collectedData.topicUrl || window.location.href,
+            topicUrl: '', // 可选字段，默认设置为空值
+            jobTenantId: collectedData.responseElements?.jobTenantId || 'unknown',
+            projectId: collectedData.responseElements?.projectId || 'unknown',
+            projectDisplayId: collectedData.responseElements?.projectDisplayId || 'unknown',
             isValid: collectedData.responseElements?.userSelectionStatus?.isValid !== null ?
                     collectedData.responseElements.userSelectionStatus.isValid : true,
             editRounds: collectedData.responseElements?.userSelectionStatus?.editRounds || null,
@@ -2728,7 +2757,11 @@
                 ">
                     <div><strong style="color: #333;">用户ID:</strong> <span style="color: #0066cc;">${escapeHtml(collectedData.userId || 'N/A')}</span></div>
                     <div><strong style="color: #333;">任务ID:</strong> <span style="color: #0066cc;">${escapeHtml(collectedData.taskId || 'N/A')}</span></div>
+                    <div><strong style="color: #333;">任务名称:</strong> <span style="color: #0066cc;">${escapeHtml(collectedData.responseElements?.title || 'N/A')}</span></div>
                     <div><strong style="color: #333;">题目ID:</strong> <span id="topic-id-display" style="color: #0066cc;">${escapeHtml(collectedData.topicId || 'N/A')}</span></div>
+                    <div><strong style="color: #333;">租户ID:</strong> <span style="color: #0066cc;">${escapeHtml(collectedData.responseElements?.jobTenantId || 'N/A')}</span></div>
+                    <div><strong style="color: #333;">项目ID:</strong> <span style="color: #0066cc;">${escapeHtml(collectedData.responseElements?.projectId || 'N/A')}</span></div>
+                    <div><strong style="color: #333;">项目显示ID:</strong> <span style="color: #0066cc;">${escapeHtml(collectedData.responseElements?.projectDisplayId || 'N/A')}</span></div>
                     <div><strong style="color: #333;">题目数量:</strong> <span id="topic-count-display" style="color: #0066cc;">${collectedData.responseElements?.userSelectionStatus?.topicCount || collectedData.responseElements?.userSelectionStatus?.editRounds || collectedData.topicNum || 0}</span></div>
                     <div><strong style="color: #333;">耗时(秒):</strong> <span id="elapsed-time-display" style="color: #0066cc;">${currentElapsedTime}</span></div>
                     <div><strong style="color: #333;">是否有效:</strong> <span id="valid-status-display" style="color: #0066cc;">${collectedData.responseElements?.userSelectionStatus ? (collectedData.responseElements.userSelectionStatus.isValid === true ? '✓ 有效' : collectedData.responseElements.userSelectionStatus.isValid === false ? '✗ 无效' : '未知') : '未检测到'}</span></div>
@@ -2801,8 +2834,7 @@
                                         const timeB = b[1].lastCompletionTime || 0;
                                         return timeB - timeA;
                                     })
-                                    .slice(0, 5) // 只显示前5条记录
-                                    .map(([pageKey, data]) => {
+                                    .map(([pageKey, data], index) => {
                                         // 获取驳回理由（使用每个页面自己的驳回理由）
                                         const rejectReason = data.rejectReason || '无驳回';
                                         // 格式化时间戳
@@ -2811,7 +2843,7 @@
                                             : '未知';
 
                                         return `<div style="margin-bottom: 8px; padding: 5px; border-bottom: 1px solid #eee;">
-                                            <div><strong>页面:</strong> <span style="color: #0066cc;">${escapeHtml(pageKey.substring(0, 50))}${pageKey.length > 50 ? '...' : ''}</span></div>
+                                            <div><strong>${index + 1}. 题目ID:</strong> <span style="color: #0066cc;">${escapeHtml(pageKey.includes('::') ? pageKey.split('::').pop() : pageKey)}</span></div>
                                             <div style="margin-left: 15px; font-size: 13px;">
                                                 <span>完成次数: <span style="color: #f57c00; font-weight: bold;">${data.completions}</span></span> |
                                                 <span>题数: <span style="color: #0066cc;">${data.topicCount}</span></span> |
@@ -2829,8 +2861,8 @@
                                     }).join('')
                                 : '<div style="color: #999;">暂无完成记录</div>'}
                         </div>
-                        ${Object.keys(completionStats.perPage).length > 5
-                            ? `<div style="margin-top: 5px; font-size: 12px; color: #777;">显示最近5条记录，共${Object.keys(completionStats.perPage).length}条记录。滚动查看全部。</div>`
+                        ${Object.keys(completionStats.perPage).length > 0
+                            ? `<div style="margin-top: 5px; font-size: 12px; color: #777;">共${Object.keys(completionStats.perPage).length}条记录。滚动查看全部。</div>`
                             : ''}
                     </div>
                 </div>
@@ -3182,7 +3214,27 @@
         const jobType = urlParams.get('jobType');
         const taskId = urlParams.get('taskId');
         const projectId = urlParams.get('projectId');
+        const projectDisplayId = urlParams.get('projectDisplayId');
+        const jobTenantId = urlParams.get('jobTenantId');
         const title = urlParams.get('title');
+
+        // 记录新提取的URL参数并进行验证
+        if (projectDisplayId) {
+            log(LOG_LEVEL.DEBUG, '从URL提取projectDisplayId:', projectDisplayId);
+        } else {
+            log(LOG_LEVEL.WARN, 'URL中未找到projectDisplayId参数，将使用默认值');
+        }
+
+        if (jobTenantId) {
+            log(LOG_LEVEL.DEBUG, '从URL提取jobTenantId:', jobTenantId);
+            // 验证jobTenantId格式（应该是UUID格式）
+            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+            if (!uuidRegex.test(jobTenantId)) {
+                log(LOG_LEVEL.WARN, 'jobTenantId格式可能不正确:', jobTenantId);
+            }
+        } else {
+            log(LOG_LEVEL.WARN, 'URL中未找到jobTenantId参数，将使用默认值');
+        }
 
         // 创建响应元素数据对象
         const responseElements = {
@@ -3190,6 +3242,8 @@
             jobType: jobType || 'unknown',
             taskId: taskId || 'unknown',
             projectId: projectId || 'unknown',
+            projectDisplayId: projectDisplayId || 'unknown',
+            jobTenantId: jobTenantId || 'unknown',
             title: decodeURIComponent(title || 'unknown'),
             url: window.location.href,
             timestamp: new Date().toISOString()
@@ -4551,8 +4605,8 @@
 
                 // 更新 collectedData 中的 topicId
                 if (collectedData) {
-                    collectedData.topicId = divId;
-                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 更新 collectedData.topicId:', divId);
+                    collectedData.topicId = extractNumericTopicId(divId);
+                    log(LOG_LEVEL.INFO, '[Appen Data Collector] 更新 collectedData.topicId:', collectedData.topicId);
                 }
             }
 
