@@ -2669,6 +2669,174 @@
             log(LOG_LEVEL.DEBUG, 'showDataModal 被调用');
             log(LOG_LEVEL.DEBUG, '当前 collectedData.userId:', collectedData.userId);
 
+            // 模态框交互配置参数
+            const MODAL_CONFIG = {
+                MIN_WIDTH: 400,
+                MIN_HEIGHT: 300,
+                MAX_WIDTH: window.innerWidth * 0.9,
+                MAX_HEIGHT: window.innerHeight * 0.9,
+                HANDLE_SIZE: 8,
+                DRAG_THRESHOLD: 5
+            };
+
+            // 拖动状态管理
+            let isDragging = false;
+            let isResizing = false;
+            let dragStartX = 0;
+            let dragStartY = 0;
+            let modalStartX = 0;
+            let modalStartY = 0;
+            let resizeStartWidth = 0;
+            let resizeStartHeight = 0;
+            let resizeStartLeft = 0;
+            let resizeStartTop = 0;
+            let resizeDirection = null;
+            let rafId = null;
+
+            // 清理事件监听器函数
+            function cleanupEvents() {
+                document.removeEventListener('mousemove', handleMouseMove);
+                document.removeEventListener('mouseup', handleMouseUp);
+                if (rafId) {
+                    cancelAnimationFrame(rafId);
+                    rafId = null;
+                }
+            }
+
+            // 边界检查函数
+            function constrainToBounds(x, y, width, height) {
+                const maxX = Math.max(0, window.innerWidth - width);
+                const maxY = Math.max(0, window.innerHeight - height);
+                return {
+                    x: Math.max(0, Math.min(x, maxX)),
+                    y: Math.max(0, Math.min(y, maxY))
+                };
+            }
+
+            // 拖动处理函数
+            function handleMouseMove(e) {
+                if (isDragging) {
+                    if (rafId) cancelAnimationFrame(rafId);
+                    rafId = requestAnimationFrame(() => {
+                        const deltaX = e.clientX - dragStartX;
+                        const deltaY = e.clientY - dragStartY;
+                        let newX = modalStartX + deltaX;
+                        let newY = modalStartY + deltaY;
+
+                        const bounds = constrainToBounds(newX, newY, modal.offsetWidth, modal.offsetHeight);
+                        modal.style.left = bounds.x + 'px';
+                        modal.style.top = bounds.y + 'px';
+                    });
+                } else if (isResizing) {
+                    if (rafId) cancelAnimationFrame(rafId);
+                    rafId = requestAnimationFrame(() => {
+                        handleResize(e);
+                    });
+                }
+            }
+
+            function handleMouseUp() {
+                if (isDragging || isResizing) {
+                    isDragging = false;
+                    isResizing = false;
+                    resizeDirection = null;
+                    modal.classList.remove('modal-dragging', 'modal-resizing');
+                    cleanupEvents();
+                }
+            }
+
+            // 伸缩处理函数
+            function handleResize(e) {
+                const deltaX = e.clientX - dragStartX;
+                const deltaY = e.clientY - dragStartY;
+
+                let newWidth = resizeStartWidth;
+                let newHeight = resizeStartHeight;
+                let newLeft = resizeStartLeft;
+                let newTop = resizeStartTop;
+
+                switch (resizeDirection) {
+                    case 'se': // 右下角
+                        newWidth = resizeStartWidth + deltaX;
+                        newHeight = resizeStartHeight + deltaY;
+                        break;
+                    case 'sw': // 左下角
+                        newWidth = resizeStartWidth - deltaX;
+                        newHeight = resizeStartHeight + deltaY;
+                        newLeft = resizeStartLeft + deltaX;
+                        break;
+                    case 'ne': // 右上角
+                        newWidth = resizeStartWidth + deltaX;
+                        newHeight = resizeStartHeight - deltaY;
+                        newTop = resizeStartTop + deltaY;
+                        break;
+                    case 'nw': // 左上角
+                        newWidth = resizeStartWidth - deltaX;
+                        newHeight = resizeStartHeight - deltaY;
+                        newLeft = resizeStartLeft + deltaX;
+                        newTop = resizeStartTop + deltaY;
+                        break;
+                    case 'n': // 上边
+                        newHeight = resizeStartHeight - deltaY;
+                        newTop = resizeStartTop + deltaY;
+                        break;
+                    case 's': // 下边
+                        newHeight = resizeStartHeight + deltaY;
+                        break;
+                    case 'w': // 左边
+                        newWidth = resizeStartWidth - deltaX;
+                        newLeft = resizeStartLeft + deltaX;
+                        break;
+                    case 'e': // 右边
+                        newWidth = resizeStartWidth + deltaX;
+                        break;
+                }
+
+                // 应用尺寸限制
+                newWidth = Math.max(MODAL_CONFIG.MIN_WIDTH, Math.min(newWidth, MODAL_CONFIG.MAX_WIDTH));
+                newHeight = Math.max(MODAL_CONFIG.MIN_HEIGHT, Math.min(newHeight, MODAL_CONFIG.MAX_HEIGHT));
+
+                // 确保位置不超出边界
+                const bounds = constrainToBounds(newLeft, newTop, newWidth, newHeight);
+
+                // 应用新尺寸和位置
+                modal.style.width = newWidth + 'px';
+                modal.style.height = newHeight + 'px';
+                modal.style.left = bounds.x + 'px';
+                modal.style.top = bounds.y + 'px';
+            }
+
+            // 开始拖动
+            function startDrag(e) {
+                isDragging = true;
+                dragStartX = e.clientX;
+                dragStartY = e.clientY;
+                const rect = modal.getBoundingClientRect();
+                modalStartX = rect.left;
+                modalStartY = rect.top;
+                modal.classList.add('modal-dragging');
+                document.addEventListener('mousemove', handleMouseMove);
+                document.addEventListener('mouseup', handleMouseUp);
+                e.preventDefault();
+            }
+
+            // 开始伸缩
+            function startResize(e, direction) {
+                isResizing = true;
+                resizeDirection = direction;
+                dragStartX = e.clientX;
+                dragStartY = e.clientY;
+                const rect = modal.getBoundingClientRect();
+                resizeStartWidth = rect.width;
+                resizeStartHeight = rect.height;
+                resizeStartLeft = rect.left;
+                resizeStartTop = rect.top;
+                modal.classList.add('modal-resizing');
+                document.addEventListener('mousemove', handleMouseMove);
+                document.addEventListener('mouseup', handleMouseUp);
+                e.preventDefault();
+            }
+
             // 如果已有模态窗口则关闭
             const existingModal = document.getElementById('appen-data-modal');
             if (existingModal) {
@@ -2725,7 +2893,7 @@
             const modal = document.createElement('div');
             modal.id = 'appen-data-modal';
             modal.innerHTML = `
-            <div style="
+            <div class="modal-container" style="
                 position: fixed;
                 top: 50%;
                 left: 50%;
@@ -2745,13 +2913,24 @@
                 font-family: Arial, sans-serif;
                 cursor: default;
             " onclick="event.stopPropagation()">
-                <div style="
+                <!-- 伸缩控制点 -->
+                <div class="resize-handle resize-handle-nw" data-direction="nw"></div>
+                <div class="resize-handle resize-handle-ne" data-direction="ne"></div>
+                <div class="resize-handle resize-handle-sw" data-direction="sw"></div>
+                <div class="resize-handle resize-handle-se" data-direction="se"></div>
+                <div class="resize-handle resize-handle-n" data-direction="n"></div>
+                <div class="resize-handle resize-handle-s" data-direction="s"></div>
+                <div class="resize-handle resize-handle-w" data-direction="w"></div>
+                <div class="resize-handle resize-handle-e" data-direction="e"></div>
+                <div class="modal-header" style="
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
                     margin-bottom: 20px;
                     border-bottom: 2px solid #ddd;
                     padding-bottom: 10px;
+                    cursor: move;
+                    user-select: none;
                 ">
                     <h2 style="margin: 0; font-size: 18px; color: #333;">Appen数据收集信息</h2>
                     <button id="close-modal-btn" style="
@@ -3036,9 +3215,75 @@
             </div>
         `;
 
+        // 添加交互样式
+        const modalStyles = document.createElement('style');
+        modalStyles.textContent = `
+            #appen-data-modal .modal-container {
+                transition: box-shadow 0.2s ease;
+            }
+
+            #appen-data-modal .modal-dragging {
+                box-shadow: 0 8px 30px rgba(0,0,0,0.4) !important;
+                opacity: 0.95;
+            }
+
+            #appen-data-modal .modal-resizing {
+                box-shadow: 0 8px 30px rgba(0,0,0,0.4) !important;
+            }
+
+            #appen-data-modal .resize-handle {
+                position: absolute;
+                background: #ccc;
+                opacity: 0;
+                transition: opacity 0.2s, background 0.2s;
+            }
+
+            #appen-data-modal .resize-handle:hover {
+                opacity: 1;
+                background: #2196F3;
+            }
+
+            #appen-data-modal .resize-handle-nw {
+                top: 0; left: 0; width: 8px; height: 8px;
+                border-radius: 50%; cursor: nw-resize;
+            }
+            #appen-data-modal .resize-handle-ne {
+                top: 0; right: 0; width: 8px; height: 8px;
+                border-radius: 50%; cursor: ne-resize;
+            }
+            #appen-data-modal .resize-handle-sw {
+                bottom: 0; left: 0; width: 8px; height: 8px;
+                border-radius: 50%; cursor: sw-resize;
+            }
+            #appen-data-modal .resize-handle-se {
+                bottom: 0; right: 0; width: 8px; height: 8px;
+                border-radius: 50%; cursor: se-resize;
+            }
+            #appen-data-modal .resize-handle-n {
+                top: 0; left: 50%; width: 20px; height: 8px;
+                border-radius: 4px; transform: translateX(-50%); cursor: n-resize;
+            }
+            #appen-data-modal .resize-handle-s {
+                bottom: 0; left: 50%; width: 20px; height: 8px;
+                border-radius: 4px; transform: translateX(-50%); cursor: s-resize;
+            }
+            #appen-data-modal .resize-handle-w {
+                left: 0; top: 50%; width: 8px; height: 20px;
+                border-radius: 4px; transform: translateY(-50%); cursor: w-resize;
+            }
+            #appen-data-modal .resize-handle-e {
+                right: 0; top: 50%; width: 8px; height: 20px;
+                border-radius: 4px; transform: translateY(-50%); cursor: e-resize;
+            }
+        `;
+        document.head.appendChild(modalStyles);
+
         // 插入覆盖层和模态框
         document.body.appendChild(overlay);
         document.body.appendChild(modal);
+
+        // 获取模态框容器元素
+        const modalContainer = modal.querySelector('.modal-container');
 
         // 实现模态框自适应高度功能
         function adjustModalHeight() {
@@ -3116,6 +3361,63 @@
 
         // 默认显示实时状态标签页
         switchTab('status');
+
+        // 绑定拖动和伸缩事件
+        const modalHeader = modal.querySelector('.modal-header');
+        const resizeHandles = modal.querySelectorAll('.resize-handle');
+
+        // 标题栏拖动事件
+        if (modalHeader) {
+            modalHeader.addEventListener('mousedown', function(e) {
+                // 只有当点击的是标题栏本身或其子元素时才开始拖动
+                if (e.target.closest('.modal-header') && !e.target.closest('button')) {
+                    startDrag(e);
+                }
+            });
+        }
+
+        // 伸缩控制点事件
+        resizeHandles.forEach(handle => {
+            handle.addEventListener('mousedown', function(e) {
+                const direction = this.dataset.direction;
+                startResize(e, direction);
+            });
+        });
+
+        // 双击标题栏最大化/还原功能
+        if (modalHeader) {
+            modalHeader.addEventListener('dblclick', function(e) {
+                if (!e.target.closest('button')) {
+                    const container = modal.querySelector('.modal-container');
+                    if (container.style.width === '90vw') {
+                        // 还原到原始大小
+                        container.style.width = '';
+                        container.style.height = '';
+                        container.style.maxWidth = '550px';
+                        container.style.maxHeight = '95vh';
+                        container.style.top = '50%';
+                        container.style.left = '50%';
+                        container.style.transform = 'translate(-50%, -50%)';
+                    } else {
+                        // 最大化
+                        container.style.width = '90vw';
+                        container.style.height = '90vh';
+                        container.style.maxWidth = '';
+                        container.style.maxHeight = '';
+                        container.style.top = '5vh';
+                        container.style.left = '5vw';
+                        container.style.transform = 'none';
+                    }
+                }
+            });
+        }
+
+        // ESC键取消操作
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && (isDragging || isResizing)) {
+                handleMouseUp();
+            }
+        });
 
         // 日历功能相关变量
         let currentYear = new Date().getFullYear();
@@ -3231,6 +3533,10 @@
 
         // 背景点击关闭功能
         overlay.addEventListener('click', function() {
+            cleanupEvents();
+            if (modalStyles.parentNode) {
+                modalStyles.parentNode.removeChild(modalStyles);
+            }
             modal.remove();
             overlay.remove();
         });
@@ -3257,6 +3563,10 @@
 
         // 关闭按钮事件
         document.getElementById('close-modal-btn').addEventListener('click', function() {
+            cleanupEvents();
+            if (modalStyles.parentNode) {
+                modalStyles.parentNode.removeChild(modalStyles);
+            }
             modal.remove();
         });
 
