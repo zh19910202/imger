@@ -2990,6 +2990,11 @@
                                     : ''}
                             </div>
                         </div>
+
+                        <!-- 日历视图容器 -->
+                        <div id="calendar-view-container" style="display: none;">
+                            <!-- 日历内容将通过JavaScript动态生成 -->
+                        </div>
                 </div>
 
                 <!-- 按钮操作区域 -->
