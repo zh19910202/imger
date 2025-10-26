@@ -2579,6 +2579,17 @@
         try {
             // 创建通知容器
             const notification = document.createElement('div');
+
+            // 根据类型设置样式
+            let bgColor = '#2196F3';
+            if (type === 'success') {
+                bgColor = '#4CAF50';
+            } else if (type === 'error') {
+                bgColor = '#f44336';
+            } else if (type === 'loading') {
+                bgColor = '#2196F3';
+            }
+
             notification.style.cssText = `
                 position: fixed;
                 top: 20px;
@@ -2592,78 +2603,72 @@
                 box-shadow: 0 4px 12px rgba(0,0,0,0.15);
                 font-family: Arial, sans-serif;
                 min-width: 300px;
+                background: ${bgColor};
+                color: white;
+                overflow: hidden;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 10px;
             `;
 
-            // 根据类型设置样式
-            if (type === 'success') {
-                notification.style.background = '#4CAF50';
-                notification.style.color = 'white';
-            } else if (type === 'error') {
-                notification.style.background = '#f44336';
-                notification.style.color = 'white';
-            } else if (type === 'loading') {
-                notification.style.background = '#2196F3';
-                notification.style.color = 'white';
-            } else {
-                notification.style.background = '#2196F3';
-                notification.style.color = 'white';
-            }
-
-            notification.textContent = message;
+            // 创建文本容器
+            const textContainer = document.createElement('span');
+            textContainer.textContent = message;
+            textContainer.style.flex = '1';
+            notification.appendChild(textContainer);
 
             // 如果需要显示进度条，添加进度条元素
-            let progressBar = null;
             if (showProgress) {
-                progressBar = document.createElement('div');
+                const progressBar = document.createElement('div');
                 progressBar.style.cssText = `
                     position: absolute;
                     bottom: 0;
                     left: 0;
                     height: 3px;
-                    background: rgba(255,255,255,0.6);
+                    background: rgba(255,255,255,0.8);
                     border-radius: 0 0 4px 0;
-                    width: 100%;
+                    width: 0%;
                     animation: progressAnimation 5s linear forwards;
+                    z-index: 1000;
                 `;
-                notification.style.position = 'relative';
-                notification.style.overflow = 'hidden';
                 notification.appendChild(progressBar);
             }
 
-            // 添加动画样式
-            const style = document.createElement('style');
-            style.textContent = `
-                @keyframes slideIn {
-                    from {
-                        transform: translateX(400px);
-                        opacity: 0;
+            // 添加动画样式（如果还没有的话）
+            if (!document.querySelector('style[data-notification-animations]')) {
+                const style = document.createElement('style');
+                style.setAttribute('data-notification-animations', 'true');
+                style.textContent = `
+                    @keyframes slideIn {
+                        from {
+                            transform: translateX(400px);
+                            opacity: 0;
+                        }
+                        to {
+                            transform: translateX(0);
+                            opacity: 1;
+                        }
                     }
-                    to {
-                        transform: translateX(0);
-                        opacity: 1;
+                    @keyframes slideOut {
+                        from {
+                            transform: translateX(0);
+                            opacity: 1;
+                        }
+                        to {
+                            transform: translateX(400px);
+                            opacity: 0;
+                        }
                     }
-                }
-                @keyframes slideOut {
-                    from {
-                        transform: translateX(0);
-                        opacity: 1;
+                    @keyframes progressAnimation {
+                        from {
+                            width: 0%;
+                        }
+                        to {
+                            width: 100%;
+                        }
                     }
-                    to {
-                        transform: translateX(400px);
-                        opacity: 0;
-                    }
-                }
-                @keyframes progressAnimation {
-                    from {
-                        width: 0%;
-                    }
-                    to {
-                        width: 100%;
-                    }
-                }
-            `;
-            if (!document.querySelector('style[data-notification-style]')) {
-                style.setAttribute('data-notification-style', 'true');
+                `;
                 document.head.appendChild(style);
             }
 
@@ -3865,7 +3870,6 @@
         // 推送数据按钮事件
         document.getElementById('push-data-btn').addEventListener('click', function() {
             pushDataOnSubmission();
-            alert('数据推送请求已发送，请检查控制台日志');
         });
 
         // 获取cookie按钮事件
@@ -3878,10 +3882,11 @@
                     
                     const cookieJson = JSON.stringify(cookies, null, 2);
                     navigator.clipboard.writeText(cookieJson).then(() => {
-                        alert('Cookie数据已复制到剪贴板并更新到内存！\n\n' + cookieJson);
+                        showNotification('✅ Cookie数据已复制到剪贴板！', 'success');
+                        log(LOG_LEVEL.DEBUG, 'Cookie数据:', cookies);
                     }).catch(err => {
                         log(LOG_LEVEL.ERROR, '复制失败:', err);
-                        alert('获取成功但复制失败，请查看控制台输出\n\n' + cookieJson);
+                        showNotification('⚠️ 获取成功但复制失败，请查看控制台', 'error');
                     });
                     
                     // 更新显示
@@ -3896,11 +3901,13 @@
                         });
                     }
                 } else {
-                    alert('未能获取到认证cookie，请检查控制台日志');
+                    showNotification('❌ 未能获取到认证cookie', 'error');
+                    log(LOG_LEVEL.ERROR, '获取cookie失败：未返回数据');
                 }
             } catch (error) {
                 ErrorHandler.handleNetworkError(error, '获取cookie失败');
-                alert('获取cookie失败: ' + error.message);
+                showNotification('❌ 获取cookie失败: ' + error.message, 'error');
+                log(LOG_LEVEL.ERROR, '获取cookie异常:', error);
             }
         });
 
@@ -3909,14 +3916,16 @@
             try {
                 const cookies = await getAuthCookies();
                 if (cookies) {
+                    showNotification('⏳ 正在同步认证信息...', 'loading', true);
                     await syncAuthToServer(cookies);
-                    alert('认证信息同步请求已发送，请检查控制台日志');
+                    showNotification('✅ 认证信息同步成功！', 'success');
                 } else {
-                    alert('未能获取到认证cookie，无法同步');
+                    showNotification('❌ 未能获取到认证cookie，无法同步', 'error');
                 }
             } catch (error) {
                 ErrorHandler.handleNetworkError(error, '同步认证信息失败');
-                alert('同步认证信息失败: ' + error.message);
+                showNotification('❌ 同步认证信息失败: ' + error.message, 'error');
+                log(LOG_LEVEL.ERROR, '同步认证信息异常:', error);
             }
         });
 
@@ -3925,7 +3934,7 @@
         document.getElementById('clear-completion-stats-btn').addEventListener('click', async function() {
             if (confirm('确定要清除所有标注完成统计吗？')) {
                 await clearCompletionStats();
-                alert('标注完成统计已清除！');
+                showNotification('✅ 标注完成统计已清除！', 'success');
                 // 重新显示模态框以更新显示
                 showDataModal();
             }
@@ -3935,7 +3944,7 @@
         } catch (error) {
             ErrorHandler.handle(error, '创建模态框异常', null, LOG_LEVEL.ERROR);
             log(LOG_LEVEL.ERROR, '错误堆栈:', error.stack);
-            alert('创建模态框失败: ' + error.message);
+            showNotification('❌ 创建模态框失败: ' + error.message, 'error');
         }
     }
 
@@ -6487,7 +6496,14 @@
                     const cleanComment = TextExtractor.extractText({
                         textContent: comment
                     }, { preserveNewlines: true, removeExtraWhitespace: true });
-                    alert(`详细驳回理由:\n\n${cleanComment}`);
+                    // 复制驳回理由到剪贴板并显示通知
+                    navigator.clipboard.writeText(`详细驳回理由:\n\n${cleanComment}`).then(() => {
+                        showNotification('✅ 驳回理由已复制到剪贴板！', 'success');
+                        log(LOG_LEVEL.DEBUG, '驳回理由:', cleanComment);
+                    }).catch(err => {
+                        showNotification('⚠️ 驳回理由已在控制台显示', 'info');
+                        log(LOG_LEVEL.DEBUG, '详细驳回理由:\n\n' + cleanComment);
+                    });
                 };
 
                 notification.appendChild(detailButton);
