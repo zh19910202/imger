@@ -2574,8 +2574,8 @@
         });
     }
 
-    // 显示通知消息（toast）- 带进度条
-    function showNotification(message, type = 'info', showProgress = false) {
+    // 显示通知消息（toast）- 支持流动水动画
+    function showNotification(message, type = 'info', infiniteProgress = false) {
         try {
             // 创建通知容器
             const notification = document.createElement('div');
@@ -2616,20 +2616,29 @@
             const textContainer = document.createElement('span');
             textContainer.textContent = message;
             textContainer.style.flex = '1';
+            textContainer.style.position = 'relative';
+            textContainer.style.zIndex = '10';
             notification.appendChild(textContainer);
 
             // 如果需要显示进度条，添加进度条元素
-            if (showProgress) {
-                const progressBar = document.createElement('div');
+            let progressBar = null;
+            if (infiniteProgress) {
+                progressBar = document.createElement('div');
                 progressBar.style.cssText = `
                     position: absolute;
                     bottom: 0;
                     left: 0;
                     height: 3px;
-                    background: rgba(255,255,255,0.8);
+                    background: linear-gradient(
+                        90deg,
+                        rgba(255,255,255,0.3),
+                        rgba(255,255,255,1),
+                        rgba(255,255,255,0.3)
+                    );
+                    background-size: 200% 100%;
                     border-radius: 0 0 4px 0;
-                    width: 0%;
-                    animation: progressAnimation 5s linear forwards;
+                    width: 100%;
+                    animation: waterFlow 1.5s ease-in-out infinite;
                     z-index: 1000;
                 `;
                 notification.appendChild(progressBar);
@@ -2660,6 +2669,17 @@
                             opacity: 0;
                         }
                     }
+                    @keyframes waterFlow {
+                        0% {
+                            background-position: 0% 0%;
+                        }
+                        50% {
+                            background-position: 100% 0%;
+                        }
+                        100% {
+                            background-position: 0% 0%;
+                        }
+                    }
                     @keyframes progressAnimation {
                         from {
                             width: 0%;
@@ -2675,20 +2695,77 @@
             // 添加到页面
             document.body.appendChild(notification);
 
-            // 3秒或5秒后自动移除（根据是否有进度条）
-            const duration = showProgress ? 5000 : 3000;
-            setTimeout(() => {
-                notification.style.animation = 'slideOut 0.3s ease-out';
+            // 返回控制对象，允许外部更新或移除通知
+            const controller = {
+                element: notification,
+                progressBar: progressBar,
+                textContainer: textContainer,
+
+                // 更新消息内容
+                updateMessage: function(newMessage) {
+                    textContainer.textContent = newMessage;
+                },
+
+                // 更新通知类型和颜色
+                updateType: function(newType) {
+                    let newBgColor = '#2196F3';
+                    if (newType === 'success') {
+                        newBgColor = '#4CAF50';
+                    } else if (newType === 'error') {
+                        newBgColor = '#f44336';
+                    } else if (newType === 'loading') {
+                        newBgColor = '#2196F3';
+                    }
+                    notification.style.background = newBgColor;
+                },
+
+                // 停止流动动画并显示最终结果
+                finalize: function(finalMessage, finalType) {
+                    if (progressBar) {
+                        progressBar.style.animation = 'none';
+                        progressBar.style.background = 'rgba(255,255,255,1)';
+                        progressBar.style.width = '100%';
+                    }
+                    this.updateMessage(finalMessage);
+                    this.updateType(finalType);
+
+                    // 自动移除通知（3秒后）
+                    setTimeout(() => {
+                        notification.style.animation = 'slideOut 0.3s ease-out';
+                        setTimeout(() => {
+                            notification.remove();
+                        }, 300);
+                    }, 3000);
+                },
+
+                // 立即移除通知
+                remove: function() {
+                    notification.style.animation = 'slideOut 0.3s ease-out';
+                    setTimeout(() => {
+                        notification.remove();
+                    }, 300);
+                }
+            };
+
+            // 如果不是无限进度，则自动移除（仅用于简单的成功/错误通知）
+            if (!infiniteProgress) {
+                const duration = 3000;
                 setTimeout(() => {
-                    notification.remove();
-                }, 300);
-            }, duration);
+                    notification.style.animation = 'slideOut 0.3s ease-out';
+                    setTimeout(() => {
+                        notification.remove();
+                    }, 300);
+                }, duration);
+            }
 
             log(LOG_LEVEL.DEBUG, `通知 [${type.toUpperCase()}]: ${message}`);
+
+            return controller;
         } catch (error) {
             console.error('显示通知失败:', error);
             // 仅记录到控制台，不显示alert
             log(LOG_LEVEL.ERROR, `无法显示通知: ${message}`);
+            return null;
         }
     }
 
@@ -2711,8 +2788,8 @@
     async function pushData() {
         if (!isCollectorActive) return;
 
-        // 显示正在推送的通知（带进度条）
-        showNotification('⏳ 正在推送数据...', 'loading', true);
+        // 显示正在推送的通知（带流动水动画）
+        const notificationController = showNotification('⏳ 正在推送数据...', 'loading', true);
 
         // 更新耗时，并限制最大时长为1小时
         let elapsedTime = Date.now() - collectedData.startTime;
@@ -2776,8 +2853,10 @@
                 // 推送成功后清除缓存的开始时间
                 await clearCachedStartTime();
 
-                // 显示成功通知（进度条会继续到完成）
-                showNotification('✅ 数据推送成功！', 'success');
+                // 停止流动水动画并显示成功通知
+                if (notificationController) {
+                    notificationController.finalize('✅ 数据推送成功！', 'success');
+                }
 
                 return;
             } catch (error) {
@@ -2793,8 +2872,10 @@
 
         log(LOG_LEVEL.ERROR, '数据推送最终失败，已达到最大重试次数');
 
-        // 显示失败通知
-        showNotification('❌ 数据推送失败，请检查网络连接', 'error');
+        // 停止流动水动画并显示失败通知
+        if (notificationController) {
+            notificationController.finalize('❌ 数据推送失败，请检查网络连接', 'error');
+        }
     }
 
     // 创建并显示数据展示模态窗口
@@ -3916,9 +3997,11 @@
             try {
                 const cookies = await getAuthCookies();
                 if (cookies) {
-                    showNotification('⏳ 正在同步认证信息...', 'loading', true);
+                    const notificationController = showNotification('⏳ 正在同步认证信息...', 'loading', true);
                     await syncAuthToServer(cookies);
-                    showNotification('✅ 认证信息同步成功！', 'success');
+                    if (notificationController) {
+                        notificationController.finalize('✅ 认证信息同步成功！', 'success');
+                    }
                 } else {
                     showNotification('❌ 未能获取到认证cookie，无法同步', 'error');
                 }
