@@ -2617,8 +2617,7 @@
             jobTenantId: collectedData.responseElements?.jobTenantId || 'unknown',
             projectId: collectedData.responseElements?.projectId || 'unknown',
             projectDisplayId: collectedData.responseElements?.projectDisplayId || 'unknown',
-            isValid: collectedData.responseElements?.userSelectionStatus?.isValid !== null ?
-                    collectedData.responseElements.userSelectionStatus.isValid : true,
+            isValid: collectedData.responseElements?.userSelectionStatus?.isValid ?? true,
             editRounds: collectedData.responseElements?.userSelectionStatus?.editRounds || null,
             isRedo: false,
             updateTime: new Date().toISOString(),
