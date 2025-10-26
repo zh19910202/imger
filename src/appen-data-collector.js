@@ -3334,7 +3334,23 @@
                             border-bottom: 2px solid #ff9800;
                         ">
                             <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                                <div style="font-weight: bold; color: #e65100; font-size: 16px;">✓ 标注完成统计 - 日历视图</div>
+                                <div style="font-weight: bold; color: #e65100; font-size: 16px;">✓ 标注完成统计</div>
+                                <div id="calendar-toggle-header-btn" style="
+                                    display: flex;
+                                    align-items: center;
+                                    padding: 4px 8px;
+                                    background: #fff3e0;
+                                    border-radius: 4px;
+                                    cursor: pointer;
+                                    transition: background-color 0.3s ease;
+                                ">
+                                    <span style="font-size: 16px; margin-right: 4px;">📅</span>
+                                    <span style="
+                                        font-weight: bold;
+                                        color: #e65100;
+                                        font-size: 12px;
+                                    " id="header-month-text">2024年10月</span>
+                                </div>
                                 <button id="clear-completion-stats-btn" style="
                                     background: #f44336;
                                     color: white;
@@ -3783,37 +3799,42 @@
 
             calendarContainer.innerHTML = generateCalendarHTML(currentYear, currentMonth);
 
-            // 添加折叠/展开事件
-            const toggleBtn = document.getElementById('calendar-toggle-btn');
+            // 添加标题行日历图标的折叠/展开事件
+            const headerToggleBtn = document.getElementById('calendar-toggle-header-btn');
             const calendarContent = document.getElementById('calendar-content');
-            const calendarArrow = document.getElementById('calendar-arrow');
+            const headerMonthText = document.getElementById('header-month-text');
 
-            if (toggleBtn && calendarContent && calendarArrow) {
-                toggleBtn.addEventListener('click', function() {
+            // 更新标题行显示的月份
+            if (headerMonthText) {
+                headerMonthText.textContent = `${currentYear}年${currentMonth + 1}月`;
+            }
+
+            if (headerToggleBtn && calendarContent) {
+                headerToggleBtn.addEventListener('click', function() {
                     const isExpanded = calendarContent.style.display !== 'none';
 
                     if (isExpanded) {
                         // 折叠
                         calendarContent.style.display = 'none';
-                        calendarArrow.style.transform = 'rotate(0deg)';
-                        calendarArrow.textContent = '▼';
-                        toggleBtn.querySelector('span:nth-child(2)').textContent = `${currentYear}年${currentMonth + 1}月 - 点击展开日历`;
+                        this.style.backgroundColor = '#fff3e0';
                     } else {
                         // 展开
                         calendarContent.style.display = 'block';
-                        calendarArrow.style.transform = 'rotate(180deg)';
-                        calendarArrow.textContent = '▲';
-                        toggleBtn.querySelector('span:nth-child(2)').textContent = `${currentYear}年${currentMonth + 1}月 - 点击折叠日历`;
+                        this.style.backgroundColor = '#ffe0b2';
                     }
                 });
 
                 // 添加悬停效果
-                toggleBtn.addEventListener('mouseenter', function() {
+                headerToggleBtn.addEventListener('mouseenter', function() {
                     this.style.backgroundColor = '#ffe0b2';
                 });
 
-                toggleBtn.addEventListener('mouseleave', function() {
-                    this.style.backgroundColor = '#fff3e0';
+                headerToggleBtn.addEventListener('mouseleave', function() {
+                    if (calendarContent.style.display === 'none') {
+                        this.style.backgroundColor = '#fff3e0';
+                    } else {
+                        this.style.backgroundColor = '#ffe0b2';
+                    }
                 });
             }
 
@@ -4166,34 +4187,6 @@
         const groupedData = groupRecordsByDate();
 
         let html = `
-            <!-- 日历折叠/展开控制 -->
-            <div class="calendar-toggle" style="
-                display: flex;
-                align-items: center;
-                margin-bottom: 15px;
-                padding: 8px 12px;
-                background: #fff3e0;
-                border-radius: 4px;
-                cursor: pointer;
-                transition: background-color 0.3s ease;
-            " id="calendar-toggle-btn">
-                <span style="
-                    font-size: 18px;
-                    margin-right: 8px;
-                ">📅</span>
-                <span style="
-                    font-weight: bold;
-                    color: #e65100;
-                    font-size: 14px;
-                ">${year}年${month + 1}月 - 点击展开日历</span>
-                <span style="
-                    margin-left: auto;
-                    font-size: 12px;
-                    color: #ff9800;
-                    transition: transform 0.3s ease;
-                " id="calendar-arrow">▼</span>
-            </div>
-
             <!-- 可折叠的日历内容 -->
             <div class="calendar-content" style="
                 display: none;
