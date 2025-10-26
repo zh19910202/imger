@@ -3349,7 +3349,7 @@
                                         color: #e65100;
                                         font-size: 12px;
                                     " id="header-month-text">加载中...</span>
-                                    <span style="font-size: 16px; margin-left: 4px;">📆</span>
+                                    <span style="font-size: 16px; margin-left: 4px;" id="header-day-text">加载中...</span>
                                 </div>
                                 <button id="clear-completion-stats-btn" style="
                                     background: #f44336;
@@ -4023,10 +4023,17 @@
             }
         });
 
-        // 初始化标题行的当前月份显示
+        // 初始化标题行的当前月份和日期显示
+        const today = new Date();
         const headerMonthText = document.getElementById('header-month-text');
+        const headerDayText = document.getElementById('header-day-text');
+
         if (headerMonthText) {
             headerMonthText.textContent = `${currentYear}年${currentMonth + 1}月`;
+        }
+
+        if (headerDayText) {
+            headerDayText.textContent = `${today.getDate()}日`;
         }
 
         // 检查并清除可能的测试数据（如果数据中有明显错误的日期）
