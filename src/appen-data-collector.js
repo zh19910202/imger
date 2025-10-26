@@ -3333,41 +3333,41 @@
                             padding-bottom: 10px;
                             border-bottom: 2px solid #ff9800;
                         ">
-                            <div style="font-weight: bold; color: #e65100; font-size: 16px;">✓ 标注完成统计</div>
-                            <button id="clear-completion-stats-btn" style="
-                                background: #f44336;
-                                color: white;
-                                border: none;
-                                padding: 5px 10px;
-                                border-radius: 4px;
-                                cursor: pointer;
-                                font-weight: bold;
-                                font-size: 12px;
-                            ">Clear</button>
-                        </div>
-
-                        <!-- 视图切换按钮 -->
-                        <div style="margin-bottom: 15px; text-align: center;">
-                            <button id="list-view-btn" class="view-toggle active" data-view="list" style="
-                                padding: 8px 16px;
-                                border: 1px solid #ddd;
-                                background: #e3f2fd;
-                                color: #1976d2;
-                                cursor: pointer;
-                                margin-right: 5px;
-                                border-radius: 4px;
-                                font-weight: bold;
-                            ">列表视图</button>
-                            <button id="calendar-view-btn" class="view-toggle" data-view="calendar" style="
-                                padding: 8px 16px;
-                                border: 1px solid #ddd;
-                                background: #f5f5f5;
-                                color: #666;
-                                cursor: pointer;
-                                margin-left: 5px;
-                                border-radius: 4px;
-                                font-weight: normal;
-                            ">日历视图</button>
+                            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                                <div style="font-weight: bold; color: #e65100; font-size: 16px;">✓ 标注完成统计</div>
+                                <div style="display: flex; gap: 5px;">
+                                    <button id="list-view-btn" class="view-toggle active" data-view="list" style="
+                                        padding: 6px 12px;
+                                        border: 1px solid #ddd;
+                                        background: #e3f2fd;
+                                        color: #1976d2;
+                                        cursor: pointer;
+                                        border-radius: 4px;
+                                        font-weight: bold;
+                                        font-size: 12px;
+                                    ">列表视图</button>
+                                    <button id="calendar-view-btn" class="view-toggle" data-view="calendar" style="
+                                        padding: 6px 12px;
+                                        border: 1px solid #ddd;
+                                        background: #f5f5f5;
+                                        color: #666;
+                                        cursor: pointer;
+                                        border-radius: 4px;
+                                        font-weight: normal;
+                                        font-size: 12px;
+                                    ">日历视图</button>
+                                    <button id="clear-completion-stats-btn" style="
+                                        background: #f44336;
+                                        color: white;
+                                        border: none;
+                                        padding: 6px 12px;
+                                        border-radius: 4px;
+                                        cursor: pointer;
+                                        font-weight: bold;
+                                        font-size: 12px;
+                                    ">Clear</button>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- 列表视图容器 -->
