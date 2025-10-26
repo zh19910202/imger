@@ -2574,8 +2574,8 @@
         });
     }
 
-    // 显示通知消息（toast）
-    function showNotification(message, type = 'info') {
+    // 显示通知消息（toast）- 带进度条
+    function showNotification(message, type = 'info', showProgress = false) {
         try {
             // 创建通知容器
             const notification = document.createElement('div');
@@ -2591,6 +2591,7 @@
                 animation: slideIn 0.3s ease-out;
                 box-shadow: 0 4px 12px rgba(0,0,0,0.15);
                 font-family: Arial, sans-serif;
+                min-width: 300px;
             `;
 
             // 根据类型设置样式
@@ -2600,12 +2601,34 @@
             } else if (type === 'error') {
                 notification.style.background = '#f44336';
                 notification.style.color = 'white';
+            } else if (type === 'loading') {
+                notification.style.background = '#2196F3';
+                notification.style.color = 'white';
             } else {
                 notification.style.background = '#2196F3';
                 notification.style.color = 'white';
             }
 
             notification.textContent = message;
+
+            // 如果需要显示进度条，添加进度条元素
+            let progressBar = null;
+            if (showProgress) {
+                progressBar = document.createElement('div');
+                progressBar.style.cssText = `
+                    position: absolute;
+                    bottom: 0;
+                    left: 0;
+                    height: 3px;
+                    background: rgba(255,255,255,0.6);
+                    border-radius: 0 0 4px 0;
+                    width: 100%;
+                    animation: progressAnimation 5s linear forwards;
+                `;
+                notification.style.position = 'relative';
+                notification.style.overflow = 'hidden';
+                notification.appendChild(progressBar);
+            }
 
             // 添加动画样式
             const style = document.createElement('style');
@@ -2630,6 +2653,14 @@
                         opacity: 0;
                     }
                 }
+                @keyframes progressAnimation {
+                    from {
+                        width: 0%;
+                    }
+                    to {
+                        width: 100%;
+                    }
+                }
             `;
             if (!document.querySelector('style[data-notification-style]')) {
                 style.setAttribute('data-notification-style', 'true');
@@ -2639,19 +2670,20 @@
             // 添加到页面
             document.body.appendChild(notification);
 
-            // 3秒后自动移除
+            // 3秒或5秒后自动移除（根据是否有进度条）
+            const duration = showProgress ? 5000 : 3000;
             setTimeout(() => {
                 notification.style.animation = 'slideOut 0.3s ease-out';
                 setTimeout(() => {
                     notification.remove();
                 }, 300);
-            }, 3000);
+            }, duration);
 
             log(LOG_LEVEL.DEBUG, `通知 [${type.toUpperCase()}]: ${message}`);
         } catch (error) {
             console.error('显示通知失败:', error);
-            // 备用方案：使用alert
-            alert(message);
+            // 仅记录到控制台，不显示alert
+            log(LOG_LEVEL.ERROR, `无法显示通知: ${message}`);
         }
     }
 
@@ -2673,6 +2705,9 @@
     // 推送数据到服务器
     async function pushData() {
         if (!isCollectorActive) return;
+
+        // 显示正在推送的通知（带进度条）
+        showNotification('⏳ 正在推送数据...', 'loading', true);
 
         // 更新耗时，并限制最大时长为1小时
         let elapsedTime = Date.now() - collectedData.startTime;
@@ -2736,7 +2771,7 @@
                 // 推送成功后清除缓存的开始时间
                 await clearCachedStartTime();
 
-                // 显示成功通知
+                // 显示成功通知（进度条会继续到完成）
                 showNotification('✅ 数据推送成功！', 'success');
 
                 return;
