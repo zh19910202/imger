@@ -2633,25 +2633,29 @@
         let attempts = 0;
         while (attempts < CONFIG.MAX_RETRY_ATTEMPTS) {
             try {
-                const response = await fetch(CONFIG.API_ENDPOINT, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(dataToSend)
+                // 通过background script发送HTTP请求，避免Mixed Content限制
+                const response = await new Promise((resolve, reject) => {
+                    chrome.runtime.sendMessage({
+                        action: 'pushAppenData',
+                        endpoint: CONFIG.API_ENDPOINT,
+                        data: dataToSend
+                    }, (response) => {
+                        if (chrome.runtime.lastError) {
+                            reject(new Error(chrome.runtime.lastError.message));
+                        } else if (response && response.success) {
+                            resolve(response);
+                        } else {
+                            reject(new Error(response?.error || '推送失败'));
+                        }
+                    });
                 });
 
-                if (response.ok) {
-                    const result = await response.json();
-                    log(LOG_LEVEL.DEBUG, '数据推送成功:', result);
+                log(LOG_LEVEL.DEBUG, '数据推送成功:', response);
 
-                    // 推送成功后清除缓存的开始时间
-                    await clearCachedStartTime();
+                // 推送成功后清除缓存的开始时间
+                await clearCachedStartTime();
 
-                    return;
-                } else {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
+                return;
             } catch (error) {
                 attempts++;
                 ErrorHandler.handleNetworkError(error, `数据推送失败 (尝试 ${attempts}/${CONFIG.MAX_RETRY_ATTEMPTS})`);

@@ -890,7 +890,24 @@ async function downloadImageWithCustomName(imageUrl, pageUrl, customFilename, au
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (LOG_VERBOSE) console.log('收到消息:', request);
 
-  if (request.action === "downloadImage") {
+  // 处理推送Appen数据请求
+  if (request.action === "pushAppenData") {
+    pushAppenDataProxy(request.endpoint, request.data)
+      .then((result) => {
+        sendResponse({
+          success: true,
+          data: result
+        });
+      })
+      .catch((error) => {
+        console.error('推送Appen数据失败:', error);
+        sendResponse({
+          success: false,
+          error: error.message
+        });
+      });
+    return true; // 保持消息通道开放
+  } else if (request.action === "downloadImage") {
     // 支持自定义文件名和自动打开控制
     const filename = request.filename || null;
     const autoOpen = request.autoOpen !== false; // 默认true，除非明确设置为false
@@ -1073,6 +1090,53 @@ async function getAppenCookies(url) {
     return authCookies;
   } catch (error) {
     console.error('[Background] 获取Appen cookie时出错:', error);
+    throw error;
+  }
+}
+
+// COS图片代理获取函数 - 修复栈溢出版本
+async function pushAppenDataProxy(endpoint, data) {
+  try {
+    if (LOG_VERBOSE) console.log('📤 代理推送Appen数据到:', endpoint);
+    if (LOG_VERBOSE) console.log('📋 推送数据:', data);
+
+    // 使用background script发送HTTP请求（无Mixed Content限制）
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    // 尝试解析JSON响应
+    let result;
+    try {
+      result = await response.json();
+    } catch (e) {
+      // 如果响应不是JSON，直接返回状态
+      result = {
+        status: response.status,
+        statusText: response.statusText,
+        message: '数据推送成功'
+      };
+    }
+
+    if (LOG_VERBOSE) {
+      console.log('✅ Appen数据推送成功:', {
+        status: response.status,
+        data: result
+      });
+    }
+
+    return result;
+
+  } catch (error) {
+    console.error('❌ Appen数据推送失败:', error);
     throw error;
   }
 }
