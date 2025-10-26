@@ -2574,6 +2574,87 @@
         });
     }
 
+    // 显示通知消息（toast）
+    function showNotification(message, type = 'info') {
+        try {
+            // 创建通知容器
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 15px 20px;
+                border-radius: 4px;
+                font-size: 14px;
+                font-weight: bold;
+                z-index: 999999;
+                animation: slideIn 0.3s ease-out;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                font-family: Arial, sans-serif;
+            `;
+
+            // 根据类型设置样式
+            if (type === 'success') {
+                notification.style.background = '#4CAF50';
+                notification.style.color = 'white';
+            } else if (type === 'error') {
+                notification.style.background = '#f44336';
+                notification.style.color = 'white';
+            } else {
+                notification.style.background = '#2196F3';
+                notification.style.color = 'white';
+            }
+
+            notification.textContent = message;
+
+            // 添加动画样式
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes slideIn {
+                    from {
+                        transform: translateX(400px);
+                        opacity: 0;
+                    }
+                    to {
+                        transform: translateX(0);
+                        opacity: 1;
+                    }
+                }
+                @keyframes slideOut {
+                    from {
+                        transform: translateX(0);
+                        opacity: 1;
+                    }
+                    to {
+                        transform: translateX(400px);
+                        opacity: 0;
+                    }
+                }
+            `;
+            if (!document.querySelector('style[data-notification-style]')) {
+                style.setAttribute('data-notification-style', 'true');
+                document.head.appendChild(style);
+            }
+
+            // 添加到页面
+            document.body.appendChild(notification);
+
+            // 3秒后自动移除
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease-out';
+                setTimeout(() => {
+                    notification.remove();
+                }, 300);
+            }, 3000);
+
+            log(LOG_LEVEL.DEBUG, `通知 [${type.toUpperCase()}]: ${message}`);
+        } catch (error) {
+            console.error('显示通知失败:', error);
+            // 备用方案：使用alert
+            alert(message);
+        }
+    }
+
     // 在标注完成时推送数据
     function pushDataOnSubmission() {
         log(LOG_LEVEL.DEBUG, '标注完成，准备推送数据');
@@ -2655,6 +2736,9 @@
                 // 推送成功后清除缓存的开始时间
                 await clearCachedStartTime();
 
+                // 显示成功通知
+                showNotification('✅ 数据推送成功！', 'success');
+
                 return;
             } catch (error) {
                 attempts++;
@@ -2668,6 +2752,9 @@
         }
 
         log(LOG_LEVEL.ERROR, '数据推送最终失败，已达到最大重试次数');
+
+        // 显示失败通知
+        showNotification('❌ 数据推送失败，请检查网络连接', 'error');
     }
 
     // 创建并显示数据展示模态窗口
