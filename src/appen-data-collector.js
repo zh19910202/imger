@@ -4037,7 +4037,6 @@
         }
 
         // 检查并清除可能的测试数据（如果数据中有明显错误的日期）
-        const today = new Date();
         const todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
 
         // 如果completionStats中有明显不是今天的测试数据，清除它们
