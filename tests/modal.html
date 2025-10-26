@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>可拖动调整大小的模态框</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+
+        .modal-overlay.active {
+            display: block;
+        }
+
+        .modal-container {
+            position: fixed;
+            min-width: 400px;
+            min-height: 300px;
+            max-width: 90vw;
+            max-height: 90vh;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            z-index: 1001;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-header {
+            padding: 15px;
+            background: #ff9800;
+            color: white;
+            border-radius: 8px 8px 0 0;
+            cursor: move;
+            user-select: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header:active {
+            cursor: grabbing;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            font-size: 16px;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+
+        .modal-close:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .modal-body {
+            padding: 20px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .resize-handle {
+            position: absolute;
+            background: transparent;
+            z-index: 10;
+        }
+
+        .resize-handle.right {
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 10px;
+            cursor: ew-resize;
+        }
+
+        .resize-handle.bottom {
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: 10px;
+            cursor: ns-resize;
+        }
+
+        .resize-handle.corner {
+            right: 0;
+            bottom: 0;
+            width: 20px;
+            height: 20px;
+            cursor: nwse-resize;
+        }
+
+        .resize-handle.corner::after {
+            content: '';
+            position: absolute;
+            right: 2px;
+            bottom: 2px;
+            width: 12px;
+            height: 12px;
+            border-right: 2px solid #ccc;
+            border-bottom: 2px solid #ccc;
+        }
+
+        .demo-button {
+            padding: 10px 20px;
+            background: #ff9800;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .demo-button:hover {
+            background: #f57c00;
+        }
+
+        .record-item {
+            margin-bottom: 8px;
+            padding: 8px;
+            background: white;
+            border-radius: 3px;
+            border-left: 3px solid #4CAF50;
+        }
+
+        .record-item.rework {
+            border-left-color: #FF9800;
+        }
+
+        .record-item.invalid {
+            border-left-color: #f44336;
+        }
+
+        .badge {
+            background: #FF9800;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            margin-left: 5px;
+        }
+
+        .stats-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .stat-item {
+            flex: 1;
+            min-width: 120px;
+        }
+    </style>
+</head>
+<body>
+    <h1>可拖动和调整大小的模态框示例</h1>
+    <button class="demo-button" onclick="showModal()">显示工作详情</button>
+
+    <div class="modal-overlay" id="modalOverlay" onclick="closeModal()"></div>
+    
+    <div class="modal-container" id="modalContainer" style="display: none;">
+        <div class="modal-header" id="modalHeader">
+            <h3 id="modalTitle">工作详情</h3>
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="modal-body" id="modalBody">
+            <!-- 内容将动态插入这里 -->
+        </div>
+        <div class="resize-handle right"></div>
+        <div class="resize-handle bottom"></div>
+        <div class="resize-handle corner"></div>
+    </div>
+
+    <script>
+        // 拖动相关变量
+        let isDragging = false;
+        let dragStartX, dragStartY;
+        let modalStartLeft, modalStartTop;
+
+        // 调整大小相关变量
+        let isResizing = false;
+        let resizeDirection = '';
+        let startWidth, startHeight, startX, startY;
+        let modalStartLeftResize, modalStartTopResize;
+
+        const modalContainer = document.getElementById('modalContainer');
+        const modalHeader = document.getElementById('modalHeader');
+        const modalOverlay = document.getElementById('modalOverlay');
+
+        // 初始化模态框位置
+        function initModalPosition() {
+            const windowWidth = window.innerWidth;
+            const windowHeight = window.innerHeight;
+            const modalWidth = 600;
+            const modalHeight = 500;
+            
+            modalContainer.style.width = modalWidth + 'px';
+            modalContainer.style.height = modalHeight + 'px';
+            modalContainer.style.left = (windowWidth - modalWidth) / 2 + 'px';
+            modalContainer.style.top = (windowHeight - modalHeight) / 2 + 'px';
+        }
+
+        // 拖动功能
+        modalHeader.addEventListener('mousedown', dragStart);
+
+        function dragStart(e) {
+            // 如果点击的是关闭按钮，不触发拖动
+            if (e.target.closest('.modal-close')) return;
+            
+            isDragging = true;
+            
+            // 记录鼠标起始位置
+            dragStartX = e.clientX;
+            dragStartY = e.clientY;
+            
+            // 记录模态框起始位置
+            const rect = modalContainer.getBoundingClientRect();
+            modalStartLeft = rect.left;
+            modalStartTop = rect.top;
+            
+            e.preventDefault();
+        }
+
+        document.addEventListener('mousemove', function(e) {
+            if (isDragging) {
+                e.preventDefault();
+                
+                // 计算鼠标移动的距离
+                const deltaX = e.clientX - dragStartX;
+                const deltaY = e.clientY - dragStartY;
+                
+                // 计算新位置
+                const newLeft = modalStartLeft + deltaX;
+                const newTop = modalStartTop + deltaY;
+                
+                // 更新模态框位置
+                modalContainer.style.left = newLeft + 'px';
+                modalContainer.style.top = newTop + 'px';
+            }
+            
+            if (isResizing) {
+                e.preventDefault();
+                resize(e);
+            }
+        });
+
+        document.addEventListener('mouseup', function(e) {
+            if (isDragging) {
+                isDragging = false;
+            }
+            
+            if (isResizing) {
+                isResizing = false;
+                resizeDirection = '';
+            }
+        });
+
+        // 调整大小功能
+        const resizeHandles = document.querySelectorAll('.resize-handle');
+        resizeHandles.forEach(handle => {
+            handle.addEventListener('mousedown', resizeStart);
+        });
+
+        function resizeStart(e) {
+            isResizing = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            
+            const rect = modalContainer.getBoundingClientRect();
+            startWidth = rect.width;
+            startHeight = rect.height;
+            modalStartLeftResize = rect.left;
+            modalStartTopResize = rect.top;
+            
+            if (e.target.classList.contains('right')) {
+                resizeDirection = 'right';
+            } else if (e.target.classList.contains('bottom')) {
+                resizeDirection = 'bottom';
+            } else if (e.target.classList.contains('corner')) {
+                resizeDirection = 'corner';
+            }
+            
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        function resize(e) {
+            const deltaX = e.clientX - startX;
+            const deltaY = e.clientY - startY;
+            
+            if (resizeDirection === 'right' || resizeDirection === 'corner') {
+                const newWidth = startWidth + deltaX;
+                if (newWidth >= 400 && newWidth <= window.innerWidth * 0.9) {
+                    modalContainer.style.width = newWidth + 'px';
+                }
+            }
+            
+            if (resizeDirection === 'bottom' || resizeDirection === 'corner') {
+                const newHeight = startHeight + deltaY;
+                if (newHeight >= 300 && newHeight <= window.innerHeight * 0.9) {
+                    modalContainer.style.height = newHeight + 'px';
+                }
+            }
+        }
+
+        // 显示/隐藏模态框
+        function showModal() {
+            modalOverlay.classList.add('active');
+            modalContainer.style.display = 'flex';
+            initModalPosition();
+            showDateDetails('2025-01-15');
+        }
+
+        function closeModal() {
+            modalOverlay.classList.remove('active');
+            modalContainer.style.display = 'none';
+        }
+
+        // ESC键关闭
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && modalContainer.style.display === 'flex') {
+                closeModal();
+            }
+        });
+
+        // 你的原始函数（修改版）
+        function showDateDetails(dateKey) {
+            // 模拟数据
+            const dayData = {
+                totalTopics: 25,
+                totalElapsedSeconds: 7200,
+                validTopics: 20,
+                validCompletions: 20,
+                invalidCompletions: 3,
+                reworkCompletions: 2,
+                records: [
+                    { topicId: 'T001', completions: 1, topicCount: 5, elapsedSeconds: 300, isValid: true, isRework: false },
+                    { topicId: 'T002', completions: 2, topicCount: 3, elapsedSeconds: 450, isValid: true, isRework: true },
+                    { topicId: 'T003', completions: 1, topicCount: 4, elapsedSeconds: 280, isValid: false, isRework: false },
+                    { topicId: 'T004', completions: 1, topicCount: 6, elapsedSeconds: 420, isValid: true, isRework: false },
+                    { topicId: 'T005', completions: 1, topicCount: 7, elapsedSeconds: 520, isValid: true, isRework: false }
+                ]
+            };
+
+            const recordsHTML = dayData.records.map((record) => {
+                const borderClass = record.isRework ? 'rework' : (record.isValid ? '' : 'invalid');
+                return `
+                    <div class="record-item ${borderClass}">
+                        <div style="font-weight: bold; color: #333;">
+                            题目ID: ${record.topicId}
+                            ${record.isRework ? '<span class="badge">返修</span>' : ''}
+                        </div>
+                        <div style="font-size: 12px; color: #666; margin-top: 4px;">
+                            完成: ${record.completions}次 | 题数: ${record.topicCount} | 耗时: ${record.elapsedSeconds || 0}秒
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            const detailsHTML = `
+                <div style="padding: 15px; background: #f8f9fa; border-radius: 4px; border-left: 4px solid #ff9800;">
+                    <h4 style="margin: 0 0 15px 0; color: #e65100;">
+                        ${dateKey} 工作详情
+                    </h4>
+                    <div class="stats-row">
+                        <div class="stat-item">完成题目: <strong style="color: #e65100;">${dayData.totalTopics}题</strong></div>
+                        <div class="stat-item">总耗时: <strong style="color: #4CAF50;">${formatElapsedTime(dayData.totalElapsedSeconds)}</strong></div>
+                        <div class="stat-item">平均耗时: <strong style="color: #2196F3;">${formatElapsedTime(dayData.validTopics > 0 ? Math.round(dayData.totalElapsedSeconds / dayData.validTopics) : 0)}/题</strong></div>
+                    </div>
+                    <div class="stats-row">
+                        <div class="stat-item">有效完成: <strong style="color: #4CAF50;">${dayData.validCompletions}次</strong></div>
+                        <div class="stat-item">无效完成: <strong style="color: #f44336;">${dayData.invalidCompletions}次</strong></div>
+                        <div class="stat-item">返修完成: <strong style="color: #FF9800;">${dayData.reworkCompletions}次</strong></div>
+                    </div>
+                    <div style="margin-bottom: 10px; font-weight: bold; color: #333;">完成记录:</div>
+                    <div style="max-height: 300px; overflow-y: auto;">
+                        ${recordsHTML}
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('modalBody').innerHTML = detailsHTML;
+            document.getElementById('modalTitle').textContent = `${dateKey} 工作详情`;
+        }
+
+        function formatElapsedTime(seconds) {
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = seconds % 60;
+            
+            if (hours > 0) {
+                return `${hours}小时${minutes}分${secs}秒`;
+            } else if (minutes > 0) {
+                return `${minutes}分${secs}秒`;
+            } else {
+                return `${secs}秒`;
+            }
+        }
+    </script>
+</body>
+</html>

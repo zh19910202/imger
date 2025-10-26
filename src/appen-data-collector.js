@@ -2697,6 +2697,21 @@
             let resizeDirection = null;
             let rafId = null;
 
+            // 模态框初始化函数
+            function initializeModalPosition() {
+                const windowWidth = window.innerWidth;
+                const windowHeight = window.innerHeight;
+                const modalWidth = 600;
+                const modalHeight = 500;
+
+                modalContainer.style.width = modalWidth + 'px';
+                modalContainer.style.height = modalHeight + 'px';
+                modalContainer.style.left = (windowWidth - modalWidth) / 2 + 'px';
+                modalContainer.style.top = (windowHeight - modalHeight) / 2 + 'px';
+                modalContainer.style.position = 'fixed';
+                modalContainer.style.transform = 'none';
+            }
+
             // 清理事件监听器函数
             function cleanupEvents() {
                 document.removeEventListener('mousemove', handleMouseMove);
@@ -2705,6 +2720,10 @@
                     cancelAnimationFrame(rafId);
                     rafId = null;
                 }
+                isDragging = false;
+                isResizing = false;
+                resizeDirection = null;
+                modalContainer.classList.remove('modal-dragging', 'modal-resizing');
             }
 
             // 边界检查函数
@@ -2836,12 +2855,18 @@
 
             // 开始拖动
             function startDrag(e) {
+                // 如果点击的是关闭按钮，不触发拖动
+                if (e.target.closest('#close-modal-btn')) return;
+
                 isDragging = true;
                 dragStartX = e.clientX;
                 dragStartY = e.clientY;
-                // 从样式中获取当前位置，而不是使用 getBoundingClientRect
-                modalStartX = parseInt(modalContainer.style.left) || 0;
-                modalStartY = parseInt(modalContainer.style.top) || 0;
+
+                // 使用 getBoundingClientRect() 获取当前位置
+                const rect = modalContainer.getBoundingClientRect();
+                modalStartX = rect.left;
+                modalStartY = rect.top;
+
                 modalContainer.classList.add('modal-dragging');
                 document.addEventListener('mousemove', handleMouseMove);
                 document.addEventListener('mouseup', handleMouseUp);
@@ -2854,15 +2879,19 @@
                 resizeDirection = direction;
                 dragStartX = e.clientX;
                 dragStartY = e.clientY;
-                // 从样式和 offsetWidth/offsetHeight 中获取当前状态，而不是使用 getBoundingClientRect
-                resizeStartWidth = modalContainer.offsetWidth;
-                resizeStartHeight = modalContainer.offsetHeight;
-                resizeStartLeft = parseInt(modalContainer.style.left) || 0;
-                resizeStartTop = parseInt(modalContainer.style.top) || 0;
+
+                // 获取当前状态
+                const rect = modalContainer.getBoundingClientRect();
+                resizeStartWidth = rect.width;
+                resizeStartHeight = rect.height;
+                resizeStartLeft = rect.left;
+                resizeStartTop = rect.top;
+
                 modalContainer.classList.add('modal-resizing');
                 document.addEventListener('mousemove', handleMouseMove);
                 document.addEventListener('mouseup', handleMouseUp);
                 e.preventDefault();
+                e.stopPropagation();
             }
 
             // 如果已有模态窗口则关闭
@@ -2922,9 +2951,6 @@
             modal.id = 'appen-data-modal';
             modal.style.cssText = `
                 position: fixed;
-                top: 50%;
-                left: 50%;
-                transform: translate(-50%, -50%);
                 z-index: 99999;
                 pointer-events: none;
             `;
@@ -3269,6 +3295,16 @@
 
             #appen-data-modal .modal-resizing {
                 box-shadow: 0 8px 30px rgba(0,0,0,0.4) !important;
+                opacity: 0.95;
+            }
+
+            #appen-data-modal .modal-header {
+                cursor: move;
+                user-select: none;
+            }
+
+            #appen-data-modal .modal-header:active {
+                cursor: grabbing;
             }
 
             #appen-data-modal .resize-handle {
@@ -3322,21 +3358,10 @@
         document.body.appendChild(overlay);
         document.body.appendChild(modal);
 
-        // 初始化模态框位置：从居中transform转换为固定的left/top坐标
-        // 这样可以支持后续的拖动操作
-        const initializeModalPosition = () => {
-            const rect = modalContainer.getBoundingClientRect();
-            const left = rect.left;
-            const top = rect.top;
-
-            modalContainer.style.position = 'fixed';
-            modalContainer.style.left = left + 'px';
-            modalContainer.style.top = top + 'px';
-            modalContainer.style.transform = 'none';
-        };
-
-        // 使用 setTimeout 确保 DOM 已完全渲染
-        setTimeout(initializeModalPosition, 10);
+        // 使用 setTimeout 确保 DOM 已完全渲染后初始化模态框位置
+        setTimeout(() => {
+            initializeModalPosition();
+        }, 10);
 
         // 实现模态框自适应高度功能
         function adjustModalHeight() {
