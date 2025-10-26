@@ -3349,7 +3349,7 @@
                                         color: #e65100;
                                         font-size: 12px;
                                     " id="header-month-text">加载中...</span>
-                                    <span style="font-size: 16px; margin-left: 4px;" id="header-day-text">加载中...</span>
+                                    <span style="font-weight: bold; color: #e65100; font-size: 12px; margin-left: 4px;" id="header-day-text">加载中...</span>
                                 </div>
                                 <button id="clear-completion-stats-btn" style="
                                     background: #f44336;
