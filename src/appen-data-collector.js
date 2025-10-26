@@ -3344,12 +3344,12 @@
                                     cursor: pointer;
                                     transition: background-color 0.3s ease;
                                 ">
-                                    <span style="font-size: 16px; margin-right: 4px;">📅</span>
                                     <span style="
                                         font-weight: bold;
                                         color: #e65100;
                                         font-size: 12px;
-                                    " id="header-month-text">2024年10月</span>
+                                    " id="header-month-text">加载中...</span>
+                                    <span style="font-size: 16px; margin-left: 4px;">📅</span>
                                 </div>
                                 <button id="clear-completion-stats-btn" style="
                                     background: #f44336;
@@ -4022,6 +4022,12 @@
                 showDataModal();
             }
         });
+
+        // 初始化标题行的当前月份显示
+        const headerMonthText = document.getElementById('header-month-text');
+        if (headerMonthText) {
+            headerMonthText.textContent = `${currentYear}年${currentMonth + 1}月`;
+        }
 
         // 初始化日历并显示当天记录
         updateCalendar();
