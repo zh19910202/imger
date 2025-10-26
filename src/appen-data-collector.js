@@ -3783,6 +3783,40 @@
 
             calendarContainer.innerHTML = generateCalendarHTML(currentYear, currentMonth);
 
+            // 添加折叠/展开事件
+            const toggleBtn = document.getElementById('calendar-toggle-btn');
+            const calendarContent = document.getElementById('calendar-content');
+            const calendarArrow = document.getElementById('calendar-arrow');
+
+            if (toggleBtn && calendarContent && calendarArrow) {
+                toggleBtn.addEventListener('click', function() {
+                    const isExpanded = calendarContent.style.display !== 'none';
+
+                    if (isExpanded) {
+                        // 折叠
+                        calendarContent.style.display = 'none';
+                        calendarArrow.style.transform = 'rotate(0deg)';
+                        calendarArrow.textContent = '▼';
+                        toggleBtn.querySelector('span:nth-child(2)').textContent = `${currentYear}年${currentMonth + 1}月 - 点击展开日历`;
+                    } else {
+                        // 展开
+                        calendarContent.style.display = 'block';
+                        calendarArrow.style.transform = 'rotate(180deg)';
+                        calendarArrow.textContent = '▲';
+                        toggleBtn.querySelector('span:nth-child(2)').textContent = `${currentYear}年${currentMonth + 1}月 - 点击折叠日历`;
+                    }
+                });
+
+                // 添加悬停效果
+                toggleBtn.addEventListener('mouseenter', function() {
+                    this.style.backgroundColor = '#ffe0b2';
+                });
+
+                toggleBtn.addEventListener('mouseleave', function() {
+                    this.style.backgroundColor = '#fff3e0';
+                });
+            }
+
             // 添加月份导航事件
             const prevBtn = document.getElementById('prev-month');
             const nextBtn = document.getElementById('next-month');
@@ -3809,12 +3843,12 @@
                 });
             }
 
-            // 添加日期点击事件
-            const dateDays = calendarContainer.querySelectorAll('.calendar-day:not(.empty)');
+            // 添加日期点击事件（仅在日历内容中查找）
+            const dateDays = calendarContent.querySelectorAll('.calendar-day:not(.empty)');
             dateDays.forEach(day => {
                 day.addEventListener('click', function() {
                     // 移除之前的选中状态
-                    calendarContainer.querySelectorAll('.calendar-day').forEach(d => {
+                    calendarContent.querySelectorAll('.calendar-day').forEach(d => {
                         d.style.border = d.style.border.replace('2px solid #ff9800', '');
                     });
 
@@ -3827,15 +3861,20 @@
                 });
             });
 
-            // 默认选中今天并显示当天的记录
+            // 默认选中今天并显示当天的记录（即使日历折叠也显示）
             const today = new Date();
             const todayStr = today.getFullYear() + '-' +
                            String(today.getMonth() + 1).padStart(2, '0') + '-' +
                            String(today.getDate()).padStart(2, '0');
 
-            const todayElement = calendarContainer.querySelector(`[data-date="${todayStr}"]`);
+            // 即使日历内容隐藏，也要选中今天并显示详情
+            const todayElement = calendarContent.querySelector(`[data-date="${todayStr}"]`);
             if (todayElement) {
                 todayElement.style.border = '2px solid #ff9800';
+                selectedDate = todayStr;
+                showDateDetails(todayStr);
+            } else {
+                // 如果找不到今天的元素，仍然尝试显示今天的详情
                 selectedDate = todayStr;
                 showDateDetails(todayStr);
             }
@@ -4127,40 +4166,75 @@
         const groupedData = groupRecordsByDate();
 
         let html = `
-            <div class="calendar-header" style="
+            <!-- 日历折叠/展开控制 -->
+            <div class="calendar-toggle" style="
                 display: flex;
-                justify-content: space-between;
                 align-items: center;
                 margin-bottom: 15px;
-                padding: 10px;
+                padding: 8px 12px;
                 background: #fff3e0;
                 border-radius: 4px;
-            ">
-                <button id="prev-month" style="
-                    background: #ff9800;
-                    color: white;
-                    border: none;
-                    padding: 8px 12px;
-                    border-radius: 4px;
-                    cursor: pointer;
-                    font-weight: bold;
-                ">←</button>
-                <span class="current-month" style="
+                cursor: pointer;
+                transition: background-color 0.3s ease;
+            " id="calendar-toggle-btn">
+                <span style="
+                    font-size: 18px;
+                    margin-right: 8px;
+                ">📅</span>
+                <span style="
                     font-weight: bold;
                     color: #e65100;
-                    font-size: 16px;
-                ">${year}年${month + 1}月</span>
-                <button id="next-month" style="
-                    background: #ff9800;
-                    color: white;
-                    border: none;
-                    padding: 8px 12px;
-                    border-radius: 4px;
-                    cursor: pointer;
-                    font-weight: bold;
-                ">→</button>
+                    font-size: 14px;
+                ">${year}年${month + 1}月 - 点击展开日历</span>
+                <span style="
+                    margin-left: auto;
+                    font-size: 12px;
+                    color: #ff9800;
+                    transition: transform 0.3s ease;
+                " id="calendar-arrow">▼</span>
             </div>
-            <div class="calendar-grid" style="
+
+            <!-- 可折叠的日历内容 -->
+            <div class="calendar-content" style="
+                display: none;
+                margin-bottom: 15px;
+            " id="calendar-content">
+                <div class="calendar-header" style="
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 10px;
+                    padding: 8px;
+                    background: #fff8e1;
+                    border-radius: 4px;
+                ">
+                    <button id="prev-month" style="
+                        background: #ff9800;
+                        color: white;
+                        border: none;
+                        padding: 6px 10px;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-weight: bold;
+                        font-size: 12px;
+                    ">←</button>
+                    <span class="current-month" style="
+                        font-weight: bold;
+                        color: #e65100;
+                        font-size: 14px;
+                    ">${year}年${month + 1}月</span>
+                    <button id="next-month" style="
+                        background: #ff9800;
+                        color: white;
+                        border: none;
+                        padding: 6px 10px;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-weight: bold;
+                        font-size: 12px;
+                    ">→</button>
+                </div>
+                <div class="calendar-grid" style="
                 border: 1px solid #ddd;
                 border-radius: 4px;
                 overflow: hidden;
@@ -4202,6 +4276,7 @@
 
         html += `
                 </div>
+            </div>
             </div>
             <div id="date-details-container" style="margin-top: 20px;"></div>
         `;
