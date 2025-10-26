@@ -4029,6 +4029,24 @@
             headerMonthText.textContent = `${currentYear}年${currentMonth + 1}月`;
         }
 
+        // 检查并清除可能的测试数据（如果数据中有明显错误的日期）
+        const today = new Date();
+        const todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+
+        // 如果completionStats中有明显不是今天的测试数据，清除它们
+        for (const dateKey in completionStats.perPage) {
+            const pageData = completionStats.perPage[dateKey];
+            if (pageData && pageData.lastCompletionTime) {
+                const recordDate = new Date(pageData.lastCompletionTime);
+                // 如果记录的日期超过30天，可能是测试数据，清除它
+                const daysDiff = (today - recordDate) / (1000 * 60 * 60 * 24);
+                if (daysDiff > 30) {
+                    delete completionStats.perPage[dateKey];
+                    log(LOG_LEVEL.DEBUG, `清除过期的测试数据: ${dateKey}`);
+                }
+            }
+        }
+
         // 初始化日历并显示当天记录
         updateCalendar();
 
