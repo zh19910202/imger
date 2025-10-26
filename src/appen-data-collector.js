@@ -2962,18 +2962,19 @@
                 background: white;
                 border: 2px solid #333;
                 border-radius: 8px;
-                padding: 20px;
                 box-shadow: 0 4px 20px rgba(0,0,0,0.3);
                 max-width: 550px;
                 width: 90%;
                 max-height: 95vh;
                 overflow: hidden;
-                min-height: 300px;
+                min-height: 400px;
                 height: auto;
                 font-family: Arial, sans-serif;
                 cursor: default;
                 pointer-events: auto;
                 position: relative;
+                display: flex;
+                flex-direction: column;
             `;
 
             modalContainer.innerHTML = `
@@ -2990,11 +2991,11 @@
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
-                    margin-bottom: 20px;
                     border-bottom: 2px solid #ddd;
-                    padding-bottom: 10px;
+                    padding: 20px;
                     cursor: move;
                     user-select: none;
+                    flex: 0 0 auto;
                 ">
                     <h2 style="margin: 0; font-size: 18px; color: #333;">Appen数据收集信息</h2>
                     <button id="close-modal-btn" style="
@@ -3012,7 +3013,8 @@
                 <div style="
                     display: flex;
                     border-bottom: 1px solid #ddd;
-                    margin-bottom: 15px;
+                    padding: 0 20px;
+                    flex: 0 0 auto;
                 ">
                     <button class="modal-tab" data-tab="basic" style="
                         flex: 1;
@@ -3050,8 +3052,12 @@
                 </div>
 
                 <!-- 标签页内容区域 -->
-                <div style="max-height: calc(95vh - 140px); overflow-y: auto;
-                min-height: 200px;">
+                <div style="
+                    flex: 1 1 auto;
+                    overflow-y: auto;
+                    padding: 20px;
+                    position: relative;
+                ">
                     <!-- 基本信息 标签页 -->
                     <div class="tab-content" data-tab="basic" style="
                         background: #e3f2fd;
@@ -3240,41 +3246,78 @@
                         </div>
                 </div>
 
-                <!-- 按钮操作区域 -->
-                <div style="
-                    margin-top: 20px;
+                <!-- 底部Footer区域：全局操作按钮栏
+
+                    功能说明：
+                    - 提供三个全局操作按钮，用户可在任何tab页面快速访问这些功能
+                    - 这些操作不属于特定的tab内容，而是对整个模态框数据的全局操作
+
+                    按钮功能：
+                    1. 推送数据（蓝色）- 将收集的标注数据推送到服务器
+                    2. 获取Cookie（橙色） - 获取当前会话的认证Cookie信息
+                    3. 同步认证信息（紫色） - 将用户认证信息同步到服务端
+
+                    设计特点：
+                    - 固定高度70px：(15px padding * 2) + 40px内容高度
+                    - 浅灰色背景（#f5f5f5）与顶部边框（#e0e0e0）提供视觉分割
+                    - Flexbox布局确保响应式设计和按钮居中对齐
+                    - 支持模态框的拖动和调整大小操作
+
+                    交互效果：
+                    - 按钮hover时上升2px并增强阴影
+                    - 点击时恢复原位置，显示按下效果
+                    - 每个按钮有特定的hover颜色变化
+                -->
+                <div id="modal-footer" style="
+                    background-color: #f5f5f5;
+                    border-top: 1px solid #e0e0e0;
                     display: flex;
-                    gap: 10px;
                     justify-content: center;
-                    flex-wrap: wrap;
+                    align-items: center;
+                    padding: 15px 20px;
+                    height: 70px;
+                    flex: 0 0 70px;
+                    position: sticky;
+                    bottom: 0;
+                    left: 0;
+                    right: 0;
+                    z-index: 10;
+                    margin-top: 20px;
+                    border-radius: 0 0 6px 6px;
                 ">
-                                        <button id="push-data-btn" style="
-                        background: #2196F3;
-                        color: white;
-                        border: none;
-                        padding: 10px 20px;
-                        border-radius: 4px;
-                        cursor: pointer;
-                        font-weight: bold;
-                    ">推送数据</button>
-                    <button id="get-cookies-btn" style="
-                        background: #FF9800;
-                        color: white;
-                        border: none;
-                        padding: 10px 20px;
-                        border-radius: 4px;
-                        cursor: pointer;
-                        font-weight: bold;
-                    ">获取Cookie</button>
-                    <button id="sync-auth-btn" style="
-                        background: #9C27B0;
-                        color: white;
-                        border: none;
-                        padding: 10px 20px;
-                        border-radius: 4px;
-                        cursor: pointer;
-                        font-weight: bold;
-                    ">同步认证信息</button>
+                    <div id="footer-buttons" style="
+                        display: flex;
+                        gap: 10px;
+                        align-items: center;
+                    ">
+                        <button id="push-data-btn" style="
+                            background: #2196F3;
+                            color: white;
+                            border: none;
+                            padding: 10px 20px;
+                            border-radius: 4px;
+                            cursor: pointer;
+                            font-weight: bold;
+                        ">推送数据</button>
+                        <button id="get-cookies-btn" style="
+                            background: #FF9800;
+                            color: white;
+                            border: none;
+                            padding: 10px 20px;
+                            border-radius: 4px;
+                            cursor: pointer;
+                            font-weight: bold;
+                        ">获取Cookie</button>
+                        <button id="sync-auth-btn" style="
+                            background: #9C27B0;
+                            color: white;
+                            border: none;
+                            padding: 10px 20px;
+                            border-radius: 4px;
+                            cursor: pointer;
+                            font-weight: bold;
+                        ">同步认证信息</button>
+                    </div>
                 </div>
         `;
 
@@ -3351,6 +3394,45 @@
                 right: 0; top: 50%; width: 8px; height: 20px;
                 border-radius: 4px; transform: translateY(-50%); cursor: e-resize;
             }
+
+            /* Footer样式 */
+            #appen-data-modal #modal-footer {
+                flex-shrink: 0;
+                box-shadow: inset 0 1px 0 rgba(0,0,0,0.1);
+            }
+
+            #appen-data-modal #footer-buttons {
+                flex-wrap: wrap;
+            }
+
+            /* 按钮hover效果 */
+            #appen-data-modal #modal-footer button {
+                transition: all 0.2s ease;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+
+            #appen-data-modal #modal-footer button:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            }
+
+            #appen-data-modal #modal-footer button:active {
+                transform: translateY(0);
+                box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            }
+
+            /* 按钮颜色hover效果 */
+            #appen-data-modal #push-data-btn:hover {
+                background: #1976d2;
+            }
+
+            #appen-data-modal #get-cookies-btn:hover {
+                background: #e68900;
+            }
+
+            #appen-data-modal #sync-auth-btn:hover {
+                background: #7b1fa2;
+            }
         `;
         document.head.appendChild(modalStyles);
 
@@ -3366,35 +3448,41 @@
         // 实现模态框自适应高度功能
         function adjustModalHeight() {
             const modalElement = document.getElementById('appen-data-modal');
-            const tabContentArea = modalElement.querySelector('div[style*="max-height: calc"]');
+            const modalContainer = modalElement.querySelector('.modal-container');
+            const contentArea = modalElement.querySelector('div[style*="flex: 1 1 auto"]');
             const activeTab = modalElement.querySelector('.tab-content[style*="display: block"]');
 
-            if (modalElement && tabContentArea && activeTab) {
-                // 临时显示活动标签页以测量其内容高度
-                const originalHeight = tabContentArea.style.height;
-                tabContentArea.style.height = 'auto';
-                tabContentArea.style.overflow = 'visible';
+            if (modalElement && contentArea && activeTab) {
+                // 获取各部分的实际高度
+                const headerElement = modalElement.querySelector('.modal-header');
+                const tabsElement = modalElement.querySelector('div[style*="flex: 0 0 auto"]');
+                const footerElement = modalElement.querySelector('#modal-footer');
+
+                const headerHeight = headerElement ? headerElement.scrollHeight : 60;
+                const tabsHeight = tabsElement ? tabsElement.scrollHeight : 50;
+                const footerHeight = footerElement ? footerElement.scrollHeight : 70;
+
+                // 临时调整内容区域以测量内容高度
+                const originalHeight = contentArea.style.maxHeight;
+                contentArea.style.maxHeight = 'none';
+                contentArea.style.overflow = 'visible';
 
                 // 测量内容高度
-                const contentHeight = activeTab.scrollHeight;
-                const headerHeight = 140; // 头部区域高度（标题栏 + 标签页导航）
-                const padding = 40; // 上下padding
-                const totalHeight = contentHeight + headerHeight + padding;
+                const contentHeight = activeTab.scrollHeight + 40; // 加上padding
 
                 // 恢复滚动设置
-                tabContentArea.style.height = originalHeight;
-                tabContentArea.style.overflow = 'auto';
+                contentArea.style.maxHeight = originalHeight;
+                contentArea.style.overflow = 'auto';
+
+                // 计算总高度
+                const totalHeight = headerHeight + tabsHeight + contentHeight + footerHeight;
 
                 // 设置模态框高度
                 const maxHeight = window.innerHeight * 0.95; // 最大95vh
                 const finalHeight = Math.min(totalHeight, maxHeight);
-                const minHeight = 300; // 最小高度
+                const minHeight = 420; // 最小高度（考虑footer）
 
                 modalElement.style.height = Math.max(finalHeight, minHeight) + 'px';
-
-                // 调整标签页内容区域高度
-                const tabAreaHeight = finalHeight - headerHeight;
-                tabContentArea.style.maxHeight = tabAreaHeight + 'px';
             }
         }
 
