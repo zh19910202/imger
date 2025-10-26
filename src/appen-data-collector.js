@@ -3994,10 +3994,11 @@
 
         // 同步认证信息按钮事件
         document.getElementById('sync-auth-btn').addEventListener('click', async function() {
+            let notificationController = null;
             try {
                 const cookies = await getAuthCookies();
                 if (cookies) {
-                    const notificationController = showNotification('⏳ 正在同步认证信息...', 'loading', true);
+                    notificationController = showNotification('⏳ 正在同步认证信息...', 'loading', true);
                     await syncAuthToServer(cookies);
                     if (notificationController) {
                         notificationController.finalize('✅ 认证信息同步成功！', 'success');
@@ -4007,7 +4008,12 @@
                 }
             } catch (error) {
                 ErrorHandler.handleNetworkError(error, '同步认证信息失败');
-                showNotification('❌ 同步认证信息失败: ' + error.message, 'error');
+                // 停止流动水动画并显示错误信息
+                if (notificationController) {
+                    notificationController.finalize('❌ 同步认证信息失败: ' + error.message, 'error');
+                } else {
+                    showNotification('❌ 同步认证信息失败: ' + error.message, 'error');
+                }
                 log(LOG_LEVEL.ERROR, '同步认证信息异常:', error);
             }
         });
