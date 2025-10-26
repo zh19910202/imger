@@ -3334,44 +3334,22 @@
                             border-bottom: 2px solid #ff9800;
                         ">
                             <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                                <div style="font-weight: bold; color: #e65100; font-size: 16px;">✓ 标注完成统计</div>
-                                <div style="display: flex; gap: 5px;">
-                                    <button id="list-view-btn" class="view-toggle active" data-view="list" style="
-                                        padding: 6px 12px;
-                                        border: 1px solid #ddd;
-                                        background: #e3f2fd;
-                                        color: #1976d2;
-                                        cursor: pointer;
-                                        border-radius: 4px;
-                                        font-weight: bold;
-                                        font-size: 12px;
-                                    ">列表视图</button>
-                                    <button id="calendar-view-btn" class="view-toggle" data-view="calendar" style="
-                                        padding: 6px 12px;
-                                        border: 1px solid #ddd;
-                                        background: #f5f5f5;
-                                        color: #666;
-                                        cursor: pointer;
-                                        border-radius: 4px;
-                                        font-weight: normal;
-                                        font-size: 12px;
-                                    ">日历视图</button>
-                                    <button id="clear-completion-stats-btn" style="
-                                        background: #f44336;
-                                        color: white;
-                                        border: none;
-                                        padding: 6px 12px;
-                                        border-radius: 4px;
-                                        cursor: pointer;
-                                        font-weight: bold;
-                                        font-size: 12px;
-                                    ">Clear</button>
-                                </div>
+                                <div style="font-weight: bold; color: #e65100; font-size: 16px;">✓ 标注完成统计 - 日历视图</div>
+                                <button id="clear-completion-stats-btn" style="
+                                    background: #f44336;
+                                    color: white;
+                                    border: none;
+                                    padding: 6px 12px;
+                                    border-radius: 4px;
+                                    cursor: pointer;
+                                    font-weight: bold;
+                                    font-size: 12px;
+                                ">Clear</button>
                             </div>
                         </div>
 
-                        <!-- 列表视图容器 -->
-                        <div id="list-view-container">
+                        <!-- 统一的日历视图容器 -->
+                        <div id="calendar-view-container">
                             <div style="display: flex; justify-content: space-between; align-items: center;">
                                 <div>
                                     <strong style="color: #e65100;">总有效完成次数:</strong> <span id="total-completions-display" style="color: #0066cc; font-weight: bold; font-size: 16px;">${completionStats.totalValidCompletions || 0}</span> |
@@ -3449,11 +3427,6 @@
                                     ? `<div style="margin-top: 5px; font-size: 12px; color: #777;">共${Object.keys(completionStats.perPage).length}条记录。滚动查看全部。</div>`
                                     : ''}
                             </div>
-                        </div>
-
-                        <!-- 日历视图容器 -->
-                        <div id="calendar-view-container" style="display: none;">
-                            <!-- 日历内容将通过JavaScript动态生成 -->
                         </div>
                 </div>
 
@@ -3802,44 +3775,7 @@
         let selectedDate = null;
 
         // 视图切换功能
-        function switchView(viewType) {
-            const listView = document.getElementById('list-view-container');
-            const calendarView = document.getElementById('calendar-view-container');
-            const listBtn = document.getElementById('list-view-btn');
-            const calendarBtn = document.getElementById('calendar-view-btn');
-
-            if (viewType === 'list') {
-                if (listView) listView.style.display = 'block';
-                if (calendarView) calendarView.style.display = 'none';
-                if (listBtn) {
-                    listBtn.style.background = '#e3f2fd';
-                    listBtn.style.color = '#1976d2';
-                    listBtn.style.fontWeight = 'bold';
-                }
-                if (calendarBtn) {
-                    calendarBtn.style.background = '#f5f5f5';
-                    calendarBtn.style.color = '#666';
-                    calendarBtn.style.fontWeight = 'normal';
-                }
-            } else {
-                if (listView) listView.style.display = 'none';
-                if (calendarView) calendarView.style.display = 'block';
-                if (listBtn) {
-                    listBtn.style.background = '#f5f5f5';
-                    listBtn.style.color = '#666';
-                    listBtn.style.fontWeight = 'normal';
-                }
-                if (calendarBtn) {
-                    calendarBtn.style.background = '#e3f2fd';
-                    calendarBtn.style.color = '#1976d2';
-                    calendarBtn.style.fontWeight = 'bold';
-                }
-
-                // 初始化日历
-                updateCalendar();
-            }
-        }
-
+        
         // 更新日历显示
         function updateCalendar() {
             const calendarContainer = document.getElementById('calendar-view-container');
@@ -3890,24 +3826,22 @@
                     showDateDetails(selectedDate);
                 });
             });
+
+            // 默认选中今天并显示当天的记录
+            const today = new Date();
+            const todayStr = today.getFullYear() + '-' +
+                           String(today.getMonth() + 1).padStart(2, '0') + '-' +
+                           String(today.getDate()).padStart(2, '0');
+
+            const todayElement = calendarContainer.querySelector(`[data-date="${todayStr}"]`);
+            if (todayElement) {
+                todayElement.style.border = '2px solid #ff9800';
+                selectedDate = todayStr;
+                showDateDetails(todayStr);
+            }
         }
 
-        // 添加视图切换按钮事件
-        const listViewBtn = document.getElementById('list-view-btn');
-        const calendarViewBtn = document.getElementById('calendar-view-btn');
-
-        if (listViewBtn) {
-            listViewBtn.addEventListener('click', function() {
-                switchView('list');
-            });
-        }
-
-        if (calendarViewBtn) {
-            calendarViewBtn.addEventListener('click', function() {
-                switchView('calendar');
-            });
-        }
-
+        
         // 背景点击关闭功能
         overlay.addEventListener('click', function() {
             cleanupEvents();
@@ -4028,6 +3962,9 @@
                 showDataModal();
             }
         });
+
+        // 初始化日历并显示当天记录
+        updateCalendar();
 
         log(LOG_LEVEL.DEBUG, '数据展示模态窗口已显示，按i键关闭');
         } catch (error) {
