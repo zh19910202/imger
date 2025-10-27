@@ -1111,13 +1111,15 @@ async function pushAppenDataProxy(endpoint, data) {
 
     if (!response.ok) {
       const errorText = await response.text();
+      const errorMessage = `HTTP ${response.status}: ${response.statusText}${errorText ? ' - ' + errorText.substring(0, 200) : ''}`;
       console.error('❌ 服务器返回错误:', {
         status: response.status,
         statusText: response.statusText,
         body: errorText,
-        requestData: data
+        requestData: data,
+        endpoint: endpoint
       });
-      throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
+      throw new Error(errorMessage);
     }
 
     // 尝试解析JSON响应
