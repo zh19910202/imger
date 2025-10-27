@@ -1176,9 +1176,8 @@
             const currentTime = Date.now();
             const elapsedSeconds = Math.floor((currentTime - collectedData.startTime) / 1000);
 
-            // 检查是否有驳回信息（返修页面）
-            const hasRework = !!(collectedData.responseElements?.qualityCheckRecord?.hasRecord &&
-                               collectedData.responseElements?.qualityCheckRecord?.latestRecord?.type === 'REJECTED');
+            // 直接使用pageState中已经判断过的isRejected，避免重复计算
+            const hasRework = pageState.isRejected === true;
 
             // 获取当前页面的驳回理由（如果有的话）
             const pageRejectReason = hasRework && collectedData.responseElements?.qualityCheckRecord?.latestRecord?.comment
@@ -1250,9 +1249,8 @@
             const currentTime = Date.now();
             const elapsedSeconds = Math.floor((currentTime - collectedData.startTime) / 1000);
 
-            // 检查是否有驳回信息（返修页面）
-            const hasRework = !!(collectedData.responseElements?.qualityCheckRecord?.hasRecord &&
-                               collectedData.responseElements?.qualityCheckRecord?.latestRecord?.type === 'REJECTED');
+            // 直接使用pageState中已经判断过的isRejected，避免重复计算
+            const hasRework = pageState.isRejected === true;
 
             // 获取当前页面的驳回理由（如果有的话）
             const pageRejectReason = hasRework && collectedData.responseElements?.qualityCheckRecord?.latestRecord?.comment
@@ -1753,33 +1751,18 @@
         log(LOG_LEVEL.INFO, '[Appen Data Collector] 开始获取页面的新旧题状态');
         log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 传入的pageData:', pageData);
 
-        // 检查当前页面是否被QA驳回（最高优先级）
+        // 使用 isCurrentPageRejected() 判断是否为返修页
+        // 这样可以与页面加载时的判断保持一致
         const isRejected = isCurrentPageRejected();
         log(LOG_LEVEL.DEBUG, '[Appen Data Collector] isCurrentPageRejected返回值:', isRejected);
 
         if (isRejected) {
-            log(LOG_LEVEL.INFO, '[Appen Data Collector] 当前页面被QA驳回，标记为旧题');
-            return '旧'; // 当前页面显示QA驳回
+            log(LOG_LEVEL.INFO, '[Appen Data Collector] 页面被检测为返修页，标记为旧题');
+            return '旧'; // 旧题（被驳回）
         }
 
-        // 检查是否具有有效状态且编辑轮数>=1（新增的判断条件）
-        try {
-            const isValidStatus = hasValidStatus();
-            const editRoundCount = getEditRoundCount();
-
-            log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 有效状态检测结果:', isValidStatus);
-            log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 编辑轮数检测结果:', editRoundCount);
-
-            if (isValidStatus && editRoundCount >= 1) {
-                log(LOG_LEVEL.INFO, '[Appen Data Collector] 页面具有有效状态且编辑轮数>=1，标记为旧题');
-                return '旧';
-            }
-        } catch (error) {
-            log(LOG_LEVEL.WARN, '[Appen Data Collector] 检测新增条件时出错:', error);
-        }
-
-        // 如果没有当前驳回，且不满足新增条件，认为是新题
-        log(LOG_LEVEL.INFO, '[Appen Data Collector] 当前页面未被QA驳回且不满足新增条件，标记为新题');
+        // 如果没有被驳回，认为是新题
+        log(LOG_LEVEL.INFO, '[Appen Data Collector] 页面未被驳回，标记为新题');
         return '新'; // 新题
     }
     // 获取当前页面的返修状态（新/旧）
@@ -2402,9 +2385,8 @@
             const currentTime = Date.now();
             const elapsedSeconds = Math.floor((currentTime - collectedData.startTime) / 1000);
 
-            // 检查是否有驳回信息（返修页面）
-            const hasRework = !!(collectedData.responseElements?.qualityCheckRecord?.hasRecord &&
-                               collectedData.responseElements?.qualityCheckRecord?.latestRecord?.type === 'REJECTED');
+            // 直接使用pageState中已经判断过的isRejected，避免重复计算
+            const hasRework = pageState.isRejected === true;
 
             // 获取当前页面的驳回理由（如果有的话）
             const pageRejectReason = hasRework && collectedData.responseElements?.qualityCheckRecord?.latestRecord?.comment
@@ -2516,15 +2498,15 @@
             saveCompletionStats();
 
             // 自动发送数据到服务器
-            log(LOG_LEVEL.DEBUG, '确认完成记录完成，自动发送数据到服务器');
-            pendingNotificationState = {
-                message: '⏳ 数据正在发送...',
-                type: 'loading',
-                timestamp: Date.now()
-            };
-            localStorage.setItem('auxis_pending_notification', JSON.stringify(pendingNotificationState));
-            currentNotificationController = showNotification('⏳ 数据正在发送...', 'loading', true);
-            pushDataOnSubmission();
+            // log(LOG_LEVEL.DEBUG, '确认完成记录完成，自动发送数据到服务器');
+            // pendingNotificationState = {
+            //     message: '⏳ 数据正在发送...',
+            //     type: 'loading',
+            //     timestamp: Date.now()
+            // };
+            // localStorage.setItem('auxis_pending_notification', JSON.stringify(pendingNotificationState));
+            // currentNotificationController = showNotification('⏳ 数据正在发送...', 'loading', true);
+            // pushDataOnSubmission();
 
         } catch (error) {
             ErrorHandler.handle(error, '记录确认完成时的标注信息异常', null, LOG_LEVEL.WARN);
@@ -2795,6 +2777,48 @@
     }
 
     // 在标注完成时推送数据
+    // 构造要发送的数据
+    function buildDataToSend() {
+        let elapsedTime = Date.now() - collectedData.startTime;
+        if (elapsedTime > CONFIG.MAX_ELAPSED_TIME) {
+            log(LOG_LEVEL.DEBUG, '耗时已超过最大值(1小时)，固定为1小时');
+            elapsedTime = CONFIG.MAX_ELAPSED_TIME;
+        }
+        collectedData.elapsedTime = Math.floor(elapsedTime / 1000);
+
+        return {
+            appleUserId: collectedData.userId || 'unknown_user',
+            taskId: collectedData.taskId || 'unknown_task',
+            taskName: collectedData.responseElements?.title || 'unknown_task',
+            topicId: collectedData.topicId || 'unknown_topic',
+            projectId: collectedData.responseElements?.projectId || 'unknown',
+            projectDisplayId: collectedData.responseElements?.projectDisplayId || 'unknown',
+            jobTenantId: (() => {
+                const baseId = collectedData.responseElements?.jobTenantId || 'unknown';
+                return baseId === 'unknown' ? 'unknown' : `${baseId}&locale=zh-CN`;
+            })(),
+            recordState: (collectedData.responseElements?.qualityCheckRecord?.hasRecord && 
+                          collectedData.responseElements?.qualityCheckRecord?.latestRecord?.type === 'REJECTED') 
+                         ? 'MODIFYED' 
+                         : 'UNCHECKED',
+            isValid: collectedData.responseElements?.userSelectionStatus?.isValid ?? true,
+            topicNum: collectedData.responseElements?.userSelectionStatus?.topicCount 
+                      || collectedData.responseElements?.userSelectionStatus?.editRounds 
+                      || collectedData.topicNum 
+                      || 0,
+            elapsedTime: collectedData.elapsedTime || 0,
+            rejectReason: collectedData.responseElements?.qualityCheckRecord?.latestRecord?.comment || null,
+            updateTime: (() => {
+                const now = new Date();
+                // 获取中国时区的时间（UTC+8）
+                const chinaTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+                const isoString = chinaTime.toISOString();
+                // 格式化为 "2025-10-30T20:45:59"（去掉毫秒和Z）
+                return isoString.split('.')[0];
+            })()
+        };
+    }
+
     function pushDataOnSubmission() {
         log(LOG_LEVEL.DEBUG, '标注完成，准备推送数据');
 
@@ -2826,44 +2850,7 @@
         }
 
         try {
-            let elapsedTime = Date.now() - collectedData.startTime;
-            if (elapsedTime > CONFIG.MAX_ELAPSED_TIME) {
-                log(LOG_LEVEL.DEBUG, '耗时已超过最大值(1小时)，固定为1小时');
-                elapsedTime = CONFIG.MAX_ELAPSED_TIME;
-            }
-            collectedData.elapsedTime = Math.floor(elapsedTime / 1000);
-
-            // 构造符合API要求的数据（使用camelCase）
-            // 新增字段说明：
-            // - taskName: 任务名称，使用当前任务ID对应的值
-            // - jobTenantId: 租户ID，从URL参数提取
-            // - projectId: 项目ID，从URL参数提取
-            // - projectDisplayId: 项目显示ID，从URL参数提取
-            // - topicUrl: 标注访问页面URL，可选字段默认为空
-        const dataToSend = {
-            request: {
-                appleUserId: collectedData.userId || 'unknown_user',
-                taskId: collectedData.taskId || 'unknown_task',
-                taskName: collectedData.responseElements?.title || 'unknown_task',
-                topicId: collectedData.topicId || 'unknown_topic',
-                projectId: collectedData.responseElements?.projectId || 'unknown',
-                projectDisplayId: collectedData.responseElements?.projectDisplayId || 'unknown',
-                jobTenantId: (() => {
-                    const baseId = collectedData.responseElements?.jobTenantId || 'unknown';
-                    return baseId === 'unknown' ? 'unknown' : `${baseId}&locale=zh-CN`;
-                })(),
-                recordState: collectedData.responseElements?.userSelectionStatus?.hasRework ? 'MODIFYED' : 'UNCHECKED',
-                isValid: collectedData.responseElements?.userSelectionStatus?.isValid ?? true,
-                topicNum: collectedData.responseElements?.userSelectionStatus?.topicCount || 0,
-                elapsedTime: collectedData.elapsedTime || 0,
-                rejectReason: collectedData.responseElements?.qualityCheckRecord?.latestRecord?.comment || null,
-                updateTime: (() => {
-                    const now = new Date();
-                    const chinaTime = new Date(now.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }));
-                    return chinaTime.toISOString();
-                })()
-            }
-        };
+            const dataToSend = buildDataToSend();
 
             log(LOG_LEVEL.DEBUG, '准备推送数据:', dataToSend);
 
@@ -4007,7 +3994,24 @@
         
         // 推送数据按钮事件
         document.getElementById('push-data-btn').addEventListener('click', function() {
-            pushDataOnSubmission();
+            const dataToSend = buildDataToSend();
+            const dataPreview = `
+任务ID: ${dataToSend.taskId}
+用户ID: ${dataToSend.appleUserId}
+题目ID: ${dataToSend.topicId}
+做题数: ${dataToSend.topicNum}
+耗时(秒): ${dataToSend.elapsedTime}
+状态: ${dataToSend.recordState}
+有效: ${dataToSend.isValid}
+更新时间: ${dataToSend.updateTime}
+
+完整请求体:
+${JSON.stringify(dataToSend, null, 2)}`;
+            
+            const confirmed = confirm('确认要推送数据吗？\n\n' + dataPreview);
+            if (confirmed) {
+                pushDataOnSubmission();
+            }
         });
 
         // 获取cookie按钮事件
@@ -6411,6 +6415,23 @@
             log(LOG_LEVEL.INFO, '[Appen Data Collector] 使用两步交互策略提取驳回理由...');
             const rejectInfo = extractLatestQARejectFromDOM();
 
+            // 无论是否找到驳回理由，都设置qualityCheckRecord
+            // 如果找到就用真实数据，找不到就用空字符串
+            if (collectedData.responseElements) {
+                collectedData.responseElements.qualityCheckRecord = {
+                    hasRecord: true,
+                    dataSource: rejectInfo ? 'TWO_STEP_INTERACTION_ENHANCED' : 'PAGE_REJECTION_DETECTION',
+                    timestamp: new Date().toISOString(),
+                    latestRecord: {
+                        type: 'REJECTED',
+                        action: rejectInfo ? `被 ${rejectInfo.operator || 'QA'} Rejected 请修订` : '页面被驳回，需要返修',
+                        comment: rejectInfo?.comment || '',  // 如果为null就用空字符串
+                        operator: rejectInfo?.operator || '',
+                        operateTime: rejectInfo?.operateTime || ''
+                    }
+                };
+            }
+
             if (rejectInfo) {
                 // 保存驳回信息到全局变量
                 if (!collectedData.qualityCheckInfo) {
@@ -6420,22 +6441,6 @@
                 collectedData.qualityCheckInfo.rejectReason = rejectInfo.comment;
                 collectedData.qualityCheckInfo.rejectOperator = rejectInfo.operator;
                 collectedData.qualityCheckInfo.rejectTime = rejectInfo.operateTime;
-
-                // 同时设置responseElements.qualityCheckRecord以保持兼容性
-                if (collectedData.responseElements) {
-                    collectedData.responseElements.qualityCheckRecord = {
-                        hasRecord: true,
-                        dataSource: 'TWO_STEP_INTERACTION_ENHANCED',
-                        timestamp: new Date().toISOString(),
-                        latestRecord: {
-                            type: 'REJECTED',
-                            action: `被 ${rejectInfo.operator || 'QA'} Rejected 请修订`,
-                            comment: rejectInfo.comment || '',
-                            operator: rejectInfo.operator || 'QA',
-                            operateTime: rejectInfo.operateTime || ''
-                        }
-                    };
-                }
 
                 log(LOG_LEVEL.INFO, '[Appen Data Collector] 驳回理由收集成功:', {
                     reason: rejectInfo.comment,
@@ -6451,7 +6456,7 @@
                 console.log('[Appen Data Collector] 操作人:', TextExtractor.extractText({ textContent: rejectInfo.operator }));
                 console.log('[Appen Data Collector] 操作时间:', TextExtractor.extractText({ textContent: rejectInfo.operateTime }));
             } else {
-                log(LOG_LEVEL.WARN, '[Appen Data Collector] 两步交互策略未找到驳回理由信息');
+                log(LOG_LEVEL.WARN, '[Appen Data Collector] 两步交互策略未找到驳回理由信息，但已标记为返修页面');
 
                 // 优先使用两步交互策略，只有在明确需要时才考虑其他方法
                 log(LOG_LEVEL.INFO, '[Appen Data Collector] 两步交互策略是主要方法，不使用其他回退方式');
