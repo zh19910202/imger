@@ -6418,45 +6418,69 @@ ${JSON.stringify(dataToSend, null, 2)}`;
             // 无论是否找到驳回理由，都设置qualityCheckRecord
             // 如果找到就用真实数据，找不到就用空字符串
             if (collectedData.responseElements) {
+                // 验证rejectInfo中的数据是否有效（排除采集到的评审表单数据）
+                let validComment = '';
+                if (rejectInfo?.comment) {
+                    // 检查是否采集到了评审表单的垃圾数据
+                    const comment = rejectInfo.comment.toString().trim();
+                    // 如果包含以下特征，说明是采集到了评审表单内容，应该忽略
+                    const isFormData = comment.includes('是否有效') ||
+                                      comment.includes('无效原因') ||
+                                      comment.includes('form') ||
+                                      comment.includes('FormGrid') ||
+                                      comment.includes('labelCol') ||
+                                      comment.includes('wrapperCol') ||
+                                      comment.includes('schema') ||
+                                      comment.includes('x-component') ||
+                                      comment.includes('x-decorator') ||
+                                      comment.includes('&quot;') ||
+                                      comment.includes('const exports_') ||
+                                      comment.length > 500; // 超过500字符的也视为可能是表单数据
+                    
+                    if (!isFormData && comment.length > 0 && comment.length < 500) {
+                        validComment = comment;
+                    }
+                }
+                
                 collectedData.responseElements.qualityCheckRecord = {
                     hasRecord: true,
-                    dataSource: rejectInfo ? 'TWO_STEP_INTERACTION_ENHANCED' : 'PAGE_REJECTION_DETECTION',
+                    dataSource: validComment ? 'TWO_STEP_INTERACTION_ENHANCED' : 'PAGE_REJECTION_DETECTION',
                     timestamp: new Date().toISOString(),
                     latestRecord: {
                         type: 'REJECTED',
-                        action: rejectInfo ? `被 ${rejectInfo.operator || 'QA'} Rejected 请修订` : '页面被驳回，需要返修',
-                        comment: rejectInfo?.comment || '',  // 如果为null就用空字符串
-                        operator: rejectInfo?.operator || '',
-                        operateTime: rejectInfo?.operateTime || ''
+                        action: validComment ? `被 ${rejectInfo.operator || 'QA'} Rejected 请修订` : '页面被驳回，需要返修',
+                        comment: validComment,  // 使用验证后的comment
+                        operator: (rejectInfo?.operator && !rejectInfo.operator.includes('form')) ? rejectInfo.operator : '',
+                        operateTime: (rejectInfo?.operateTime && /\d{4}-\d{2}-\d{2}/.test(rejectInfo.operateTime)) ? rejectInfo.operateTime : ''
                     }
                 };
             }
 
-            if (rejectInfo) {
+            if (rejectInfo && validComment) {
                 // 保存驳回信息到全局变量
                 if (!collectedData.qualityCheckInfo) {
                     collectedData.qualityCheckInfo = {};
                 }
 
-                collectedData.qualityCheckInfo.rejectReason = rejectInfo.comment;
+                collectedData.qualityCheckInfo.rejectReason = validComment;
                 collectedData.qualityCheckInfo.rejectOperator = rejectInfo.operator;
                 collectedData.qualityCheckInfo.rejectTime = rejectInfo.operateTime;
 
                 log(LOG_LEVEL.INFO, '[Appen Data Collector] 驳回理由收集成功:', {
-                    reason: rejectInfo.comment,
+                    reason: validComment,
                     operator: rejectInfo.operator,
                     time: rejectInfo.operateTime
                 });
 
                 // 显示质检驳回信息提示
-                showRejectInfoNotification(rejectInfo);
+                showRejectInfoNotification({ ...rejectInfo, comment: validComment });
 
                 // 输出到控制台以便调试
-                console.log('[Appen Data Collector] 驳回理由:', TextExtractor.extractText({ textContent: rejectInfo.comment }, { maxLength: 200 }));
-                console.log('[Appen Data Collector] 操作人:', TextExtractor.extractText({ textContent: rejectInfo.operator }));
-                console.log('[Appen Data Collector] 操作时间:', TextExtractor.extractText({ textContent: rejectInfo.operateTime }));
+                console.log('[Appen Data Collector] 驳回理由:', validComment.substring(0, 200));
+                console.log('[Appen Data Collector] 操作人:', rejectInfo.operator);
+                console.log('[Appen Data Collector] 操作时间:', rejectInfo.operateTime);
             } else {
-                log(LOG_LEVEL.WARN, '[Appen Data Collector] 两步交互策略未找到驳回理由信息，但已标记为返修页面');
+                log(LOG_LEVEL.WARN, '[Appen Data Collector] 两步交互策略未找到有效的驳回理由信息，但已标记为返修页面');
 
                 // 优先使用两步交互策略，只有在明确需要时才考虑其他方法
                 log(LOG_LEVEL.INFO, '[Appen Data Collector] 两步交互策略是主要方法，不使用其他回退方式');
