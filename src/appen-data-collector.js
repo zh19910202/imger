@@ -2867,6 +2867,20 @@
 
             log(LOG_LEVEL.DEBUG, '准备推送数据:', dataToSend);
 
+            // 详细输出请求数据，便于调试
+            console.log('========== 📤 Appen数据推送 ==========');
+            console.log('推送地址:', CONFIG.API_ENDPOINT);
+            console.log('完整请求体:', JSON.stringify(dataToSend, null, 2));
+            console.log('请求数据详解:');
+            console.log('  TaskId:', dataToSend.request.TaskId);
+            console.log('  TopicId:', dataToSend.request.TopicId);
+            console.log('  AppleUserId:', dataToSend.request.AppleUserId);
+            console.log('  TaskName:', dataToSend.request.TaskName);
+            console.log('  UpdateTime:', dataToSend.request.UpdateTime);
+            console.log('  ElapsedTime:', dataToSend.request.ElapsedTime);
+            console.log('  IsValid:', dataToSend.request.IsValid);
+            console.log('========== 请求体输出完成 ==========');
+
             let attempts = 0;
             while (attempts < CONFIG.MAX_RETRY_ATTEMPTS) {
                 try {
