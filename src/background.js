@@ -1248,7 +1248,14 @@ async function syncAuthToServer(authData, endpoint) {
             console.log('[Background] 认证信息同步成功:', result);
             return result;
         } else {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            const errorText = await response.text();
+            console.error('[Background] 服务器响应:', {
+                status: response.status,
+                statusText: response.statusText,
+                body: errorText,
+                requestBody: authData
+            });
+            throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
         }
     } catch (error) {
         console.error('[Background] 认证信息同步失败:', error);

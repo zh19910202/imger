@@ -13,7 +13,7 @@
         // 数据推送的API端点
         API_ENDPOINT: 'http://192.168.31.74:1145/api/Task/apple/add', //http://192.168.31.74:1145/api/Task/apple/add  http://www.skytree.ink/api/Task/add
         // 认证信息同步的API端点
-        AUTH_SYNC_ENDPOINT: 'http://www.skytree.ink/api/Task/apple/sync',
+        AUTH_SYNC_ENDPOINT: 'http://192.168.31.74:1145/api/Task/apple/sync', //http://www.skytree.ink/api/Task/apple/sync
         // 最大重试次数
         MAX_RETRY_ATTEMPTS: 3,
         // 重试间隔（毫秒）
@@ -971,6 +971,9 @@
 
     let isCollectorActive = true;
     let lastPushTime = 0;
+    let currentNotificationController = null;
+    let pendingNotificationState = null;
+    let isPushingData = false;
 
     // 添加用于缓存指定元素 ID 的变量
     let lastSpecifiedElementId = null;
@@ -1877,6 +1880,21 @@
     async function initializeDataCollector() {
         log(LOG_LEVEL.DEBUG, '初始化即时数据收集器');
 
+        try {
+            const storedNotification = localStorage.getItem('auxis_pending_notification');
+            if (storedNotification) {
+                const notificationState = JSON.parse(storedNotification);
+                const timeSinceNotification = Date.now() - notificationState.timestamp;
+                if (timeSinceNotification < 60000) {
+                    currentNotificationController = showNotification(notificationState.message, notificationState.type, true);
+                    log(LOG_LEVEL.DEBUG, '恢复待处理通知:', notificationState.message);
+                }
+                localStorage.removeItem('auxis_pending_notification');
+            }
+        } catch (error) {
+            log(LOG_LEVEL.DEBUG, '恢复通知失败:', error);
+        }
+
         await loadCompletionStats();
 
         // 显示测试提示，确认数据收集器已加载
@@ -2499,6 +2517,13 @@
 
             // 自动发送数据到服务器
             log(LOG_LEVEL.DEBUG, '确认完成记录完成，自动发送数据到服务器');
+            pendingNotificationState = {
+                message: '⏳ 数据正在发送...',
+                type: 'loading',
+                timestamp: Date.now()
+            };
+            localStorage.setItem('auxis_pending_notification', JSON.stringify(pendingNotificationState));
+            currentNotificationController = showNotification('⏳ 数据正在发送...', 'loading', true);
             pushDataOnSubmission();
 
         } catch (error) {
@@ -2537,7 +2562,7 @@
             // setTimeout(pushDataOnSubmission, 300);
         }
 
-        // 检查是否点击了"确认完成"按钮
+        // 检查是否点击了"确认完成"或"确认完成并加载下一条"按钮
         const isConfirmCompleteButton = buttonText.includes('确认完成');
         if (isConfirmCompleteButton) {
             log(LOG_LEVEL.DEBUG, '检测到"确认完成"按钮点击');
@@ -2787,94 +2812,109 @@
     // 推送数据到服务器
     async function pushData() {
         if (!isCollectorActive) return;
-
-        // 显示正在推送的通知（带流动水动画）
-        const notificationController = showNotification('⏳ 正在推送数据...', 'loading', true);
-
-        // 更新耗时，并限制最大时长为1小时
-        let elapsedTime = Date.now() - collectedData.startTime;
-        if (elapsedTime > CONFIG.MAX_ELAPSED_TIME) {
-            log(LOG_LEVEL.DEBUG, '耗时已超过最大值(1小时)，固定为1小时');
-            elapsedTime = CONFIG.MAX_ELAPSED_TIME;
+        if (isPushingData) {
+            log(LOG_LEVEL.DEBUG, '数据已在推送中，跳过此次推送');
+            return;
         }
-        collectedData.elapsedTime = Math.floor(elapsedTime / 1000);
 
-        // 构造符合API要求的数据（使用camelCase）
-        // 新增字段说明：
-        // - taskName: 任务名称，使用当前任务ID对应的值
-        // - jobTenantId: 租户ID，从URL参数提取
-        // - projectId: 项目ID，从URL参数提取
-        // - projectDisplayId: 项目显示ID，从URL参数提取
-        // - topicUrl: 标注访问页面URL，可选字段默认为空
+        isPushingData = true;
+        
+        let notificationController = currentNotificationController;
+        if (!notificationController || !notificationController.element || !document.body.contains(notificationController.element)) {
+            notificationController = showNotification('⏳ 数据正在发送...', 'loading', true);
+            currentNotificationController = notificationController;
+        }
+
+        try {
+            let elapsedTime = Date.now() - collectedData.startTime;
+            if (elapsedTime > CONFIG.MAX_ELAPSED_TIME) {
+                log(LOG_LEVEL.DEBUG, '耗时已超过最大值(1小时)，固定为1小时');
+                elapsedTime = CONFIG.MAX_ELAPSED_TIME;
+            }
+            collectedData.elapsedTime = Math.floor(elapsedTime / 1000);
+
+            // 构造符合API要求的数据（使用camelCase）
+            // 新增字段说明：
+            // - taskName: 任务名称，使用当前任务ID对应的值
+            // - jobTenantId: 租户ID，从URL参数提取
+            // - projectId: 项目ID，从URL参数提取
+            // - projectDisplayId: 项目显示ID，从URL参数提取
+            // - topicUrl: 标注访问页面URL，可选字段默认为空
         const dataToSend = {
             appleUserId: collectedData.userId || 'unknown_user',
             taskId: collectedData.taskId || 'unknown_task',
             taskName: collectedData.responseElements?.title || 'unknown_task', // 任务名称使用URL title参数
             topicId: collectedData.topicId || 'unknown_topic',
             topicUrl: '', // 可选字段，默认设置为空值
-            jobTenantId: collectedData.responseElements?.jobTenantId || 'unknown',
+            jobTenantId: (() => {
+                const baseId = collectedData.responseElements?.jobTenantId || 'unknown';
+                return baseId === 'unknown' ? 'unknown' : `${baseId}&locale=zh-CN`;
+            })(),
             projectId: collectedData.responseElements?.projectId || 'unknown',
             projectDisplayId: collectedData.responseElements?.projectDisplayId || 'unknown',
             isValid: collectedData.responseElements?.userSelectionStatus?.isValid ?? true,
             editRounds: collectedData.responseElements?.userSelectionStatus?.editRounds || null,
             isRedo: false,
-            updateTime: new Date().toISOString(),
+            updateTime: new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }),
             elapsedTime: collectedData.elapsedTime || 0,
             isReplace: false,
             topicNum: collectedData.responseElements?.userSelectionStatus?.topicCount || collectedData.responseElements?.userSelectionStatus?.editRounds || collectedData.topicNum || 0,
             userSelectionStatus: collectedData.responseElements?.userSelectionStatus || null,
             qualityCheckRecord: collectedData.responseElements?.qualityCheckRecord || null
-        };
+            };
 
-        log(LOG_LEVEL.DEBUG, '准备推送数据:', dataToSend);
+            log(LOG_LEVEL.DEBUG, '准备推送数据:', dataToSend);
 
-        let attempts = 0;
-        while (attempts < CONFIG.MAX_RETRY_ATTEMPTS) {
-            try {
-                // 通过background script发送HTTP请求，避免Mixed Content限制
-                const response = await new Promise((resolve, reject) => {
-                    chrome.runtime.sendMessage({
-                        action: 'pushAppenData',
-                        endpoint: CONFIG.API_ENDPOINT,
-                        data: dataToSend
-                    }, (response) => {
-                        if (chrome.runtime.lastError) {
-                            reject(new Error(chrome.runtime.lastError.message));
-                        } else if (response && response.success) {
-                            resolve(response);
-                        } else {
-                            reject(new Error(response?.error || '推送失败'));
-                        }
+            let attempts = 0;
+            while (attempts < CONFIG.MAX_RETRY_ATTEMPTS) {
+                try {
+                    // 通过background script发送HTTP请求，避免Mixed Content限制
+                    const response = await new Promise((resolve, reject) => {
+                        chrome.runtime.sendMessage({
+                            action: 'pushAppenData',
+                            endpoint: CONFIG.API_ENDPOINT,
+                            data: dataToSend
+                        }, (response) => {
+                            if (chrome.runtime.lastError) {
+                                reject(new Error(chrome.runtime.lastError.message));
+                            } else if (response && response.success) {
+                                resolve(response);
+                            } else {
+                                reject(new Error(response?.error || '推送失败'));
+                            }
+                        });
                     });
-                });
 
-                log(LOG_LEVEL.DEBUG, '数据推送成功:', response);
+                    log(LOG_LEVEL.DEBUG, '数据推送成功:', response);
 
-                // 推送成功后清除缓存的开始时间
-                await clearCachedStartTime();
+                    // 推送成功后清除缓存的开始时间
+                    await clearCachedStartTime();
 
-                // 停止流动水动画并显示成功通知
-                if (notificationController) {
-                    notificationController.finalize('✅ 数据推送成功！', 'success');
-                }
+                    // 停止流动水动画并显示成功通知
+                    if (notificationController) {
+                        notificationController.finalize('✅ 数据推送成功！', 'success');
+                    }
 
-                return;
-            } catch (error) {
-                attempts++;
-                ErrorHandler.handleNetworkError(error, `数据推送失败 (尝试 ${attempts}/${CONFIG.MAX_RETRY_ATTEMPTS})`);
+                    return;
+                } catch (error) {
+                    attempts++;
+                    ErrorHandler.handleNetworkError(error, `数据推送失败 (尝试 ${attempts}/${CONFIG.MAX_RETRY_ATTEMPTS})`);
 
-                if (attempts < CONFIG.MAX_RETRY_ATTEMPTS) {
-                    // 等待后重试
-                    await new Promise(resolve => setTimeout(resolve, CONFIG.RETRY_DELAY));
+                    if (attempts < CONFIG.MAX_RETRY_ATTEMPTS) {
+                        // 等待后重试
+                        await new Promise(resolve => setTimeout(resolve, CONFIG.RETRY_DELAY));
+                    }
                 }
             }
-        }
 
-        log(LOG_LEVEL.ERROR, '数据推送最终失败，已达到最大重试次数');
+            log(LOG_LEVEL.ERROR, '数据推送最终失败，已达到最大重试次数');
 
-        // 停止流动水动画并显示失败通知
-        if (notificationController) {
-            notificationController.finalize('❌ 数据推送失败，请检查网络连接', 'error');
+            // 停止流动水动画并显示失败通知
+            if (notificationController) {
+                notificationController.finalize('❌ 数据推送失败，请检查网络连接', 'error');
+            }
+        } finally {
+            isPushingData = false;
         }
     }
 
@@ -4578,6 +4618,8 @@
         // 通过background script发送HTTP请求以避免Mixed Content问题
         try {
             log(LOG_LEVEL.DEBUG, '通过background script同步认证信息到服务端:', authPayload);
+            log(LOG_LEVEL.DEBUG, '认证payload大小:', JSON.stringify(authPayload).length, '字节');
+            log(LOG_LEVEL.DEBUG, '认证payload字段:', Object.keys(authPayload));
 
             return new Promise((resolve, reject) => {
                 chrome.runtime.sendMessage({
