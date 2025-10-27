@@ -974,6 +974,13 @@
     let currentNotificationController = null;
     let pendingNotificationState = null;
     let isPushingData = false;
+n            // 清除localStorage中的待处理通知状态
+            try {
+                localStorage.removeItem("auxis_pending_notification");
+                pendingNotificationState = null;
+            } catch (error) {
+                log(LOG_LEVEL.DEBUG, "清除待处理通知状态失败:", error);
+            }
 
     // 添加用于缓存指定元素 ID 的变量
     let lastSpecifiedElementId = null;
@@ -2919,6 +2926,13 @@
             }
         } finally {
             isPushingData = false;
+n            // 清除localStorage中的待处理通知状态
+            try {
+                localStorage.removeItem("auxis_pending_notification");
+                pendingNotificationState = null;
+            } catch (error) {
+                log(LOG_LEVEL.DEBUG, "清除待处理通知状态失败:", error);
+            }
         }
     }
 
