@@ -3455,7 +3455,11 @@
                                             .map(([pageKey, data], index) => {
                                                 // 获取驳回理由（使用每个页面自己的驳回理由）
                                                 const rejectReason = data.rejectReason || '无驳回';
+                                                const hasRejectRecord = data.hasRework === true;
                                                 // 格式化时间戳
+                                                const firstCompletionTime = data.firstCompletionTime
+                                                    ? new Date(data.firstCompletionTime).toLocaleString('zh-CN')
+                                                    : '未知';
                                                 const lastCompletionTime = data.lastCompletionTime
                                                     ? new Date(data.lastCompletionTime).toLocaleString('zh-CN')
                                                     : '未知';
@@ -3466,15 +3470,19 @@
                                                         <span>完成次数: <span style="color: #f57c00; font-weight: bold;">${data.completions}</span></span> |
                                                         <span>题数: <span style="color: #0066cc;">${data.topicCount}</span></span> |
                                                         <span>耗时: <span style="color: #4CAF50;">${data.elapsedSeconds || 0}秒</span></span> |
-                                                        <span>状态: <span style="color: ${data.isValid === true ? '#4CAF50' : data.isValid === false ? '#f44336' : '#9E9E9E'}; font-weight: bold;">${data.isValid === true ? '✓ 有效' : data.isValid === false ? '✗ 无效' : '未知状态'}</span></span> |
+                                                        <span>有效性: <span style="color: ${data.isValid === true ? '#4CAF50' : data.isValid === false ? '#f44336' : '#9E9E9E'}; font-weight: bold;">${data.isValid === true ? '✓ 有效' : data.isValid === false ? '✗ 无效' : '未知状态'}</span></span> |
                                                         <span>新旧题: <span style="color: ${getPageNewOldStatusColor(data)}; font-weight: bold;">${getPageNewOldStatus(data)}</span></span>
                                                     </div>
                                                     <div style="margin-left: 15px; font-size: 13px;">
-                                                        <span>驳回理由: <span style="color: #f44336;">${escapeHtml(rejectReason.substring(0, 30))}${rejectReason.length > 30 ? '...' : ''}</span></span>
+                                                        <span>驳回: <span style="color: ${hasRejectRecord ? '#f44336' : '#4CAF50'}; font-weight: bold;">${hasRejectRecord ? '✗ 有驳回' : '✓ 无驳回'}</span></span>
                                                     </div>
                                                     <div style="margin-left: 15px; font-size: 12px; color: #777;">
-                                                        最后完成: ${lastCompletionTime}
+                                                        <div>开始时间: ${firstCompletionTime}</div>
+                                                        <div>结束时间: ${lastCompletionTime}</div>
                                                     </div>
+                                                    ${rejectReason !== '无驳回' ? `<div style="margin-left: 15px; font-size: 13px;">
+                                                        <span>驳回理由: <span style="color: #f44336;">${escapeHtml(rejectReason.substring(0, 50))}${rejectReason.length > 50 ? '...' : ''}</span></span>
+                                                    </div>` : ''}
                                                 </div>`;
                                             }).join('')
                                         : '<div style="color: #999;">暂无完成记录</div>'}
