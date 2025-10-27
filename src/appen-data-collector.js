@@ -2851,7 +2851,7 @@
                 const baseId = collectedData.responseElements?.jobTenantId || 'unknown';
                 return baseId === 'unknown' ? 'unknown' : `${baseId}&locale=zh-CN`;
             })(),
-            recordState: collectedData.responseElements?.userSelectionStatus?.isValid ? 'UNCHECKED' : 'MODIFYED',
+            recordState: collectedData.responseElements?.userSelectionStatus?.hasRework ? 'MODIFYED' : 'UNCHECKED',
             isValid: collectedData.responseElements?.userSelectionStatus?.isValid ?? true,
             topicNum: collectedData.responseElements?.userSelectionStatus?.topicCount || 0,
             elapsedTime: collectedData.elapsedTime || 0,
