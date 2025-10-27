@@ -2841,27 +2841,29 @@
             // - projectDisplayId: 项目显示ID，从URL参数提取
             // - topicUrl: 标注访问页面URL，可选字段默认为空
         const dataToSend = {
-            appleUserId: collectedData.userId || 'unknown_user',
-            taskId: collectedData.taskId || 'unknown_task',
-            taskName: collectedData.responseElements?.title || 'unknown_task', // 任务名称使用URL title参数
-            topicId: collectedData.topicId || 'unknown_topic',
-            topicUrl: '', // 可选字段，默认设置为空值
-            jobTenantId: (() => {
-                const baseId = collectedData.responseElements?.jobTenantId || 'unknown';
-                return baseId === 'unknown' ? 'unknown' : `${baseId}&locale=zh-CN`;
-            })(),
-            projectId: collectedData.responseElements?.projectId || 'unknown',
-            projectDisplayId: collectedData.responseElements?.projectDisplayId || 'unknown',
-            isValid: collectedData.responseElements?.userSelectionStatus?.isValid ?? true,
-            editRounds: collectedData.responseElements?.userSelectionStatus?.editRounds || null,
-            isRedo: false,
-            updateTime: new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }),
-            elapsedTime: collectedData.elapsedTime || 0,
-            isReplace: false,
-            topicNum: collectedData.responseElements?.userSelectionStatus?.topicCount || collectedData.responseElements?.userSelectionStatus?.editRounds || collectedData.topicNum || 0,
-            userSelectionStatus: collectedData.responseElements?.userSelectionStatus || null,
-            qualityCheckRecord: collectedData.responseElements?.qualityCheckRecord || null
-            };
+            request: {
+                appleUserId: collectedData.userId || 'unknown_user',
+                taskId: collectedData.taskId || 'unknown_task',
+                taskName: collectedData.responseElements?.title || 'unknown_task',
+                topicId: collectedData.topicId || 'unknown_topic',
+                topicUrl: '',
+                jobTenantId: (() => {
+                    const baseId = collectedData.responseElements?.jobTenantId || 'unknown';
+                    return baseId === 'unknown' ? 'unknown' : `${baseId}&locale=zh-CN`;
+                })(),
+                projectId: collectedData.responseElements?.projectId || 'unknown',
+                projectDisplayId: collectedData.responseElements?.projectDisplayId || 'unknown',
+                isValid: collectedData.responseElements?.userSelectionStatus?.isValid ?? true,
+                editRounds: collectedData.responseElements?.userSelectionStatus?.editRounds || null,
+                isRedo: false,
+                updateTime: new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }),
+                elapsedTime: collectedData.elapsedTime || 0,
+                isReplace: false,
+                topicNum: collectedData.responseElements?.userSelectionStatus?.topicCount || collectedData.responseElements?.userSelectionStatus?.editRounds || collectedData.topicNum || 0,
+                userSelectionStatus: collectedData.responseElements?.userSelectionStatus || null,
+                qualityCheckRecord: collectedData.responseElements?.qualityCheckRecord || null
+            }
+        };
 
             log(LOG_LEVEL.DEBUG, '准备推送数据:', dataToSend);
 
