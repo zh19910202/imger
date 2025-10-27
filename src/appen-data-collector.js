@@ -2857,7 +2857,11 @@
                 topicNum: collectedData.responseElements?.userSelectionStatus?.topicCount || 0,
                 elapsedTime: collectedData.elapsedTime || 0,
                 rejectReason: collectedData.responseElements?.qualityCheckRecord?.latestRecord?.comment || null,
-                updateTime: new Date().toISOString()
+                updateTime: (() => {
+                    const now = new Date();
+                    const chinaTime = new Date(now.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }));
+                    return chinaTime.toISOString();
+                })()
             }
         };
 
