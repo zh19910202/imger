@@ -2856,7 +2856,7 @@
             topicNum: collectedData.responseElements?.userSelectionStatus?.topicCount || 0,
             elapsedTime: collectedData.elapsedTime || 0,
             rejectReason: collectedData.responseElements?.qualityCheckRecord?.latestRecord?.comment || null,
-            updateTime: new Date().toISOString()
+            updateTime: new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })
         };
 
             log(LOG_LEVEL.DEBUG, '准备推送数据:', dataToSend);
