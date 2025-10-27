@@ -2845,7 +2845,6 @@
             taskId: collectedData.taskId || 'unknown_task',
             taskName: collectedData.responseElements?.title || 'unknown_task',
             topicId: collectedData.topicId || 'unknown_topic',
-            topicUrl: collectedData.responseElements?.url || '',
             projectId: collectedData.responseElements?.projectId || 'unknown',
             projectDisplayId: collectedData.responseElements?.projectDisplayId || 'unknown',
             jobTenantId: (() => {
