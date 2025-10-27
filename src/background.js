@@ -1099,6 +1099,13 @@ async function pushAppenDataProxy(endpoint, data) {
   try {
     if (LOG_VERBOSE) console.log('📤 代理推送Appen数据到:', endpoint);
     if (LOG_VERBOSE) console.log('📋 推送数据:', data);
+    
+    // 输出格式化的请求体
+    console.log('=== 📤 Appen数据推送请求体 ===');
+    console.log('目标地址:', endpoint);
+    console.log('请求体JSON:', JSON.stringify(data, null, 2));
+    console.log('请求体大小:', JSON.stringify(data).length, '字节');
+    console.log('=== 请求体输出完成 ===');
 
     // 使用background script发送HTTP请求（无Mixed Content限制）
     const response = await fetch(endpoint, {
