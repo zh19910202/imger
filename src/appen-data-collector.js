@@ -3443,7 +3443,7 @@
                             </div>
                             <div style="margin-top: 10px; font-size: 13px; color: #555;">
                                 <div style="margin-bottom: 5px;"><strong>各页面完成详情:</strong></div>
-                                <div id="page-completions-display" style="margin-left: 15px; line-height: 1.6; border: 1px solid #ddd; padding: 5px; border-radius: 3px;">
+                                <div id="page-completions-display" style="margin-left: 15px; line-height: 1.6; border: 1px solid #ddd; padding: 5px; border-radius: 3px; max-height: 400px; overflow-y: auto;">
                                     ${Object.keys(completionStats.perPage).length > 0
                                         ? Object.entries(completionStats.perPage)
                                             .sort((a, b) => {
@@ -3464,24 +3464,22 @@
                                                     ? new Date(data.lastCompletionTime).toLocaleString('zh-CN')
                                                     : '未知';
 
-                                                return `<div style="margin-bottom: 8px; padding: 5px; border-bottom: 1px solid #eee;">
-                                                    <div><strong>${index + 1}. 题目ID:</strong> <span style="color: #0066cc;">${escapeHtml(pageKey.includes('::') ? pageKey.split('::').pop() : pageKey)}</span></div>
-                                                    <div style="margin-left: 15px; font-size: 13px;">
-                                                        <span>完成次数: <span style="color: #f57c00; font-weight: bold;">${data.completions}</span></span> |
-                                                        <span>题数: <span style="color: #0066cc;">${data.topicCount}</span></span> |
-                                                        <span>耗时: <span style="color: #4CAF50;">${data.elapsedSeconds || 0}秒</span></span> |
-                                                        <span>有效性: <span style="color: ${data.isValid === true ? '#4CAF50' : data.isValid === false ? '#f44336' : '#9E9E9E'}; font-weight: bold;">${data.isValid === true ? '✓ 有效' : data.isValid === false ? '✗ 无效' : '未知状态'}</span></span> |
-                                                        <span>新旧题: <span style="color: ${getPageNewOldStatusColor(data)}; font-weight: bold;">${getPageNewOldStatus(data)}</span></span>
+                                                return `<div style="margin-bottom: 10px; padding: 8px; border: 1px solid #e0e0e0; border-left: 4px solid #ff9800; border-radius: 3px; background: #fafafa;">
+                                                    <div style="font-weight: bold; color: #333; margin-bottom: 5px;">${index + 1}. 题目ID: <span style="color: #0066cc; font-weight: normal;">${escapeHtml(pageKey.includes('::') ? pageKey.split('::').pop() : pageKey)}</span></div>
+                                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-left: 10px; font-size: 12px; margin-bottom: 5px;">
+                                                        <div><strong>完成次数:</strong> <span style="color: #f57c00;">${data.completions}</span></div>
+                                                        <div><strong>题数:</strong> <span style="color: #0066cc;">${data.topicCount}</span></div>
+                                                        <div><strong>耗时:</strong> <span style="color: #4CAF50;">${data.elapsedSeconds || 0}秒</span></div>
+                                                        <div><strong>有效性:</strong> <span style="color: ${data.isValid === true ? '#4CAF50' : data.isValid === false ? '#f44336' : '#9E9E9E'}; font-weight: bold;">${data.isValid === true ? '✓ 有效' : data.isValid === false ? '✗ 无效' : '未知'}</span></div>
+                                                        <div><strong>新旧题:</strong> <span style="color: ${getPageNewOldStatusColor(data)}; font-weight: bold;">${getPageNewOldStatus(data)}</span></div>
+                                                        <div><strong>驳回:</strong> <span style="color: ${hasRejectRecord ? '#f44336' : '#4CAF50'}; font-weight: bold;">${hasRejectRecord ? '✗ 有驳回' : '✓ 无驳回'}</span></div>
                                                     </div>
-                                                    <div style="margin-left: 15px; font-size: 13px;">
-                                                        <span>驳回: <span style="color: ${hasRejectRecord ? '#f44336' : '#4CAF50'}; font-weight: bold;">${hasRejectRecord ? '✗ 有驳回' : '✓ 无驳回'}</span></span>
+                                                    <div style="margin-left: 10px; font-size: 12px; color: #666; margin-bottom: 5px;">
+                                                        <div><strong>开始时间:</strong> ${firstCompletionTime}</div>
+                                                        <div><strong>结束时间:</strong> ${lastCompletionTime}</div>
                                                     </div>
-                                                    <div style="margin-left: 15px; font-size: 12px; color: #777;">
-                                                        <div>开始时间: ${firstCompletionTime}</div>
-                                                        <div>结束时间: ${lastCompletionTime}</div>
-                                                    </div>
-                                                    ${rejectReason !== '无驳回' ? `<div style="margin-left: 15px; font-size: 13px;">
-                                                        <span>驳回理由: <span style="color: #f44336;">${escapeHtml(rejectReason.substring(0, 50))}${rejectReason.length > 50 ? '...' : ''}</span></span>
+                                                    ${rejectReason !== '无驳回' ? `<div style="margin-left: 10px; font-size: 12px; color: #f44336; padding: 5px; background: #ffebee; border-radius: 2px;">
+                                                        <strong>驳回理由:</strong> ${escapeHtml(rejectReason)}
                                                     </div>` : ''}
                                                 </div>`;
                                             }).join('')
