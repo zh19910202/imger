@@ -4456,7 +4456,7 @@ ${JSON.stringify(dataToSend, null, 2)}`;
                 border-left: 3px solid ${borderColor};
             ">
                 <div style="font-weight: bold; color: #333;">
-                    题目ID: ${topicId}
+                    <span style="display: inline-block; background: #ff9800; color: white; padding: 2px 8px; border-radius: 3px; margin-right: 8px; font-size: 12px;">#${index + 1}</span>题目ID: ${topicId}
                     ${isRework ? '<span style="background: #FF9800; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; margin-left: 5px;">返修</span>' : ''}
                 </div>
                 <div style="font-size: 12px; color: #666; margin-top: 4px;">
@@ -4486,7 +4486,7 @@ ${JSON.stringify(dataToSend, null, 2)}`;
                     <div>返修完成: <strong style="color: #FF9800;">${dayData.reworkCompletions}次</strong></div>
                 </div>
                 <div style="margin-bottom: 10px; font-weight: bold; color: #333;">完成记录:</div>
-                <div style="max-height: 200px; overflow-y: auto;">
+                <div style="">
                     ${recordsHTML}
                 </div>
             </div>
