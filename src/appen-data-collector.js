@@ -3447,7 +3447,7 @@
                             </div>
                             <div style="margin-top: 10px; font-size: 13px; color: #555;">
                                 <div style="margin-bottom: 5px;"><strong>各页面完成详情:</strong></div>
-                                <div id="page-completions-display" style="margin-left: 15px; line-height: 1.6; border: 1px solid #ddd; padding: 5px; border-radius: 3px; max-height: 400px; overflow-y: auto;">
+                                <div id="page-completions-display" style="margin-left: 15px; line-height: 1.6;">
                                     ${Object.keys(completionStats.perPage).length > 0
                                         ? Object.entries(completionStats.perPage)
                                             .sort((a, b) => {
