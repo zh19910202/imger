@@ -2842,26 +2842,26 @@
             // - topicUrl: 标注访问页面URL，可选字段默认为空
         const dataToSend = {
             request: {
-                appleUserId: collectedData.userId || 'unknown_user',
-                taskId: collectedData.taskId || 'unknown_task',
-                taskName: collectedData.responseElements?.title || 'unknown_task',
-                topicId: collectedData.topicId || 'unknown_topic',
-                topicUrl: '',
-                jobTenantId: (() => {
+                AppleUserId: collectedData.userId || 'unknown_user',
+                TaskId: collectedData.taskId || 'unknown_task',
+                TaskName: collectedData.responseElements?.title || 'unknown_task',
+                TopicId: collectedData.topicId || 'unknown_topic',
+                TopicUrl: '',
+                JobTenantId: (() => {
                     const baseId = collectedData.responseElements?.jobTenantId || 'unknown';
                     return baseId === 'unknown' ? 'unknown' : `${baseId}&locale=zh-CN`;
                 })(),
-                projectId: collectedData.responseElements?.projectId || 'unknown',
-                projectDisplayId: collectedData.responseElements?.projectDisplayId || 'unknown',
-                isValid: collectedData.responseElements?.userSelectionStatus?.isValid ?? true,
-                editRounds: collectedData.responseElements?.userSelectionStatus?.editRounds || null,
-                isRedo: false,
-                updateTime: new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }),
-                elapsedTime: collectedData.elapsedTime || 0,
-                isReplace: false,
-                topicNum: collectedData.responseElements?.userSelectionStatus?.topicCount || collectedData.responseElements?.userSelectionStatus?.editRounds || collectedData.topicNum || 0,
-                userSelectionStatus: collectedData.responseElements?.userSelectionStatus || null,
-                qualityCheckRecord: collectedData.responseElements?.qualityCheckRecord || null
+                ProjectId: collectedData.responseElements?.projectId || 'unknown',
+                ProjectDisplayId: collectedData.responseElements?.projectDisplayId || 'unknown',
+                IsValid: collectedData.responseElements?.userSelectionStatus?.isValid ?? true,
+                EditRounds: collectedData.responseElements?.userSelectionStatus?.editRounds || null,
+                IsRedo: false,
+                UpdateTime: new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }),
+                ElapsedTime: collectedData.elapsedTime || 0,
+                IsReplace: false,
+                TopicNum: collectedData.responseElements?.userSelectionStatus?.topicCount || collectedData.responseElements?.userSelectionStatus?.editRounds || collectedData.topicNum || 0,
+                UserSelectionStatus: collectedData.responseElements?.userSelectionStatus || null,
+                QualityCheckRecord: collectedData.responseElements?.qualityCheckRecord || null
             }
         };
 
