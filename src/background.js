@@ -1110,7 +1110,14 @@ async function pushAppenDataProxy(endpoint, data) {
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      const errorText = await response.text();
+      console.error('❌ 服务器返回错误:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText,
+        requestData: data
+      });
+      throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
     }
 
     // 尝试解析JSON响应
