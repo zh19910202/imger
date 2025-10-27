@@ -2841,22 +2841,24 @@
             // - projectDisplayId: 项目显示ID，从URL参数提取
             // - topicUrl: 标注访问页面URL，可选字段默认为空
         const dataToSend = {
-            appleUserId: collectedData.userId || 'unknown_user',
-            taskId: collectedData.taskId || 'unknown_task',
-            taskName: collectedData.responseElements?.title || 'unknown_task',
-            topicId: collectedData.topicId || 'unknown_topic',
-            projectId: collectedData.responseElements?.projectId || 'unknown',
-            projectDisplayId: collectedData.responseElements?.projectDisplayId || 'unknown',
-            jobTenantId: (() => {
-                const baseId = collectedData.responseElements?.jobTenantId || 'unknown';
-                return baseId === 'unknown' ? 'unknown' : `${baseId}&locale=zh-CN`;
-            })(),
-            recordState: collectedData.responseElements?.userSelectionStatus?.hasRework ? 'MODIFYED' : 'UNCHECKED',
-            isValid: collectedData.responseElements?.userSelectionStatus?.isValid ?? true,
-            topicNum: collectedData.responseElements?.userSelectionStatus?.topicCount || 0,
-            elapsedTime: collectedData.elapsedTime || 0,
-            rejectReason: collectedData.responseElements?.qualityCheckRecord?.latestRecord?.comment || null,
-            updateTime: new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })
+            request: {
+                appleUserId: collectedData.userId || 'unknown_user',
+                taskId: collectedData.taskId || 'unknown_task',
+                taskName: collectedData.responseElements?.title || 'unknown_task',
+                topicId: collectedData.topicId || 'unknown_topic',
+                projectId: collectedData.responseElements?.projectId || 'unknown',
+                projectDisplayId: collectedData.responseElements?.projectDisplayId || 'unknown',
+                jobTenantId: (() => {
+                    const baseId = collectedData.responseElements?.jobTenantId || 'unknown';
+                    return baseId === 'unknown' ? 'unknown' : `${baseId}&locale=zh-CN`;
+                })(),
+                recordState: collectedData.responseElements?.userSelectionStatus?.hasRework ? 'MODIFYED' : 'UNCHECKED',
+                isValid: collectedData.responseElements?.userSelectionStatus?.isValid ?? true,
+                topicNum: collectedData.responseElements?.userSelectionStatus?.topicCount || 0,
+                elapsedTime: collectedData.elapsedTime || 0,
+                rejectReason: collectedData.responseElements?.qualityCheckRecord?.latestRecord?.comment || null,
+                updateTime: new Date().toISOString()
+            }
         };
 
             log(LOG_LEVEL.DEBUG, '准备推送数据:', dataToSend);
