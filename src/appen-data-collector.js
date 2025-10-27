@@ -2841,28 +2841,23 @@
             // - projectDisplayId: 项目显示ID，从URL参数提取
             // - topicUrl: 标注访问页面URL，可选字段默认为空
         const dataToSend = {
-            request: {
-                AppleUserId: collectedData.userId || 'unknown_user',
-                TaskId: collectedData.taskId || 'unknown_task',
-                TaskName: collectedData.responseElements?.title || 'unknown_task',
-                TopicId: collectedData.topicId || 'unknown_topic',
-                TopicUrl: '',
-                JobTenantId: (() => {
-                    const baseId = collectedData.responseElements?.jobTenantId || 'unknown';
-                    return baseId === 'unknown' ? 'unknown' : `${baseId}&locale=zh-CN`;
-                })(),
-                ProjectId: collectedData.responseElements?.projectId || 'unknown',
-                ProjectDisplayId: collectedData.responseElements?.projectDisplayId || 'unknown',
-                IsValid: collectedData.responseElements?.userSelectionStatus?.isValid ?? true,
-                EditRounds: collectedData.responseElements?.userSelectionStatus?.editRounds || null,
-                IsRedo: false,
-                UpdateTime: new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }),
-                ElapsedTime: collectedData.elapsedTime || 0,
-                IsReplace: false,
-                TopicNum: collectedData.responseElements?.userSelectionStatus?.topicCount || collectedData.responseElements?.userSelectionStatus?.editRounds || collectedData.topicNum || 0,
-                UserSelectionStatus: collectedData.responseElements?.userSelectionStatus || null,
-                QualityCheckRecord: collectedData.responseElements?.qualityCheckRecord || null
-            }
+            appleUserId: collectedData.userId || 'unknown_user',
+            taskId: collectedData.taskId || 'unknown_task',
+            taskName: collectedData.responseElements?.title || 'unknown_task',
+            topicId: collectedData.topicId || 'unknown_topic',
+            topicUrl: collectedData.responseElements?.url || '',
+            projectId: collectedData.responseElements?.projectId || 'unknown',
+            projectDisplayId: collectedData.responseElements?.projectDisplayId || 'unknown',
+            jobTenantId: (() => {
+                const baseId = collectedData.responseElements?.jobTenantId || 'unknown';
+                return baseId === 'unknown' ? 'unknown' : `${baseId}&locale=zh-CN`;
+            })(),
+            recordState: collectedData.responseElements?.userSelectionStatus?.isValid ? 'UNCHECKED' : 'MODIFYED',
+            isValid: collectedData.responseElements?.userSelectionStatus?.isValid ?? true,
+            topicNum: collectedData.responseElements?.userSelectionStatus?.topicCount || 0,
+            elapsedTime: collectedData.elapsedTime || 0,
+            rejectReason: collectedData.responseElements?.qualityCheckRecord?.latestRecord?.comment || null,
+            updateTime: new Date().toISOString()
         };
 
             log(LOG_LEVEL.DEBUG, '准备推送数据:', dataToSend);
@@ -2872,13 +2867,14 @@
             console.log('推送地址:', CONFIG.API_ENDPOINT);
             console.log('完整请求体:', JSON.stringify(dataToSend, null, 2));
             console.log('请求数据详解:');
-            console.log('  TaskId:', dataToSend.request.TaskId);
-            console.log('  TopicId:', dataToSend.request.TopicId);
-            console.log('  AppleUserId:', dataToSend.request.AppleUserId);
-            console.log('  TaskName:', dataToSend.request.TaskName);
-            console.log('  UpdateTime:', dataToSend.request.UpdateTime);
-            console.log('  ElapsedTime:', dataToSend.request.ElapsedTime);
-            console.log('  IsValid:', dataToSend.request.IsValid);
+            console.log('  taskId:', dataToSend.taskId);
+            console.log('  topicId:', dataToSend.topicId);
+            console.log('  appleUserId:', dataToSend.appleUserId);
+            console.log('  taskName:', dataToSend.taskName);
+            console.log('  updateTime:', dataToSend.updateTime);
+            console.log('  elapsedTime:', dataToSend.elapsedTime);
+            console.log('  isValid:', dataToSend.isValid);
+            console.log('  recordState:', dataToSend.recordState);
             console.log('========== 请求体输出完成 ==========');
 
             let attempts = 0;
