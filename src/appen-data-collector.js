@@ -3447,7 +3447,7 @@
                                     ${Object.keys(completionStats.perPage).length > 0
                                         ? Object.entries(completionStats.perPage)
                                             .sort((a, b) => {
-                                                // 按最后完成时间降序排列（最新的在前）
+                                                // 按最后完成时间降序排列（最新完成的在最前面）
                                                 const timeA = a[1].lastCompletionTime || 0;
                                                 const timeB = b[1].lastCompletionTime || 0;
                                                 return timeB - timeA;
