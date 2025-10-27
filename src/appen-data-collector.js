@@ -3469,7 +3469,7 @@
                                                     : '未知';
 
                                                 return `<div style="margin-bottom: 10px; padding: 8px; border: 1px solid #e0e0e0; border-left: 4px solid #ff9800; border-radius: 3px; background: #fafafa;">
-                                                    <div style="font-weight: bold; color: #333; margin-bottom: 5px;">${index + 1}. 题目ID: <span style="color: #0066cc; font-weight: normal;">${escapeHtml(pageKey.includes('::') ? pageKey.split('::').pop() : pageKey)}</span></div>
+                                                    <div style="font-weight: bold; color: #333; margin-bottom: 5px;"><span style="display: inline-block; background: #ff9800; color: white; padding: 2px 8px; border-radius: 3px; margin-right: 8px; font-size: 12px;">#${index + 1}</span>题目ID: <span style="color: #0066cc; font-weight: normal;">${escapeHtml(pageKey.includes('::') ? pageKey.split('::').pop() : pageKey)}</span></div>
                                                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-left: 10px; font-size: 12px; margin-bottom: 5px;">
                                                         <div><strong>完成次数:</strong> <span style="color: #f57c00;">${data.completions}</span></div>
                                                         <div><strong>题数:</strong> <span style="color: #0066cc;">${data.topicCount}</span></div>
