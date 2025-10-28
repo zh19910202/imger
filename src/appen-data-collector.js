@@ -8019,8 +8019,6 @@ ${JSON.stringify(dataToSend, null, 2)}`;
                     if (authCookies) {
                         log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 成功获取认证cookie');
                         collectedData.authCookies = authCookies;
-                        // 同步认证信息到服务端
-                        await syncAuthToServer(authCookies);
                     } else {
                         log(LOG_LEVEL.DEBUG, '[Appen Data Collector] 未获取到认证cookie');
                     }
