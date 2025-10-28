@@ -3379,9 +3379,10 @@
             currentNotificationController = notificationController;
         }
 
-        try {
-            const dataToSend = buildDataToSend();
+        let lastError = null;
+        const dataToSend = buildDataToSend();
 
+        try {
             log(LOG_LEVEL.DEBUG, '准备推送数据:', dataToSend);
 
             // 详细输出请求数据，便于调试
@@ -3435,6 +3436,7 @@
                     return;
                 } catch (error) {
                     attempts++;
+                    lastError = error;
                     ErrorHandler.handleNetworkError(error, `数据推送失败 (尝试 ${attempts}/${CONFIG.MAX_RETRY_ATTEMPTS})`);
 
                     if (attempts < CONFIG.MAX_RETRY_ATTEMPTS) {
@@ -3447,7 +3449,7 @@
             log(LOG_LEVEL.ERROR, '数据推送最终失败，已达到最大重试次数');
 
             // 记录提交日志（失败）
-            addSubmissionLog(dataToSend, null, false, error);
+            addSubmissionLog(dataToSend, null, false, lastError);
 
             // 停止流动水动画并显示失败通知
             if (notificationController) {
