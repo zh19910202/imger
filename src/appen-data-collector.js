@@ -1301,6 +1301,26 @@
                                         ">${log.error.stack}</pre>
                                     </details>` : ''}
                                 </div>
+                                <button 
+                                    class="resend-log-btn" 
+                                    data-log-id="${log.id}"
+                                    style="
+                                        margin-top: 10px;
+                                        padding: 8px 16px;
+                                        background: #2196F3;
+                                        color: white;
+                                        border: none;
+                                        border-radius: 4px;
+                                        cursor: pointer;
+                                        font-weight: bold;
+                                        font-size: 12px;
+                                        transition: background 0.3s;
+                                    "
+                                    onmouseover="this.style.background='#1976D2'"
+                                    onmouseout="this.style.background='#2196F3'"
+                                >
+                                    🔄 重新发送
+                                </button>
                             </div>
                         ` : ''}
                     </div>
@@ -1318,6 +1338,71 @@
                     // container.querySelectorAll('details').forEach(other => {
                     //     if (other !== this) other.open = false;
                     // });
+                }
+            });
+        });
+
+        // 添加重新发送按钮的事件监听器
+        container.querySelectorAll('.resend-log-btn').forEach(btn => {
+            btn.addEventListener('click', async function() {
+                const logId = parseInt(this.dataset.logId);
+                const log = submissionLogs.find(l => l.id === logId);
+                
+                if (!log) {
+                    showNotification('⚠️ 未找到日志记录', 'warning', false, 2000);
+                    return;
+                }
+
+                // 禁用按钮并显示加载状态
+                this.disabled = true;
+                const originalText = this.textContent;
+                this.textContent = '⏳ 发送中...';
+                this.style.background = '#999';
+
+                try {
+                    // 重新发送数据
+                    const response = await new Promise((resolve, reject) => {
+                        chrome.runtime.sendMessage({
+                            action: 'pushAppenData',
+                            endpoint: CONFIG.API_ENDPOINT,
+                            data: log.request.body
+                        }, (response) => {
+                            if (chrome.runtime.lastError) {
+                                reject(new Error(chrome.runtime.lastError.message));
+                            } else if (response && response.success) {
+                                resolve(response);
+                            } else {
+                                reject(new Error(response?.error || '推送失败'));
+                            }
+                        });
+                    });
+
+                    log(LOG_LEVEL.DEBUG, '数据重新发送成功:', response);
+                    showNotification('✅ 数据重新发送成功！', 'success', false, 2500);
+
+                    // 更新日志记录为成功
+                    log.success = true;
+                    log.error = null;
+                    log.response = {
+                        status: 200,
+                        statusText: 'OK',
+                        data: response
+                    };
+                    log.timestamp = Date.now();
+
+                    // 保存更新后的日志
+                    saveSubmissionLogs();
+
+                    // 重新渲染日志显示
+                    renderSubmissionLogs();
+                } catch (error) {
+                    log(LOG_LEVEL.ERROR, '数据重新发送失败:', error);
+                    showNotification('❌ 数据重新发送失败，请重试', 'error', false, 3000);
+
+                    // 恢复按钮状态
+                    this.disabled = false;
+                    this.textContent = originalText;
+                    this.style.background = '#2196F3';
                 }
             });
         });
