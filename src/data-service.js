@@ -12,7 +12,7 @@
         // 根据当前页面协议自动选择API协议
         get API_BASE_URL() {
             const protocol = window.location.protocol === 'https:' ? 'https' : 'http';
-            return `${protocol}://192.168.31.74:1145`;
+            return `${protocol}://www.skytree.ink`;
         },
         GET_USER_TASK_DETAILS_ENDPOINT: '/api/task/user/{userId}/details',
         CACHE_PREFIX: 'appen_report_cache_',
@@ -226,7 +226,7 @@
          */
         buildApiUrlWithProtocol: function(userId, timeRange, timeValue, includeDetails, protocol) {
             let endpoint = DataServiceConfig.GET_USER_TASK_DETAILS_ENDPOINT.replace('{userId}', userId);
-            let url = `${protocol}://192.168.31.74:1145` + endpoint;
+            let url = `${protocol}://www.skytree.ink` + endpoint;
 
             const params = new URLSearchParams();
             params.append('timeRange', timeRange);
@@ -247,7 +247,7 @@
          * @returns {boolean} 是否为本地API
          */
         isLocalApi: function() {
-            const apiHost = '192.168.31.74';
+            const apiHost = 'www.skytree.ink';
             return apiHost === 'localhost' ||
                    apiHost === '127.0.0.1' ||
                    apiHost.startsWith('192.168.') ||
