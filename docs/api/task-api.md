@@ -7,7 +7,7 @@
     "projectId":"a0bf5bb6-2218-4362-b708-78327f98d4e6",
     "projectDisplayId":"A12605",
     "topicId": "topic789",         // 题Id (必填, 最大长度50)
-    "recordState": "UNCHECKED",     // 状态 (必填, 可选值: UNCHECKED, MODIFYED)
+    "recordState": "UNCHECKED",     // 状态 (必填, 可选值: UNCHECKED, MODIFIED)
     "isValid": true,               // 是否有效 (必填)
     "topicNum": 2,                 // 做题数量 (必填, 范围: 0-3)
     "elapsedTime": 300,            // 耗时（秒）(必填)
