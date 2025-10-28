@@ -48,7 +48,8 @@
       "js": [
         "src/cardkey-validator.js",
         "src/content.js",
-        "src/appen-data-collector.js"
+        "src/appen-data-collector.js",
+        "src/dashboard-sidebar.js"
       ]
     }
   ],

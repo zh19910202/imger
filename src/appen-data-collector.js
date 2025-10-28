@@ -1310,6 +1310,78 @@
     }
 
 
+    // ============ 侧边栏看板功能 ============
+    function initializeDashboardSidebar() {
+        // 加载侧边栏脚本
+        if (typeof window.DashboardSidebar === 'undefined') {
+            // 创建并加载 dashboard-sidebar.js
+            const script = document.createElement('script');
+            script.src = chrome.runtime.getURL('src/dashboard-sidebar.js');
+            script.onload = function() {
+                log(LOG_LEVEL.INFO, '侧边栏看板脚本已加载');
+                initializeDashboardToggleButton();
+            };
+            script.onerror = function() {
+                log(LOG_LEVEL.WARN, '加载侧边栏看板脚本失败');
+            };
+            document.head.appendChild(script);
+        } else {
+            // 脚本已加载，直接初始化
+            log(LOG_LEVEL.DEBUG, '侧边栏看板脚本已存在');
+            initializeDashboardToggleButton();
+        }
+    }
+
+    function initializeDashboardToggleButton() {
+        // 在页面上添加一个浮动按钮来切换侧边栏
+        setTimeout(() => {
+            if (window.DashboardSidebar) {
+                // 创建切换按钮
+                const toggleBtn = document.createElement('div');
+                toggleBtn.id = 'dashboard-toggle-btn';
+                toggleBtn.style.cssText = `
+                    position: fixed;
+                    right: 20px;
+                    bottom: 20px;
+                    width: 50px;
+                    height: 50px;
+                    background: #2196F3;
+                    color: white;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    cursor: pointer;
+                    font-size: 24px;
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+                    z-index: 99850;
+                    user-select: none;
+                    transition: all 0.3s ease;
+                `;
+                toggleBtn.textContent = '📊';
+                toggleBtn.title = '点击打开数据看板 (快捷键: Ctrl+Shift+D)';
+
+                toggleBtn.addEventListener('click', () => {
+                    window.DashboardSidebar.toggle();
+                });
+
+                toggleBtn.addEventListener('mouseover', () => {
+                    toggleBtn.style.transform = 'scale(1.1)';
+                    toggleBtn.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.3)';
+                });
+
+                toggleBtn.addEventListener('mouseout', () => {
+                    toggleBtn.style.transform = 'scale(1)';
+                    toggleBtn.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.2)';
+                });
+
+                document.body.appendChild(toggleBtn);
+
+                log(LOG_LEVEL.INFO, '数据看板切换按钮已添加');
+            }
+        }, 500);
+    }
+
     function updateAuthSyncStatusUI() {
         const statusIcon = document.getElementById('sync-status-icon-header');
         const statusText = document.getElementById('sync-status-text-header');
@@ -2664,6 +2736,9 @@
         if (isCacheRefreshEnabled) {
             startCacheRefreshTimer(); // 启动 10 分钟自动缓存刷新
         }
+
+        // 初始化侧边栏看板
+        initializeDashboardSidebar();
 
         // 显示测试提示，确认数据收集器已加载
         showTestNotification();
