@@ -974,7 +974,7 @@
     let currentNotificationController = null;
     let pendingNotificationState = null;
     let isPushingData = false;
-n            // 清除localStorage中的待处理通知状态
+            // 清除localStorage中的待处理通知状态
             try {
                 localStorage.removeItem("auxis_pending_notification");
                 pendingNotificationState = null;
@@ -2505,15 +2505,15 @@ n            // 清除localStorage中的待处理通知状态
             saveCompletionStats();
 
             // 自动发送数据到服务器
-            // log(LOG_LEVEL.DEBUG, '确认完成记录完成，自动发送数据到服务器');
-            // pendingNotificationState = {
-            //     message: '⏳ 数据正在发送...',
-            //     type: 'loading',
-            //     timestamp: Date.now()
-            // };
-            // localStorage.setItem('auxis_pending_notification', JSON.stringify(pendingNotificationState));
-            // currentNotificationController = showNotification('⏳ 数据正在发送...', 'loading', true);
-            // pushDataOnSubmission();
+            log(LOG_LEVEL.DEBUG, '确认完成记录完成，自动发送数据到服务器');
+            pendingNotificationState = {
+                message: '⏳ 数据正在发送...',
+                type: 'loading',
+                timestamp: Date.now()
+            };
+            localStorage.setItem('auxis_pending_notification', JSON.stringify(pendingNotificationState));
+            currentNotificationController = showNotification('⏳ 数据正在发送...', 'loading', true);
+            pushDataOnSubmission();
 
         } catch (error) {
             ErrorHandler.handle(error, '记录确认完成时的标注信息异常', null, LOG_LEVEL.WARN);
@@ -2926,7 +2926,7 @@ n            // 清除localStorage中的待处理通知状态
             }
         } finally {
             isPushingData = false;
-n            // 清除localStorage中的待处理通知状态
+            // 清除localStorage中的待处理通知状态
             try {
                 localStorage.removeItem("auxis_pending_notification");
                 pendingNotificationState = null;
@@ -4239,6 +4239,15 @@ ${JSON.stringify(dataToSend, null, 2)}`;
             }
         }
 
+        // 对每个日期的记录按最后完成时间降序排列（最新完成的在最前面）
+        for (const dateKey in groupedData) {
+            groupedData[dateKey].records.sort((a, b) => {
+                const timeA = a.lastCompletionTime || 0;
+                const timeB = b.lastCompletionTime || 0;
+                return timeB - timeA;
+            });
+        }
+
         return groupedData;
     }
 
@@ -4462,6 +4471,16 @@ ${JSON.stringify(dataToSend, null, 2)}`;
             const isRework = isReworkPage(record);
         const borderColor = isRework ? '#FF9800' : (record.isValid === true ? '#4CAF50' : '#f44336');
 
+        // 格式化提交时间
+        const submissionTime = record.lastCompletionTime
+            ? new Date(record.lastCompletionTime).toLocaleString('zh-CN', {
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            })
+            : '未知时间';
+
         return `<div style="
                 margin-bottom: 8px;
                 padding: 8px;
@@ -4475,6 +4494,9 @@ ${JSON.stringify(dataToSend, null, 2)}`;
                 </div>
                 <div style="font-size: 12px; color: #666; margin-top: 4px;">
                     完成: ${record.completions}次 | 题数: ${record.topicCount} | 耗时: ${record.elapsedSeconds || 0}秒
+                </div>
+                <div style="font-size: 11px; color: #999; margin-top: 2px;">
+                    提交时间: ${submissionTime}
                 </div>
             </div>`;
         }).join('');
