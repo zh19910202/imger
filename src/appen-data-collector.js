@@ -2807,7 +2807,33 @@
         }
     }
 
-    // 记录确认完成时的标注信息
+    // 检查页面中是否存在验证错误提示
+    function hasValidationError() {
+        try {
+            // 验证错误提示的完整文本匹配
+            const validationErrorMessage = '当前提交内容与系统设定规则不符合';
+            const validationErrorHint = '请根据规则或提示修改后再重新提交';
+
+            // 搜索页面中所有包含文本的元素
+            const allElements = document.querySelectorAll('*');
+
+            for (const element of allElements) {
+                const text = element.textContent || '';
+                
+                // 检查是否包含验证错误提示（只要出现其中一个关键部分即可认为有错误）
+                if (text.includes(validationErrorMessage) || text.includes(validationErrorHint)) {
+                    log(LOG_LEVEL.WARN, '检测到页面中存在验证规则错误提示');
+                    return true;
+                }
+            }
+
+            return false;
+        } catch (error) {
+            log(LOG_LEVEL.ERROR, '检查验证错误时出错:', error);
+            return false;
+        }
+    }
+
     // 检查并处理验证错误提示
     function checkAndHandleValidationError() {
         try {
@@ -3043,12 +3069,19 @@
         const isConfirmCompleteButton = buttonText.includes('确认完成');
         if (isConfirmCompleteButton) {
             log(LOG_LEVEL.DEBUG, '检测到"确认完成"按钮点击');
-            recordCompletionOnConfirm();
             
             // 延迟检查是否出现验证错误提示
-            // 如果有错误提示，则不发送数据到服务器
+            // 如果有错误提示，则不执行后续操作（不记录完成，不发送数据）
             setTimeout(() => {
-                checkAndHandleValidationError();
+                if (!hasValidationError()) {
+                    // 没有验证错误，执行正常流程
+                    log(LOG_LEVEL.DEBUG, '未检测到验证错误，执行数据记录和推送');
+                    recordCompletionOnConfirm();
+                } else {
+                    // 检测到验证错误，显示警告但不执行推送
+                    log(LOG_LEVEL.WARN, '检测到验证规则错误提示，取消所有后续操作');
+                    showNotification('⚠️ 检测到提交规则错误，请根据提示修改后重试', 'warning', false, 3000);
+                }
             }, 500);
         }
     }
