@@ -1339,10 +1339,25 @@
                 // 创建切换按钮
                 const toggleBtn = document.createElement('div');
                 toggleBtn.id = 'dashboard-toggle-btn';
+                toggleBtn.className = 'draggable-float-btn';
+
+                // 从localStorage恢复位置
+                const savedPosition = getSavedButtonPosition();
+                const defaultPosition = {
+                    right: '20px',
+                    bottom: '20px',
+                    left: 'auto',
+                    top: 'auto'
+                };
+
+                const position = savedPosition || defaultPosition;
+
                 toggleBtn.style.cssText = `
                     position: fixed;
-                    right: 20px;
-                    bottom: 20px;
+                    right: ${position.right};
+                    bottom: ${position.bottom};
+                    left: ${position.left};
+                    top: ${position.top};
                     width: 50px;
                     height: 50px;
                     background: #2196F3;
@@ -1351,36 +1366,335 @@
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    cursor: pointer;
+                    cursor: move;
                     font-size: 24px;
                     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
                     z-index: 99850;
                     user-select: none;
-                    transition: all 0.3s ease;
+                    transition: box-shadow 0.3s ease, transform 0.1s ease;
                 `;
                 toggleBtn.textContent = '📊';
-                toggleBtn.title = '点击打开数据看板 (快捷键: Ctrl+Shift+D)';
+                toggleBtn.title = '拖拽移动位置，点击打开数据看板 (快捷键: Ctrl+Shift+D)';
 
-                toggleBtn.addEventListener('click', () => {
-                    window.DashboardSidebar.toggle();
+                // 拖拽功能变量
+                let isDragging = false;
+                let dragStartX, dragStartY;
+                let btnStartX, btnStartY;
+                let originalCursor, originalTransition;
+
+                // 鼠标按下事件
+                toggleBtn.addEventListener('mousedown', (e) => {
+                    if (e.button !== 0) return; // 只响应左键
+
+                    isDragging = true;
+                    dragStartX = e.clientX;
+                    dragStartY = e.clientY;
+
+                    // 获取按钮当前位置
+                    const rect = toggleBtn.getBoundingClientRect();
+                    btnStartX = rect.left;
+                    btnStartY = rect.top;
+
+                    // 保存原始样式
+                    originalCursor = toggleBtn.style.cursor;
+                    originalTransition = toggleBtn.style.transition;
+
+                    // 设置拖拽样式
+                    toggleBtn.style.cursor = 'grabbing';
+                    toggleBtn.style.transition = 'transform 0.1s ease';
+                    toggleBtn.style.transform = 'scale(1.1)';
+                    toggleBtn.style.boxShadow = '0 8px 20px rgba(0, 0, 0, 0.4)';
+
+                    e.preventDefault();
+                    e.stopPropagation();
                 });
 
-                toggleBtn.addEventListener('mouseover', () => {
+                // 鼠标移动事件
+                document.addEventListener('mousemove', (e) => {
+                    if (!isDragging) return;
+
+                    const deltaX = e.clientX - dragStartX;
+                    const deltaY = e.clientY - dragStartY;
+
+                    let newX = btnStartX + deltaX;
+                    let newY = btnStartY + deltaY;
+
+                    // 边界检测和磁吸效果
+                    const maxX = window.innerWidth - toggleBtn.offsetWidth;
+                    const maxY = window.innerHeight - toggleBtn.offsetHeight;
+                    const snapDistance = 20; // 磁吸距离
+
+                    newX = Math.max(0, Math.min(newX, maxX));
+                    newY = Math.max(0, Math.min(newY, maxY));
+
+                    // 磁吸到屏幕边缘
+                    if (newX < snapDistance) newX = 0;
+                    if (newX > maxX - snapDistance) newX = maxX;
+                    if (newY < snapDistance) newY = 0;
+                    if (newY > maxY - snapDistance) newY = maxY;
+
+                    // 更新位置
+                    toggleBtn.style.left = newX + 'px';
+                    toggleBtn.style.top = newY + 'px';
+                    toggleBtn.style.right = 'auto';
+                    toggleBtn.style.bottom = 'auto';
+                });
+
+                // 鼠标释放事件
+                document.addEventListener('mouseup', (e) => {
+                    if (!isDragging) return;
+
+                    isDragging = false;
+
+                    // 恢复样式
+                    toggleBtn.style.cursor = originalCursor;
+                    toggleBtn.style.transition = originalTransition;
+                    toggleBtn.style.transform = 'scale(1)';
+                    toggleBtn.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.2)';
+
+                    // 保存位置到localStorage
+                    saveButtonPosition(toggleBtn);
+                });
+
+                // 触摸支持 - 移动设备
+                let touchStartX, touchStartY;
+                let isTouchDragging = false;
+
+                toggleBtn.addEventListener('touchstart', (e) => {
+                    if (e.touches.length !== 1) return;
+
+                    const touch = e.touches[0];
+                    touchStartX = touch.clientX;
+                    touchStartY = touch.clientY;
+
+                    const rect = toggleBtn.getBoundingClientRect();
+                    btnStartX = rect.left;
+                    btnStartY = rect.top;
+
+                    isTouchDragging = true;
                     toggleBtn.style.transform = 'scale(1.1)';
-                    toggleBtn.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.3)';
+                    toggleBtn.style.boxShadow = '0 8px 20px rgba(0, 0, 0, 0.4)';
+
+                    e.preventDefault();
+                });
+
+                document.addEventListener('touchmove', (e) => {
+                    if (!isTouchDragging) return;
+
+                    const touch = e.touches[0];
+                    const deltaX = touch.clientX - touchStartX;
+                    const deltaY = touch.clientY - touchStartY;
+
+                    let newX = btnStartX + deltaX;
+                    let newY = btnStartY + deltaY;
+
+                    // 边界检测
+                    const maxX = window.innerWidth - toggleBtn.offsetWidth;
+                    const maxY = window.innerHeight - toggleBtn.offsetHeight;
+                    const snapDistance = 20;
+
+                    newX = Math.max(0, Math.min(newX, maxX));
+                    newY = Math.max(0, Math.min(newY, maxY));
+
+                    // 磁吸效果
+                    if (newX < snapDistance) newX = 0;
+                    if (newX > maxX - snapDistance) newX = maxX;
+                    if (newY < snapDistance) newY = 0;
+                    if (newY > maxY - snapDistance) newY = maxY;
+
+                    toggleBtn.style.left = newX + 'px';
+                    toggleBtn.style.top = newY + 'px';
+                    toggleBtn.style.right = 'auto';
+                    toggleBtn.style.bottom = 'auto';
+
+                    e.preventDefault();
+                });
+
+                document.addEventListener('touchend', (e) => {
+                    if (!isTouchDragging) return;
+
+                    isTouchDragging = false;
+                    toggleBtn.style.transform = 'scale(1)';
+                    toggleBtn.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.2)';
+
+                    // 保存位置
+                    saveButtonPosition(toggleBtn);
+                });
+
+                // 点击事件（只在非拖拽时触发）
+                toggleBtn.addEventListener('click', (e) => {
+                    // 检查是否刚刚结束拖拽
+                    setTimeout(() => {
+                        if (!isDragging && !isTouchDragging) {
+                            window.DashboardSidebar.toggle();
+                        }
+                    }, 10);
+                });
+
+                // 右键菜单 - 重置位置
+                toggleBtn.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    // 重置按钮位置
+                    resetButtonPosition(toggleBtn);
+
+                    // 显示提示
+                    showPositionResetHint(toggleBtn);
+                });
+
+                // 双击重置位置
+                toggleBtn.addEventListener('dblclick', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    resetButtonPosition(toggleBtn);
+                    showPositionResetHint(toggleBtn);
+                });
+
+                // 悬停效果
+                toggleBtn.addEventListener('mouseover', () => {
+                    if (!isDragging) {
+                        toggleBtn.style.transform = 'scale(1.1)';
+                        toggleBtn.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.3)';
+                        toggleBtn.style.cursor = 'pointer';
+                    }
                 });
 
                 toggleBtn.addEventListener('mouseout', () => {
-                    toggleBtn.style.transform = 'scale(1)';
-                    toggleBtn.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.2)';
+                    if (!isDragging) {
+                        toggleBtn.style.transform = 'scale(1)';
+                        toggleBtn.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.2)';
+                    }
                 });
 
                 document.body.appendChild(toggleBtn);
 
-                log(LOG_LEVEL.INFO, '数据看板切换按钮已添加');
+                log(LOG_LEVEL.INFO, '数据看板切换按钮已添加（支持拖拽移动）');
             }
         }, 500);
     }
+
+    // 保存按钮位置到localStorage
+    function saveButtonPosition(button) {
+        try {
+            const rect = button.getBoundingClientRect();
+            const position = {
+                left: button.style.left !== 'auto' ? button.style.left : 'auto',
+                top: button.style.top !== 'auto' ? button.style.top : 'auto',
+                right: button.style.right !== 'auto' ? button.style.right : 'auto',
+                bottom: button.style.bottom !== 'auto' ? button.style.bottom : 'auto'
+            };
+
+            localStorage.setItem('dashboard_toggle_btn_position', JSON.stringify(position));
+            log(LOG_LEVEL.INFO, '按钮位置已保存:', position);
+        } catch (error) {
+            log(LOG_LEVEL.ERROR, '保存按钮位置失败:', error);
+        }
+    }
+
+    // 从localStorage获取保存的按钮位置
+    function getSavedButtonPosition() {
+        try {
+            const saved = localStorage.getItem('dashboard_toggle_btn_position');
+            if (saved) {
+                return JSON.parse(saved);
+            }
+        } catch (error) {
+            log(LOG_LEVEL.ERROR, '获取保存的按钮位置失败:', error);
+        }
+        return null;
+    }
+
+    // 重置按钮位置到默认位置
+    function resetButtonPosition(button) {
+        try {
+            // 重置到默认位置
+            button.style.left = 'auto';
+            button.style.top = 'auto';
+            button.style.right = '20px';
+            button.style.bottom = '20px';
+
+            // 清除保存的位置
+            localStorage.removeItem('dashboard_toggle_btn_position');
+
+            log(LOG_LEVEL.INFO, '按钮位置已重置到默认位置');
+        } catch (error) {
+            log(LOG_LEVEL.ERROR, '重置按钮位置失败:', error);
+        }
+    }
+
+    // 显示位置重置提示
+    function showPositionResetHint(button) {
+        try {
+            // 创建提示元素
+            const hint = document.createElement('div');
+            hint.style.cssText = `
+                position: fixed;
+                left: 50%;
+                top: 50%;
+                transform: translate(-50%, -50%);
+                background: rgba(0, 0, 0, 0.8);
+                color: white;
+                padding: 12px 20px;
+                border-radius: 6px;
+                font-size: 14px;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                z-index: 99999;
+                pointer-events: none;
+                opacity: 0;
+                transition: opacity 0.3s ease;
+            `;
+            hint.textContent = '📍 按钮位置已重置';
+
+            document.body.appendChild(hint);
+
+            // 显示动画
+            setTimeout(() => {
+                hint.style.opacity = '1';
+            }, 10);
+
+            // 自动隐藏
+            setTimeout(() => {
+                hint.style.opacity = '0';
+                setTimeout(() => {
+                    if (hint.parentNode) {
+                        hint.parentNode.removeChild(hint);
+                    }
+                }, 300);
+            }, 2000);
+
+        } catch (error) {
+            log(LOG_LEVEL.ERROR, '显示位置重置提示失败:', error);
+        }
+    }
+
+    // 窗口大小改变时检查按钮位置
+    function setupWindowResizeHandler() {
+        let resizeTimeout;
+
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                const button = document.getElementById('dashboard-toggle-btn');
+                if (button) {
+                    // 确保按钮在可视区域内
+                    const rect = button.getBoundingClientRect();
+                    const maxX = window.innerWidth - button.offsetWidth;
+                    const maxY = window.innerHeight - button.offsetHeight;
+
+                    if (rect.left < 0 || rect.top < 0 || rect.left > maxX || rect.top > maxY) {
+                        // 如果按钮超出可视区域，重置位置
+                        resetButtonPosition(button);
+                        showPositionResetHint(button);
+                    }
+                }
+            }, 300);
+        });
+    }
+
+    // 初始化窗口大小变化监听
+    setupWindowResizeHandler();
 
     function updateAuthSyncStatusUI() {
         const statusIcon = document.getElementById('sync-status-icon-header');

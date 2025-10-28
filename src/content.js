@@ -2585,8 +2585,8 @@ function observeNetworkUploads() {
             // 捕获CORS错误并记录，但不中断其他功能
             if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
                 debugLog('CORS阻止的fetch请求(已捕获)', { url: url.substring(0, 50) + '...' });
-                // 不抛出CORS错误，让其他功能继续运行
-                return new Response(null, { status: 0, statusText: 'CORS blocked' });
+                // 抛出一个更明确的错误，而不是返回无效的Response
+                throw new TypeError(`CORS阻止的请求: ${url}`);
             } else {
                 debugLog('fetch请求错误', { url: url.substring(0, 50) + '...', error: error.message });
                 throw error;

@@ -11,6 +11,70 @@ let isInitialized = false;
 let webRequestListenerAdded = false;
 let downloadAutoOpenMap = new Map(); // 跟踪每个下载的自动打开设置
 
+// =============================================================================
+// API代理处理 - 解决CORS和混合内容问题
+// =============================================================================
+
+// 监听来自content script的API请求
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.type === 'API_PROXY_REQUEST') {
+        handleApiProxyRequest(request, sender, sendResponse);
+        return true; // 保持消息通道开放以支持异步响应
+    }
+});
+
+// 处理API代理请求
+async function handleApiProxyRequest(request, sender, sendResponse) {
+    try {
+        const { url, options = {} } = request;
+
+        console.log('[Background] API代理请求:', url);
+
+        // 构建fetch选项
+        const fetchOptions = {
+            method: options.method || 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers
+            }
+        };
+
+        if (options.body && (options.method === 'POST' || options.method === 'PUT')) {
+            fetchOptions.body = typeof options.body === 'string' ? options.body : JSON.stringify(options.body);
+        }
+
+        // 发起请求（background script没有CORS限制）
+        const response = await fetch(url, fetchOptions);
+
+        // 读取响应数据
+        const responseText = await response.text();
+
+        // 构建响应对象
+        const proxyResponse = {
+            ok: response.ok,
+            status: response.status,
+            statusText: response.statusText,
+            headers: Object.fromEntries(response.headers.entries()),
+            data: responseText
+        };
+
+        console.log('[Background] API代理响应:', {
+            status: response.status,
+            ok: response.ok,
+            dataLength: responseText.length
+        });
+
+        sendResponse({ success: true, response: proxyResponse });
+
+    } catch (error) {
+        console.error('[Background] API代理请求失败:', error);
+        sendResponse({
+            success: false,
+            error: error.message || '请求失败'
+        });
+    }
+}
+
 // 常量集中管理（不改变逻辑，仅去除硬编码分散）
 const COS_DOMAIN = 'aidata-1258344706.cos.ap-guangzhou.myqcloud.com';
 const WEBREQUEST_TYPES = ["image"];

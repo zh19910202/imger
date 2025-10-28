@@ -9,7 +9,11 @@
 
     // 配置
     const DataServiceConfig = {
-        API_BASE_URL: 'http://192.168.31.74:1145', // 需要根据实际环境修改
+        // 根据当前页面协议自动选择API协议
+        get API_BASE_URL() {
+            const protocol = window.location.protocol === 'https:' ? 'https' : 'http';
+            return `${protocol}://192.168.31.74:1145`;
+        },
         GET_USER_TASK_DETAILS_ENDPOINT: '/api/task/user/{userId}/details',
         CACHE_PREFIX: 'appen_report_cache_',
         CACHE_TTL: {
@@ -77,31 +81,64 @@
                     return cached;
                 }
 
-                // 构建 API 请求
-                const url = this.buildApiUrl(userId, timeRange, timeValue, includeDetails);
-                console.log('[DataService] 请求 API:', url);
+                // 尝试多种协议和方式获取数据
+                let reportData = null;
+                let lastError = null;
 
-                // 发送请求
-                const response = await this.fetchWithTimeout(url, DataServiceConfig.REQUEST_TIMEOUT);
+                // 策略1: 尝试匹配页面协议
+                try {
+                    const url = this.buildApiUrl(userId, timeRange, timeValue, includeDetails);
+                    console.log('[DataService] 请求 API (策略1 - 匹配协议):', url);
+                    const response = await this.fetchWithTimeout(url, DataServiceConfig.REQUEST_TIMEOUT);
 
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+
+                    const result = await response.json();
+                    if (!result.success) {
+                        throw new Error(result.message || '服务器返回错误');
+                    }
+
+                    reportData = this.transformApiResponse(result.data, timeRange);
+                    console.log('[DataService] 策略1成功获取数据');
+                } catch (error) {
+                    lastError = error;
+                    console.warn('[DataService] 策略1失败:', error.message);
+
+                    // 策略2: 如果是HTTPS页面，尝试HTTP协议（仅限localhost/local IP）
+                    if (window.location.protocol === 'https:' && this.isLocalApi()) {
+                        try {
+                            const httpUrl = this.buildApiUrlWithProtocol(userId, timeRange, timeValue, includeDetails, 'http');
+                            console.log('[DataService] 请求 API (策略2 - HTTP回退):', httpUrl);
+                            const response = await this.fetchWithTimeout(httpUrl, DataServiceConfig.REQUEST_TIMEOUT);
+
+                            if (!response.ok) {
+                                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                            }
+
+                            const result = await response.json();
+                            if (!result.success) {
+                                throw new Error(result.message || '服务器返回错误');
+                            }
+
+                            reportData = this.transformApiResponse(result.data, timeRange);
+                            console.log('[DataService] 策略2成功获取数据');
+                        } catch (error2) {
+                            console.warn('[DataService] 策略2也失败:', error2.message);
+                        }
+                    }
                 }
 
-                const result = await response.json();
-
-                if (!result.success) {
-                    throw new Error(result.message || '服务器返回错误');
+                if (reportData) {
+                    // 缓存数据
+                    this.setCache(cacheKey, reportData);
+                    console.log('[DataService] 成功获取报表数据:', reportData);
+                    return reportData;
                 }
 
-                // 转换数据格式（兼容 StatsEngine）
-                const reportData = this.transformApiResponse(result.data, timeRange);
-
-                // 缓存数据
-                this.setCache(cacheKey, reportData);
-
-                console.log('[DataService] 成功获取报表数据:', reportData);
-                return reportData;
+                // 所有策略都失败
+                throw lastError || new Error('所有获取数据的策略都失败了');
 
             } catch (error) {
                 console.error('[DataService] 获取报表数据失败:', error);
@@ -163,34 +200,150 @@
         buildApiUrl: function(userId, timeRange, timeValue, includeDetails) {
             let endpoint = DataServiceConfig.GET_USER_TASK_DETAILS_ENDPOINT.replace('{userId}', userId);
             let url = DataServiceConfig.API_BASE_URL + endpoint;
-            
+
             const params = new URLSearchParams();
             params.append('timeRange', timeRange);
-            
+
             if (timeValue) {
                 params.append('timeValue', timeValue);
             }
-            
+
             if (includeDetails) {
                 params.append('includeDetails', 'true');
             }
-            
+
             return url + '?' + params.toString();
         },
 
         /**
-         * 使用超时的 fetch
+         * 使用指定协议构建 API URL
+         * @param {string} userId - 用户ID
+         * @param {string} timeRange - 时间范围
+         * @param {string} timeValue - 时间值
+         * @param {boolean} includeDetails - 是否包含详细信息
+         * @param {string} protocol - 协议 (http 或 https)
+         * @returns {string} API URL
+         */
+        buildApiUrlWithProtocol: function(userId, timeRange, timeValue, includeDetails, protocol) {
+            let endpoint = DataServiceConfig.GET_USER_TASK_DETAILS_ENDPOINT.replace('{userId}', userId);
+            let url = `${protocol}://192.168.31.74:1145` + endpoint;
+
+            const params = new URLSearchParams();
+            params.append('timeRange', timeRange);
+
+            if (timeValue) {
+                params.append('timeValue', timeValue);
+            }
+
+            if (includeDetails) {
+                params.append('includeDetails', 'true');
+            }
+
+            return url + '?' + params.toString();
+        },
+
+        /**
+         * 检查API是否指向本地地址
+         * @returns {boolean} 是否为本地API
+         */
+        isLocalApi: function() {
+            const apiHost = '192.168.31.74';
+            return apiHost === 'localhost' ||
+                   apiHost === '127.0.0.1' ||
+                   apiHost.startsWith('192.168.') ||
+                   apiHost.startsWith('10.') ||
+                   apiHost.endsWith('.local');
+        },
+
+        /**
+         * 使用超时的 fetch，并处理 CORS 和混合内容问题
          * @param {string} url - 请求 URL
          * @param {number} timeout - 超时时间（毫秒）
          * @returns {Promise<Response>} 响应
          */
         fetchWithTimeout: function(url, timeout) {
             return Promise.race([
-                fetch(url),
+                new Promise(async (resolve, reject) => {
+                    try {
+                        // 优先使用background代理（避免CORS和混合内容问题）
+                        if (this.canUseBackgroundProxy()) {
+                            console.log('[DataService] 使用background代理请求:', url);
+                            const proxyResponse = await this.fetchViaBackgroundProxy(url);
+                            resolve(proxyResponse);
+                            return;
+                        }
+
+                        // 回退到原生fetch
+                        console.log('[DataService] 使用原生fetch请求:', url);
+                        const response = await fetch(url);
+                        resolve(response);
+
+                    } catch (error) {
+                        // 处理各种网络错误
+                        if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+                            // CORS 或混合内容错误
+                            reject(new Error(`网络请求被阻止: ${url.split(':')[0]} 协议可能不匹配页面协议 ${window.location.protocol}`));
+                        } else if (error.name === 'TypeError' && error.message.includes('Mixed Content')) {
+                            // 混合内容错误
+                            reject(new Error('混合内容错误：HTTPS 页面无法请求 HTTP 资源'));
+                        } else {
+                            reject(error);
+                        }
+                    }
+                }),
                 new Promise((_, reject) =>
                     setTimeout(() => reject(new Error('请求超时')), timeout)
                 )
             ]);
+        },
+
+        /**
+         * 检查是否可以使用background代理
+         * @returns {boolean} 是否可以使用代理
+         */
+        canUseBackgroundProxy: function() {
+            return typeof chrome !== 'undefined' &&
+                   chrome.runtime &&
+                   chrome.runtime.sendMessage;
+        },
+
+        /**
+         * 通过background代理发送请求
+         * @param {string} url - 请求URL
+         * @returns {Promise<Response>} 响应
+         */
+        fetchViaBackgroundProxy: function(url) {
+            return new Promise((resolve, reject) => {
+                chrome.runtime.sendMessage({
+                    type: 'API_PROXY_REQUEST',
+                    url: url,
+                    options: {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/json'
+                        }
+                    }
+                }, (response) => {
+                    if (chrome.runtime.lastError) {
+                        reject(new Error(`Chrome runtime错误: ${chrome.runtime.lastError.message}`));
+                        return;
+                    }
+
+                    if (!response.success) {
+                        reject(new Error(response.error || '代理请求失败'));
+                        return;
+                    }
+
+                    // 构建类Response对象
+                    const proxyResponse = new Response(response.response.data, {
+                        status: response.response.status,
+                        statusText: response.response.statusText,
+                        headers: response.response.headers
+                    });
+
+                    resolve(proxyResponse);
+                });
+            });
         },
 
         /**
