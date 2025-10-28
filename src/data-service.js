@@ -37,18 +37,17 @@
                 let userId = localStorage.getItem('appen_user_id');
                 if (userId) return userId;
 
-                // 2. 从 chrome.storage
-                if (typeof chrome !== 'undefined' && chrome.storage) {
-                    // 注：这里需要在异步函数中处理
-                    console.warn('[DataService] getUserId 在同步调用中无法访问 chrome.storage，请使用异步版本');
-                }
-
-                // 3. 从页面 URL 参数
+                // 2. 从页面 URL 参数（优先级更高，因为可能是当前页面的用户）
                 const urlParams = new URLSearchParams(window.location.search);
                 userId = urlParams.get('userId') || urlParams.get('appleUserId');
                 if (userId) {
                     localStorage.setItem('appen_user_id', userId);
                     return userId;
+                }
+
+                // 3. 从 chrome.storage（异步，这里无法使用）
+                if (typeof chrome !== 'undefined' && chrome.storage) {
+                    console.warn('[DataService] getUserId 在同步调用中无法访问 chrome.storage，请使用异步版本');
                 }
 
                 console.warn('[DataService] 无法获取用户ID');

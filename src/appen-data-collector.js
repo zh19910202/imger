@@ -3015,6 +3015,12 @@
         return currentUrl.includes('ui.appen.com.cn/welcome');
     }
 
+    // 检查是否为Appen页面（任何ui.appen.com.cn页面）
+    function isAppenPage() {
+        const currentUrl = window.location.href;
+        return currentUrl.includes('ui.appen.com.cn');
+    }
+
     // 初始化数据收集器
     async function initializeDataCollector() {
         log(LOG_LEVEL.DEBUG, '初始化即时数据收集器');
@@ -3051,11 +3057,15 @@
             startCacheRefreshTimer(); // 启动 10 分钟自动缓存刷新
         }
 
-        // 初始化侧边栏看板
-        initializeDashboardSidebar();
+        // 初始化侧边栏看板（在Appen平台的任何页面都可以访问历史统计）
+        if (isAppenPage()) {
+            initializeDashboardSidebar();
+        }
 
-        // 初始化验证错误监听器
-        setupValidationErrorListener();
+        // 初始化验证错误监听器（仅在标注任务页面有效）
+        if (isTargetPage()) {
+            setupValidationErrorListener();
+        }
 
         // 显示测试提示，确认数据收集器已加载
         showTestNotification();
