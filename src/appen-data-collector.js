@@ -11,9 +11,9 @@
     // 配置参数
     const CONFIG = {
         // 数据推送的API端点
-        API_ENDPOINT: 'http://www.skytree.ink/api/Task/apple/add', //http://www.skytree.ink:1145/api/Task/apple/add  http://www.skytree.ink/api/Task/add
+        API_ENDPOINT: 'http://www.skytree.ink/api/Task/apple/add', 
         // 认证信息同步的API端点
-        AUTH_SYNC_ENDPOINT: 'http://www.skytree.ink/api/task/apple/sync', //http://www.skytree.ink/api/task/apple/sync
+        AUTH_SYNC_ENDPOINT: 'http://www.skytree.ink/api/task/apple/sync', 
         // 最大重试次数
         MAX_RETRY_ATTEMPTS: 3,
         // 重试间隔（毫秒）
@@ -4098,12 +4098,20 @@
         // 检查是否点击了"确认完成"或"确认完成并加载下一条"按钮
         const isConfirmCompleteButton = buttonText.includes('确认完成');
         if (isConfirmCompleteButton) {
-            log(LOG_LEVEL.DEBUG, '检测到"确认完成"按钮点击');
+            // 区分"确认完成"和"确认完成并加载下一条"
+            const isLoadNextButton = buttonText.includes('加载下一条') || buttonText.includes('并加载');
+            
+            if (isLoadNextButton) {
+                log(LOG_LEVEL.DEBUG, '检测到"确认完成并加载下一条"按钮点击');
+            } else {
+                log(LOG_LEVEL.DEBUG, '检测到"确认完成"按钮点击');
+            }
 
             // 重置验证错误状态，准备检测新的错误提示
             resetValidationErrorState();
 
-            // 简化检测逻辑：延迟1秒检查，基于事件监听的结果
+            // 两个按钮都会跳转页面，必须使用较短的延迟
+            // 使用100ms延迟既能检测到验证错误，又能在页面跳转前完成推送
             setTimeout(() => {
                 if (!hasValidationError()) {
                     // 没有检测到验证错误，执行正常流程
@@ -4113,7 +4121,7 @@
                     // 检测到验证错误，阻止推送
                     log(LOG_LEVEL.WARN, '检测到验证规则错误提示，取消数据推送');
                 }
-            }, 1000);
+            }, 100); // 使用短延迟(100ms)以在页面跳转前完成
         }
     }
 
