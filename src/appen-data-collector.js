@@ -2808,6 +2808,57 @@
     }
 
     // 记录确认完成时的标注信息
+    // 检查并处理验证错误提示
+    function checkAndHandleValidationError() {
+        try {
+            // 验证错误提示的关键词
+            const validationErrorKeywords = [
+                '当前提交内容与系统设定规则不符合',
+                '请根据规则或提示修改后再重新提交',
+                '不符合',
+                '规则',
+                '修改后'
+            ];
+
+            // 搜索页面中所有包含文本的元素
+            const allElements = document.querySelectorAll('*');
+            let foundValidationError = false;
+
+            for (const element of allElements) {
+                const text = element.textContent || '';
+                
+                // 检查是否包含验证错误关键词（完整消息或部分词汇）
+                const hasExactMatch = text.includes('当前提交内容与系统设定规则不符合') || 
+                                     text.includes('请根据规则或提示修改后再重新提交');
+                
+                // 如果找到完整匹配，直接确认为验证错误
+                if (hasExactMatch) {
+                    foundValidationError = true;
+                    log(LOG_LEVEL.WARN, '检测到验证规则错误提示，取消数据推送');
+                    
+                    // 显示提示信息
+                    showNotification('⚠️ 检测到提交规则错误，请根据提示修改后重试', 'warning', false, 3000);
+                    
+                    // 清除待处理的推送状态
+                    try {
+                        localStorage.removeItem("auxis_pending_notification");
+                        pendingNotificationState = null;
+                    } catch (error) {
+                        log(LOG_LEVEL.DEBUG, "清除待处理通知状态失败:", error);
+                    }
+                    
+                    break;
+                }
+            }
+
+            if (!foundValidationError) {
+                log(LOG_LEVEL.DEBUG, '未检测到验证错误提示，继续执行数据推送');
+            }
+        } catch (error) {
+            log(LOG_LEVEL.ERROR, '检查验证错误时出错:', error);
+        }
+    }
+
     function recordCompletionOnConfirm() {
         try {
             const userStatus = collectedData.responseElements?.userSelectionStatus;
@@ -2993,6 +3044,12 @@
         if (isConfirmCompleteButton) {
             log(LOG_LEVEL.DEBUG, '检测到"确认完成"按钮点击');
             recordCompletionOnConfirm();
+            
+            // 延迟检查是否出现验证错误提示
+            // 如果有错误提示，则不发送数据到服务器
+            setTimeout(() => {
+                checkAndHandleValidationError();
+            }, 500);
         }
     }
 
