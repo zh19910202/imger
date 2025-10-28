@@ -899,70 +899,70 @@
         pageCompletionCounts: {}
     };
 
-    // 通知队列管理系统
-    const notificationManager = {
-        queue: [],  // 待显示的通知队列
-        activeNotifications: [],  // 当前显示中的通知
-        maxVisible: 3,  // 最多同时显示3个通知
-        notificationHeight: 80,  // 每个通知的高度（像素），增加以适应多行文本
-        spacing: 15,  // 通知之间的间距，增加以提供更好的视觉分离
-        
-        // 添加通知到队列
-        add: function(message, type = 'info', duration = 5000) {
-            const notification = {
-                message,
-                type,
-                duration,
-                id: Date.now() + Math.random(),
-                element: null
-            };
-            this.queue.push(notification);
-            this.processQueue();
-        },
-        
-        // 处理队列中的通知
-        processQueue: function() {
-            while (this.queue.length > 0 && this.activeNotifications.length < this.maxVisible) {
-                const notification = this.queue.shift();
-                this.display(notification);
-            }
-        },
-        
-        // 显示通知
-        display: function(notification) {
-            const element = createSystemNotification(notification.message, notification.type, notification.duration);
-            if (element) {
-                notification.element = element;
-                this.activeNotifications.push(notification);
-                this.updatePositions();
-                
-                // 通知显示完毕后从活动列表移除
-                setTimeout(() => {
-                    const index = this.activeNotifications.indexOf(notification);
-                    if (index > -1) {
-                        this.activeNotifications.splice(index, 1);
-                        this.updatePositions();
-                    }
-                    this.processQueue();
-                }, notification.duration);
-            } else {
-                this.processQueue();
-            }
-        },
-        
-        // 更新所有通知的位置
-        updatePositions: function() {
-            let topOffset = 20;
-            this.activeNotifications.forEach((notification) => {
-                if (notification.element) {
-                    notification.element.style.top = topOffset + 'px';
-                    // 使用通知的实际高度而不是固定高度
-                    const actualHeight = notification.element.offsetHeight || this.notificationHeight;
-                    topOffset += actualHeight + this.spacing;
-                }
-            });
-        }
-    };
+    // 通知队列管理系统 - 已废弃，统一使用 showNotification
+    // const notificationManager = {
+    //     queue: [],  // 待显示的通知队列
+    //     activeNotifications: [],  // 当前显示中的通知
+    //     maxVisible: 3,  // 最多同时显示3个通知
+    //     notificationHeight: 80,  // 每个通知的高度（像素），增加以适应多行文本
+    //     spacing: 15,  // 通知之间的间距，增加以提供更好的视觉分离
+    //     
+    //     // 添加通知到队列
+    //     add: function(message, type = 'info', duration = 5000) {
+    //         const notification = {
+    //             message,
+    //             type,
+    //             duration,
+    //             id: Date.now() + Math.random(),
+    //             element: null
+    //         };
+    //         this.queue.push(notification);
+    //         this.processQueue();
+    //     },
+    //     
+    //     // 处理队列中的通知
+    //     processQueue: function() {
+    //         while (this.queue.length > 0 && this.activeNotifications.length < this.maxVisible) {
+    //             const notification = this.queue.shift();
+    //             this.display(notification);
+    //         }
+    //     },
+    //     
+    //     // 显示通知
+    //     display: function(notification) {
+    //         const element = createSystemNotification(notification.message, notification.type, notification.duration);
+    //         if (element) {
+    //             notification.element = element;
+    //             this.activeNotifications.push(notification);
+    //             this.updatePositions();
+    //             
+    //             // 通知显示完毕后从活动列表移除
+    //             setTimeout(() => {
+    //                 const index = this.activeNotifications.indexOf(notification);
+    //                 if (index > -1) {
+    //                     this.activeNotifications.splice(index, 1);
+    //                     this.updatePositions();
+    //                 }
+    //                 this.processQueue();
+    //             }, notification.duration);
+    //         } else {
+    //             this.processQueue();
+    //         }
+    //     },
+    //     
+    //     // 更新所有通知的位置
+    //     updatePositions: function() {
+    //         let topOffset = 20;
+    //         this.activeNotifications.forEach((notification) => {
+    //             if (notification.element) {
+    //                 notification.element.style.top = topOffset + 'px';
+    //                 // 使用通知的实际高度而不是固定高度
+    //                 const actualHeight = notification.element.offsetHeight || this.notificationHeight;
+    //                 topOffset += actualHeight + this.spacing;
+    //             }
+    //         });
+    //     }
+    // };
 
     // 用于跟踪上一个任务ID以检测任务变化
     let lastTaskId = null;
@@ -2941,7 +2941,54 @@
     }
 
     // 显示通知消息（toast）- 支持流动水动画
-    function showNotification(message, type = 'info', infiniteProgress = false) {
+    // ============= 优化的通知系统（解决重叠问题）=============
+    
+    const NotificationConfig = {
+        TOP_MARGIN: 20,
+        RIGHT_MARGIN: 20,
+        BOTTOM_MARGIN: 20,
+        MIN_HEIGHT: 60,
+        SPACING: 10
+    };
+
+    let notificationStack = [];  // 追踪所有显示中的通知
+
+    function calculateNextTopPosition() {
+        // 计算下一个通知应该显示的Y坐标
+        let nextTop = NotificationConfig.TOP_MARGIN;
+        
+        for (const notif of notificationStack) {
+            if (notif.element && document.body.contains(notif.element)) {
+                const height = notif.element.offsetHeight || NotificationConfig.MIN_HEIGHT;
+                nextTop += height + NotificationConfig.SPACING;
+            }
+        }
+        
+        return nextTop;
+    }
+
+    function repositionAllNotifications() {
+        // 重新排列所有通知的位置
+        let currentTop = NotificationConfig.TOP_MARGIN;
+        
+        for (const notif of notificationStack) {
+            if (notif.element && document.body.contains(notif.element)) {
+                // 只对已经存在的通知添加过渡动画，新通知已经在正确位置了
+                const currentElementTop = parseInt(notif.element.style.top);
+                const targetTop = currentTop;
+                
+                if (currentElementTop !== targetTop) {
+                    notif.element.style.transition = 'top 0.3s ease-out';
+                    notif.element.style.top = `${targetTop}px`;
+                }
+                
+                const height = notif.element.offsetHeight || NotificationConfig.MIN_HEIGHT;
+                currentTop += height + NotificationConfig.SPACING;
+            }
+        }
+    }
+
+    function showNotification(message, type = 'info', infiniteProgress = false, duration = 3000) {
         try {
             // 创建通知容器
             const notification = document.createElement('div');
@@ -2956,15 +3003,23 @@
                 bgColor = '#2196F3';
             }
 
+            // 先计算出正确的初始位置
+            let initialTop = NotificationConfig.TOP_MARGIN;
+            for (const notif of notificationStack) {
+                if (notif.element && document.body.contains(notif.element)) {
+                    const height = notif.element.offsetHeight || NotificationConfig.MIN_HEIGHT;
+                    initialTop += height + NotificationConfig.SPACING;
+                }
+            }
+
             notification.style.cssText = `
                 position: fixed;
-                top: 20px;
-                right: 20px;
+                right: ${NotificationConfig.RIGHT_MARGIN}px;
                 padding: 15px 20px;
                 border-radius: 4px;
                 font-size: 14px;
                 font-weight: bold;
-                z-index: 999999;
+                z-index: ${999999 - notificationStack.length};
                 animation: slideIn 0.3s ease-out;
                 box-shadow: 0 4px 12px rgba(0,0,0,0.15);
                 font-family: Arial, sans-serif;
@@ -2976,6 +3031,7 @@
                 align-items: center;
                 justify-content: space-between;
                 gap: 10px;
+                top: ${initialTop}px;
             `;
 
             // 创建文本容器
@@ -3061,6 +3117,21 @@
             // 添加到页面
             document.body.appendChild(notification);
 
+            // 触发浏览器重排以获得正确的高度
+            const notificationHeight = notification.offsetHeight;
+            
+            // 加入通知栈
+            const notificationData = {
+                element: notification,
+                progressBar: progressBar,
+                textContainer: textContainer,
+                createdAt: Date.now(),
+                height: notificationHeight
+            };
+            notificationStack.push(notificationData);
+            
+            // 不需要重新排列，因为新通知已经在正确的位置
+
             // 返回控制对象，允许外部更新或移除通知
             const controller = {
                 element: notification,
@@ -3099,7 +3170,7 @@
                     setTimeout(() => {
                         notification.style.animation = 'slideOut 0.3s ease-out';
                         setTimeout(() => {
-                            notification.remove();
+                            removeNotificationFromStack(notificationData);
                         }, 300);
                     }, 3000);
                 },
@@ -3108,18 +3179,17 @@
                 remove: function() {
                     notification.style.animation = 'slideOut 0.3s ease-out';
                     setTimeout(() => {
-                        notification.remove();
+                        removeNotificationFromStack(notificationData);
                     }, 300);
                 }
             };
 
             // 如果不是无限进度，则自动移除（仅用于简单的成功/错误通知）
             if (!infiniteProgress) {
-                const duration = 3000;
                 setTimeout(() => {
                     notification.style.animation = 'slideOut 0.3s ease-out';
                     setTimeout(() => {
-                        notification.remove();
+                        removeNotificationFromStack(notificationData);
                     }, 300);
                 }, duration);
             }
@@ -3133,6 +3203,22 @@
             log(LOG_LEVEL.ERROR, `无法显示通知: ${message}`);
             return null;
         }
+    }
+
+    function removeNotificationFromStack(notificationData) {
+        // 从栈中移除通知
+        const index = notificationStack.indexOf(notificationData);
+        if (index > -1) {
+            notificationStack.splice(index, 1);
+        }
+        
+        // 移除DOM元素
+        if (notificationData.element && notificationData.element.parentNode) {
+            notificationData.element.remove();
+        }
+        
+        // 重新排列剩余通知
+        repositionAllNotifications();
     }
 
     // 在标注完成时推送数据
@@ -3158,7 +3244,7 @@
             })(),
             recordState: (collectedData.responseElements?.qualityCheckRecord?.hasRecord && 
                           collectedData.responseElements?.qualityCheckRecord?.latestRecord?.type === 'REJECTED') 
-                         ? 'MODIFYED' 
+                         ? 'MODIFIED' 
                          : 'UNCHECKED',
             isValid: collectedData.responseElements?.userSelectionStatus?.isValid ?? true,
             topicNum: collectedData.responseElements?.userSelectionStatus?.topicCount 
@@ -4529,11 +4615,11 @@ ${JSON.stringify(dataToSend, null, 2)}`;
                     
                     const cookieJson = JSON.stringify(cookies, null, 2);
                     navigator.clipboard.writeText(cookieJson).then(() => {
-                        showNotification('✅ Cookie数据已复制到剪贴板！', 'success');
+                        showNotification('✅ Cookie数据已复制到剪贴板！', 'success', false, 2500);
                         log(LOG_LEVEL.DEBUG, 'Cookie数据:', cookies);
                     }).catch(err => {
                         log(LOG_LEVEL.ERROR, '复制失败:', err);
-                        showNotification('⚠️ 获取成功但复制失败，请查看控制台', 'error');
+                        showNotification('⚠️ 获取成功但复制失败，请查看控制台', 'error', false, 3000);
                     });
                     
                     // 更新显示
@@ -4548,12 +4634,12 @@ ${JSON.stringify(dataToSend, null, 2)}`;
                         });
                     }
                 } else {
-                    showNotification('❌ 未能获取到认证cookie', 'error');
+                    showNotification('❌ 未能获取到认证cookie', 'error', false, 3000);
                     log(LOG_LEVEL.ERROR, '获取cookie失败：未返回数据');
                 }
             } catch (error) {
                 ErrorHandler.handleNetworkError(error, '获取cookie失败');
-                showNotification('❌ 获取cookie失败: ' + error.message, 'error');
+                showNotification('❌ 获取cookie失败: ' + error.message, 'error', false, 3000);
                 log(LOG_LEVEL.ERROR, '获取cookie异常:', error);
             }
         });
@@ -4570,7 +4656,7 @@ ${JSON.stringify(dataToSend, null, 2)}`;
                         notificationController.finalize('✅ 认证信息同步成功！', 'success');
                     }
                 } else {
-                    showNotification('❌ 未能获取到认证cookie，无法同步', 'error');
+                    showNotification('❌ 未能获取到认证cookie，无法同步', 'error', false, 3000);
                 }
             } catch (error) {
                 ErrorHandler.handleNetworkError(error, '同步认证信息失败');
@@ -4578,7 +4664,7 @@ ${JSON.stringify(dataToSend, null, 2)}`;
                 if (notificationController) {
                     notificationController.finalize('❌ 同步认证信息失败: ' + error.message, 'error');
                 } else {
-                    showNotification('❌ 同步认证信息失败: ' + error.message, 'error');
+                    showNotification('❌ 同步认证信息失败: ' + error.message, 'error', false, 3000);
                 }
                 log(LOG_LEVEL.ERROR, '同步认证信息异常:', error);
             }
@@ -4589,7 +4675,7 @@ ${JSON.stringify(dataToSend, null, 2)}`;
         document.getElementById('clear-completion-stats-btn').addEventListener('click', async function() {
             if (confirm('确定要清除所有标注完成统计吗？')) {
                 await clearCompletionStats();
-                showNotification('✅ 标注完成统计已清除！', 'success');
+                showNotification('✅ 标注完成统计已清除！', 'success', false, 2500);
                 // 重新显示模态框以更新显示
                 showDataModal();
             }
@@ -4632,7 +4718,7 @@ ${JSON.stringify(dataToSend, null, 2)}`;
         } catch (error) {
             ErrorHandler.handle(error, '创建模态框异常', null, LOG_LEVEL.ERROR);
             log(LOG_LEVEL.ERROR, '错误堆栈:', error.stack);
-            showNotification('❌ 创建模态框失败: ' + error.message, 'error');
+            showNotification('❌ 创建模态框失败: ' + error.message, 'error', false, 3000);
         }
     }
 
@@ -7149,79 +7235,79 @@ ${JSON.stringify(dataToSend, null, 2)}`;
         return '#2196F3'; // 蓝色（新题）
     }
 
-    // 创建系统提示元素
-    function createSystemNotification(message, type = 'info', duration = 5000) {
-        try {
-            log(LOG_LEVEL.INFO, '[Appen Data Collector] 创建系统提示:', { message, type, duration });
+    // 创建系统提示元素 - 已废弃，统一使用 showNotification
+    // function createSystemNotification(message, type = 'info', duration = 5000) {
+    //     try {
+    //         log(LOG_LEVEL.INFO, '[Appen Data Collector] 创建系统提示:', { message, type, duration });
 
-            // 根据类型设置背景色
-            let backgroundColor = '#4CAF50'; // 默认绿色
-            switch (type) {
-                case 'warning':
-                    backgroundColor = '#FF9800'; // 橙色
-                    break;
-                case 'error':
-                    backgroundColor = '#F44336'; // 红色
-                    break;
-                case 'info':
-                    backgroundColor = '#2196F3'; // 蓝色
-                    break;
-                case 'success':
-                default:
-                    backgroundColor = '#4CAF50'; // 绿色
-                    break;
-            }
-
-            // 创建通知元素
-            const notification = document.createElement('div');
-            notification.textContent = message;
-            notification.style.cssText = `
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                background: ${backgroundColor};
-                color: white;
-                padding: 12px 20px;
-                border-radius: 4px;
-                font-family: Arial, sans-serif;
-                font-size: 14px;
-                z-index: 999999;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-                transition: opacity 0.3s ease;
-                max-width: 400px;
-                width: max-content;
-                min-width: 200px;
-                white-space: normal;
-                word-wrap: break-word;
-                line-height: 1.4;
-            `;
-
-            // 添加到页面
-            if (document.body) {
-                document.body.appendChild(notification);
-                log(LOG_LEVEL.INFO, '[Appen Data Collector] 系统提示已添加到页面');
-            } else {
-                log(LOG_LEVEL.ERROR, '[Appen Data Collector] document.body不存在，无法添加系统提示');
-                return null;
-            }
-
-            // 自动移除通知
-            setTimeout(() => {
-                notification.style.opacity = '0';
-                setTimeout(() => {
-                    if (notification.parentNode) {
-                        notification.parentNode.removeChild(notification);
-                        log(LOG_LEVEL.INFO, '[Appen Data Collector] 系统提示已移除');
-                    }
-                }, 300);
-            }, duration);
-
-            return notification;
-        } catch (error) {
-            log(LOG_LEVEL.ERROR, '[Appen Data Collector] 创建系统提示时出错:', error);
-            return null;
-        }
-    }
+    //         // 根据类型设置背景色
+    //         let backgroundColor = '#4CAF50'; // 默认绿色
+    //         switch (type) {
+    //             case 'warning':
+    //                 backgroundColor = '#FF9800'; // 橙色
+    //                 break;
+    //             case 'error':
+    //                 backgroundColor = '#F44336'; // 红色
+    //                 break;
+    //             case 'info':
+    //                 backgroundColor = '#2196F3'; // 蓝色
+    //                 break;
+    //             case 'success':
+    //             default:
+    //                 backgroundColor = '#4CAF50'; // 绿色
+    //                 break;
+    //         }
+    //
+    //         // 创建通知元素
+    //         const notification = document.createElement('div');
+    //         notification.textContent = message;
+    //         notification.style.cssText = `
+    //             position: fixed;
+    //             top: 20px;
+    //             right: 20px;
+    //             background: ${backgroundColor};
+    //             color: white;
+    //             padding: 12px 20px;
+    //             border-radius: 4px;
+    //             font-family: Arial, sans-serif;
+    //             font-size: 14px;
+    //             z-index: 999999;
+    //             box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    //             transition: opacity 0.3s ease;
+    //             max-width: 400px;
+    //             width: max-content;
+    //             min-width: 200px;
+    //             white-space: normal;
+    //             word-wrap: break-word;
+    //             line-height: 1.4;
+    //         `;
+    //
+    //         // 添加到页面
+    //         if (document.body) {
+    //             document.body.appendChild(notification);
+    //             log(LOG_LEVEL.INFO, '[Appen Data Collector] 系统提示已添加到页面');
+    //         } else {
+    //             log(LOG_LEVEL.ERROR, '[Appen Data Collector] document.body不存在，无法添加系统提示');
+    //             return null;
+    //         }
+    //
+    //         // 自动移除通知
+    //         setTimeout(() => {
+    //             notification.style.opacity = '0';
+    //             setTimeout(() => {
+    //                 if (notification.parentNode) {
+    //                     notification.parentNode.removeChild(notification);
+    //                     log(LOG_LEVEL.INFO, '[Appen Data Collector] 系统提示已移除');
+    //                 }
+    //             }, 300);
+    //         }, duration);
+    //
+    //         return notification;
+    //     } catch (error) {
+    //         log(LOG_LEVEL.ERROR, '[Appen Data Collector] 创建系统提示时出错:', error);
+    //         return null;
+    //     }
+    // }
 
     // 显示返修题提示
     function showReworkPageNotification() {
@@ -7230,7 +7316,7 @@ ${JSON.stringify(dataToSend, null, 2)}`;
             console.log('[Appen Data Collector] 显示返修题提示');
             const message = '🔄 检测到返修题...';
             console.log('[Appen Data Collector] 显示返修题提示消息:', message);
-            notificationManager.add(message, 'warning', 3000);
+            showNotification(message, 'warning', false, 3000);
         } catch (error) {
             log(LOG_LEVEL.ERROR, '[Appen Data Collector] 显示返修题提示时出错:', error);
             console.log('[Appen Data Collector] 显示返修题提示时出错:', error);
@@ -7244,10 +7330,10 @@ ${JSON.stringify(dataToSend, null, 2)}`;
             if (rejectInfo && rejectInfo.comment) {
                 // 显示简洁的工作状态信息，而不是完整的驳回内容
                 const message = '✅ 质检驳回信息已收集...';
-                notificationManager.add(message, 'success', 5000);
+                showNotification(message, 'success', false, 5000);
             } else {
                 const message = '✅ 未找到质检驳回信息';
-                notificationManager.add(message, 'info', 3000);
+                showNotification(message, 'info', false, 3000);
             }
         } catch (error) {
             log(LOG_LEVEL.ERROR, '[Appen Data Collector] 显示质检驳回信息提示时出错:', error);
@@ -7278,10 +7364,10 @@ ${JSON.stringify(dataToSend, null, 2)}`;
                     }, { preserveNewlines: true, removeExtraWhitespace: true });
                     // 复制驳回理由到剪贴板并显示通知
                     navigator.clipboard.writeText(`详细驳回理由:\n\n${cleanComment}`).then(() => {
-                        showNotification('✅ 驳回理由已复制到剪贴板！', 'success');
+                        showNotification('✅ 驳回理由已复制到剪贴板！', 'success', false, 2500);
                         log(LOG_LEVEL.DEBUG, '驳回理由:', cleanComment);
                     }).catch(err => {
-                        showNotification('⚠️ 驳回理由已在控制台显示', 'info');
+                        showNotification('⚠️ 驳回理由已在控制台显示', 'info', false, 2500);
                         log(LOG_LEVEL.DEBUG, '详细驳回理由:\n\n' + cleanComment);
                     });
                 };
@@ -7297,7 +7383,7 @@ ${JSON.stringify(dataToSend, null, 2)}`;
     function showTestNotification() {
         try {
             log(LOG_LEVEL.INFO, '[Appen Data Collector] 显示测试提示');
-            notificationManager.add('🔧 数据收集器已加载', 'success', 3000);
+            showNotification('🔧 数据收集器已加载', 'success', false, 3000);
         } catch (error) {
             log(LOG_LEVEL.ERROR, '[Appen Data Collector] 显示测试提示时出错:', error);
         }
@@ -7314,19 +7400,19 @@ ${JSON.stringify(dataToSend, null, 2)}`;
             // 延迟1秒后显示新题提示
             setTimeout(() => {
                 const message = '🆕 新题 - 请正常标注';
-                notificationManager.add(message, 'info', 3000);
+                showNotification(message, 'info', false, 3000);
             }, 1000);
 
             // 延迟2秒后显示返修题提示
             setTimeout(() => {
                 const message = '🔄 检测到返修题...';
-                notificationManager.add(message, 'warning', 3000);
+                showNotification(message, 'warning', false, 3000);
             }, 2000);
 
             // 延迟3秒后显示质检信息提示
             setTimeout(() => {
                 const message = '✅ 质检驳回信息已收集...';
-                notificationManager.add(message, 'success', 3000);
+                showNotification(message, 'success', false, 3000);
             }, 3000);
 
         } catch (error) {
@@ -7448,7 +7534,7 @@ ${JSON.stringify(dataToSend, null, 2)}`;
             } else {
                 const message = '🆕 新题 - 请正常标注';
                 console.log('[Appen Data Collector] 显示新题提示:', message);
-                notificationManager.add(message, 'info', 3000);
+                showNotification(message, 'info', false, 3000);
             }
         } catch (error) {
             log(LOG_LEVEL.ERROR, '[Appen Data Collector] 显示新旧题状态提示时出错:', error);
