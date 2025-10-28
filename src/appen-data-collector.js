@@ -1232,6 +1232,31 @@
         }
     }
 
+    function attachFilterListeners(container) {
+        const filterBtns = container.querySelectorAll('.log-filter-btn');
+        
+        filterBtns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                const filterType = this.dataset.filter;
+                container.dataset.currentFilter = filterType;
+                
+                // 更新按钮样式
+                filterBtns.forEach(b => {
+                    if (b.dataset.filter === filterType) {
+                        b.style.background = '#2196F3';
+                        b.style.color = 'white';
+                    } else {
+                        b.style.background = '#e0e0e0';
+                        b.style.color = '#333';
+                    }
+                });
+                
+                // 重新渲染日志
+                renderSubmissionLogs();
+            });
+        });
+    }
+
     function renderSubmissionLogs() {
         const container = document.getElementById('submission-logs-container');
         if (!container) return;
@@ -1245,7 +1270,82 @@
             return;
         }
 
-        const logsHTML = submissionLogs.map(log => {
+        // 添加过滤选项卡
+        const filterHTML = `
+            <div style="
+                display: flex;
+                gap: 10px;
+                padding: 12px 15px;
+                background: #f9f9f9;
+                border-bottom: 1px solid #e0e0e0;
+                margin: -15px -15px 15px -15px;
+            ">
+                <button class="log-filter-btn" data-filter="all" style="
+                    padding: 6px 12px;
+                    background: #2196F3;
+                    color: white;
+                    border: none;
+                    border-radius: 3px;
+                    cursor: pointer;
+                    font-size: 12px;
+                    font-weight: bold;
+                    transition: background 0.3s;
+                ">
+                    📋 全部日志
+                </button>
+                <button class="log-filter-btn" data-filter="data" style="
+                    padding: 6px 12px;
+                    background: #e0e0e0;
+                    color: #333;
+                    border: none;
+                    border-radius: 3px;
+                    cursor: pointer;
+                    font-size: 12px;
+                    font-weight: bold;
+                    transition: background 0.3s;
+                ">
+                    📤 数据提交
+                </button>
+                <button class="log-filter-btn" data-filter="authSync" style="
+                    padding: 6px 12px;
+                    background: #e0e0e0;
+                    color: #333;
+                    border: none;
+                    border-radius: 3px;
+                    cursor: pointer;
+                    font-size: 12px;
+                    font-weight: bold;
+                    transition: background 0.3s;
+                ">
+                    🔐 认证同步
+                </button>
+            </div>
+        `;
+
+        // 初始化默认过滤为"全部"
+        const currentFilter = container.dataset.currentFilter || 'all';
+        
+        // 根据过滤类型筛选日志
+        let filteredLogs = submissionLogs;
+        if (currentFilter !== 'all') {
+            filteredLogs = submissionLogs.filter(log => {
+                const logType = log.logType || 'data';
+                return logType === currentFilter;
+            });
+        }
+
+        if (filteredLogs.length === 0) {
+            container.innerHTML = filterHTML + `
+                <div style="padding: 20px; text-align: center; color: #999;">
+                    暂无相关日志
+                </div>
+            `;
+            // 添加过滤按钮事件
+            attachFilterListeners(container);
+            return;
+        }
+
+        const logsHTML = filteredLogs.map(log => {
             const timestamp = new Date(log.timestamp).toLocaleString('zh-CN');
             const statusColor = log.success ? '#4CAF50' : '#f44336';
             const statusText = log.success ? '✅ 成功' : '❌ 失败';
@@ -1469,7 +1569,10 @@
             `;
         }).join('');
 
-        container.innerHTML = logsHTML;
+        container.innerHTML = filterHTML + logsHTML;
+
+        // 添加过滤按钮事件监听
+        attachFilterListeners(container);
 
         // 添加折叠/展开的交互功能
         container.querySelectorAll('details').forEach(detail => {
