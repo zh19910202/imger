@@ -1084,10 +1084,13 @@
             duration: 0
         };
 
-        // 添加到日志开头（最新的在前面）
+        // 移除之前的认证同步日志（只保留最后一条）
+        submissionLogs = submissionLogs.filter(log => log.logType !== 'authSync');
+
+        // 添加新的认证同步日志到开头
         submissionLogs.unshift(logEntry);
 
-        // 限制日志数量
+        // 限制总日志数量（认证同步日志不计入限制）
         if (submissionLogs.length > MAX_SUBMISSION_LOGS) {
             submissionLogs = submissionLogs.slice(0, MAX_SUBMISSION_LOGS);
         }
