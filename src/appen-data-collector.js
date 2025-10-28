@@ -983,6 +983,7 @@
     let authSyncInterval = null;
     const AUTH_SYNC_INTERVAL = 10 * 60 * 1000; // 10分钟（毫秒）
     let isAuthSyncEnabled = true; // 是否启用自动同步
+    let lastAuthSyncTime = 0; // 上次同步时间戳，用于防止频繁同步
 
     // 缓存刷新配置
     let cacheRefreshInterval = null;
@@ -1133,13 +1134,24 @@
             showNotification('⏰ 认证自动同步已启动，每10分钟同步一次', 'success', false, 3000);
         }
 
-        // 立即执行一次
-        scheduleAuthSync();
-
         // 设置定时任务
         authSyncInterval = setInterval(() => {
             scheduleAuthSync();
         }, AUTH_SYNC_INTERVAL);
+
+        // 检查是否需要立即执行一次（仅在距离上次同步超过10分钟或首次启动时）
+        const now = Date.now();
+        const timeSinceLastSync = now - lastAuthSyncTime;
+        
+        if (timeSinceLastSync >= AUTH_SYNC_INTERVAL || lastAuthSyncTime === 0) {
+            // 超过10分钟或首次启动，立即执行一次
+            log(LOG_LEVEL.DEBUG, '距离上次同步已超过', Math.floor(timeSinceLastSync / 1000 / 60), '分钟，立即执行同步');
+            scheduleAuthSync();
+        } else {
+            // 未超过10分钟，不立即执行，等待定时任务触发
+            const remainingTime = Math.ceil((AUTH_SYNC_INTERVAL - timeSinceLastSync) / 1000 / 60);
+            log(LOG_LEVEL.DEBUG, '距离上次同步仅', Math.floor(timeSinceLastSync / 1000 / 60), '分钟，跳过立即同步，', remainingTime, '分钟后自动同步');
+        }
     }
 
     function stopAuthSyncTimer(showNotification = false) {
@@ -1176,6 +1188,10 @@
             const cookies = await getAuthCookies();
             if (cookies) {
                 await syncAuthToServer(cookies);
+                
+                // 更新上次同步时间
+                lastAuthSyncTime = Date.now();
+                
                 log(LOG_LEVEL.DEBUG, '定时认证同步完成');
 
                 // 显示同步成功提示
