@@ -3054,6 +3054,9 @@
         // 初始化侧边栏看板
         initializeDashboardSidebar();
 
+        // 初始化验证错误监听器
+        setupValidationErrorListener();
+
         // 显示测试提示，确认数据收集器已加载
         showTestNotification();
 
@@ -3547,82 +3550,350 @@
         }
     }
 
-    // 检查页面中是否存在验证错误提示
+    // 验证错误状态管理
+    let validationErrorState = {
+        hasError: false,
+        errorDetectedTime: null,
+        errorElement: null
+    };
+
+    // 检查页面中是否存在验证错误提示 - 基于事件监听的新版本
     function hasValidationError() {
         try {
-            // 验证错误提示的完整文本匹配
-            const validationErrorMessage = '当前提交内容与系统设定规则不符合';
-            const validationErrorHint = '请根据规则或提示修改后再重新提交';
-
-            // 搜索页面中所有包含文本的元素
-            const allElements = document.querySelectorAll('*');
-
-            for (const element of allElements) {
-                const text = element.textContent || '';
-                
-                // 检查是否包含验证错误提示（只要出现其中一个关键部分即可认为有错误）
-                if (text.includes(validationErrorMessage) || text.includes(validationErrorHint)) {
-                    log(LOG_LEVEL.WARN, '检测到页面中存在验证规则错误提示');
-                    return true;
-                }
-            }
-
-            return false;
+            // 直接返回当前状态，避免重复检测
+            return validationErrorState.hasError;
         } catch (error) {
-            log(LOG_LEVEL.ERROR, '检查验证错误时出错:', error);
+            log(LOG_LEVEL.ERROR, '检查验证错误状态时出错:', error);
             return false;
         }
     }
 
-    // 检查并处理验证错误提示
-    function checkAndHandleValidationError() {
+    // 重置验证错误状态（用于页面切换或重新加载时）
+    function resetValidationErrorState() {
+        validationErrorState = {
+            hasError: false,
+            errorDetectedTime: null,
+            errorElement: null,
+            notificationShown: false
+        };
+        log(LOG_LEVEL.DEBUG, '验证错误状态已重置');
+    }
+
+    // 检查元素是否为验证错误提示
+    function isValidationErrorElement(element) {
+        if (!element || !element.textContent) return false;
+
+        const text = element.textContent.trim();
+
+        // 优先检查是否包含错误关键词（更高效）
+        const hasErrorKeywords = text.includes('规则不符合') ||
+                                 text.includes('修改后再重新提交') ||
+                                 text.includes('系统设定规则不符合');
+
+        // 完整的错误提示文本匹配
+        const fullErrorMessages = [
+            '当前提交内容与系统设定规则不符合，请根据规则或提示修改后再重新提交',
+            '当前提交内容与系统设定规则不符合',
+            '请根据规则或提示修改后再重新提交'
+        ];
+
+        // 检查是否包含完整的错误提示
+        for (const errorMsg of fullErrorMessages) {
+            if (text === errorMsg || text.includes(errorMsg)) {
+                return true;
+            }
+        }
+
+        // 基于实际HTML结构进行精确检测
+        // 1. 检查是否为错误确认对话框的顶层容器
+        if (element.classList.contains('ant-modal-confirm-error')) {
+            return true;
+        }
+
+        // 2. 检查是否为包含错误内容的特定元素
+        if (element.classList.contains('ant-modal-confirm-content')) {
+            return hasErrorKeywords;
+        }
+
+        // 3. 检查是否为模态框容器且包含错误内容
+        if (element.classList.contains('ant-modal') && hasErrorKeywords) {
+            return true;
+        }
+
+        // 4. 检查其他弹窗/提示框元素
+        const isPopupElement = (
+            element.classList.contains('ant-message') ||
+            element.classList.contains('ant-notification') ||
+            element.classList.contains('ant-alert') ||
+            element.classList.contains('error') ||
+            element.classList.contains('warning') ||
+            element.getAttribute('role') === 'alert' ||
+            element.getAttribute('role') === 'status'
+        );
+
+        // 如果是弹窗元素且包含错误关键词，则认为是验证错误
+        if (isPopupElement && hasErrorKeywords) {
+            return true;
+        }
+
+        return false;
+    }
+
+    // 检查是否为顶层错误容器（避免嵌套元素重复检测）
+    function isTopLevelErrorContainer(element) {
+        // 基于实际HTML结构，优先检测最顶层的错误确认对话框
+        if (element.classList.contains('ant-modal-confirm-error')) {
+            return true; // 这是最精确的顶层容器
+        }
+
+        // 检查模态框的顶层容器
+        if (element.classList.contains('ant-modal')) {
+            return true; // 模态框顶层容器
+        }
+
+        // 检查其他可能的顶层容器
+        if (element.classList.contains('ant-modal-root') ||
+            element.classList.contains('ant-modal-wrap')) {
+            return true;
+        }
+
+        // 避免检测嵌套的内容元素
+        const nestedElements = [
+            'ant-modal-content',
+            'ant-modal-body',
+            'ant-modal-confirm-body-wrapper',
+            'ant-modal-confirm-body',
+            'ant-modal-confirm-content',
+            'ant-modal-confirm-btns'
+        ];
+
+        for (const nestedClass of nestedElements) {
+            if (element.classList.contains(nestedClass)) {
+                return false; // 这些是嵌套元素，不应该单独处理
+            }
+        }
+
+        // 检查是否是其他类型的顶层容器
+        const parent = element.parentElement;
+        if (!parent) return true; // 没有父元素，说明是顶层
+
+        // 如果父元素不是错误容器，则当前元素是顶层
+        return !isValidationErrorElement(parent);
+    }
+
+    // 建立验证错误监听器 - 纯事件驱动
+    function setupValidationErrorListener() {
         try {
-            // 验证错误提示的关键词
-            const validationErrorKeywords = [
-                '当前提交内容与系统设定规则不符合',
-                '请根据规则或提示修改后再重新提交',
-                '不符合',
-                '规则',
-                '修改后'
-            ];
+            // 创建MutationObserver监听DOM变化
+            const observer = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    // 只处理新增的节点 - 这是核心：只监听动态新增的元素
+                    if (mutation.type === 'childList') {
+                        mutation.addedNodes.forEach(function(node) {
+                            if (node.nodeType === Node.ELEMENT_NODE) {
+                                // 检查新增的元素是否为验证错误（只检测顶层容器）
+                                if (isValidationErrorElement(node) && isTopLevelErrorContainer(node)) {
+                                    // 记录用户操作时间 - 说明这是用户操作触发的
+                                    recordUserAction();
+                                    handleValidationErrorDetected(node);
+                                }
 
-            // 搜索页面中所有包含文本的元素
-            const allElements = document.querySelectorAll('*');
-            let foundValidationError = false;
-
-            for (const element of allElements) {
-                const text = element.textContent || '';
-                
-                // 检查是否包含验证错误关键词（完整消息或部分词汇）
-                const hasExactMatch = text.includes('当前提交内容与系统设定规则不符合') || 
-                                     text.includes('请根据规则或提示修改后再重新提交');
-                
-                // 如果找到完整匹配，直接确认为验证错误
-                if (hasExactMatch) {
-                    foundValidationError = true;
-                    log(LOG_LEVEL.WARN, '检测到验证规则错误提示，取消数据推送');
-                    
-                    // 显示提示信息
-                    showNotification('⚠️ 检测到提交规则错误，请根据提示修改后重试', 'warning', false, 3000);
-                    
-                    // 清除待处理的推送状态
-                    try {
-                        localStorage.removeItem("auxis_pending_notification");
-                        pendingNotificationState = null;
-                    } catch (error) {
-                        log(LOG_LEVEL.DEBUG, "清除待处理通知状态失败:", error);
+                                // 递归检查子元素（只检测顶层容器）
+                                const errorElements = node.querySelectorAll ?
+                                    node.querySelectorAll('*') : [];
+                                errorElements.forEach(function(childElement) {
+                                    if (isValidationErrorElement(childElement) && isTopLevelErrorContainer(childElement)) {
+                                        recordUserAction();
+                                        handleValidationErrorDetected(childElement);
+                                    }
+                                });
+                            }
+                        });
                     }
-                    
-                    break;
+
+                    // 处理文本内容变化
+                    if (mutation.type === 'characterData' && mutation.target.parentNode) {
+                        const parentElement = mutation.target.parentNode;
+                        if (isValidationErrorElement(parentElement) && isTopLevelErrorContainer(parentElement)) {
+                            recordUserAction();
+                            handleValidationErrorDetected(parentElement);
+                        }
+                    }
+                });
+            });
+
+            // 开始监听整个文档的变化
+            observer.observe(document.body, {
+                childList: true,      // 监听子节点增删
+                subtree: true,        // 监听所有后代节点
+                characterData: true   // 监听文本内容变化
+            });
+
+            log(LOG_LEVEL.DEBUG, '验证错误监听器已建立（纯事件驱动模式）');
+
+            // 移除页面初始化检查，完全依赖事件监听
+            // checkExistingValidationErrors(); // 注释掉这行
+
+            return observer;
+
+        } catch (error) {
+            log(LOG_LEVEL.ERROR, '建立验证错误监听器时出错:', error);
+            return null;
+        }
+    }
+
+    // 处理检测到验证错误的逻辑 - 纯事件驱动版本
+    function handleValidationErrorDetected(errorElement) {
+        const currentTime = Date.now();
+        const errorText = errorElement.textContent ? errorElement.textContent.trim() : '';
+
+        // 防重复检测机制
+        if (validationErrorState.hasError) {
+            // 检查时间间隔（2秒内认为是同一错误）
+            if (currentTime - validationErrorState.errorDetectedTime < 2000) {
+                // 检查错误文本是否相似
+                const existingText = validationErrorState.errorElement.textContent ?
+                    validationErrorState.errorElement.textContent.trim() : '';
+
+                if (existingText && errorText &&
+                    (existingText.substring(0, 30) === errorText.substring(0, 30))) {
+                    log(LOG_LEVEL.DEBUG, `跳过重复的验证错误检测: "${errorText.substring(0, 30)}..."`);
+                    return;
                 }
             }
-
-            if (!foundValidationError) {
-                log(LOG_LEVEL.DEBUG, '未检测到验证错误提示，继续执行数据推送');
-            }
-        } catch (error) {
-            log(LOG_LEVEL.ERROR, '检查验证错误时出错:', error);
         }
+
+        // 更新错误状态
+        validationErrorState = {
+            hasError: true,
+            errorDetectedTime: currentTime,
+            errorElement: errorElement
+        };
+
+        log(LOG_LEVEL.WARN, `检测到验证错误提示: "${errorText.substring(0, 50)}..."`);
+        log(LOG_LEVEL.DEBUG, `错误元素类型: ${errorElement.tagName}, 类名: ${errorElement.className}`);
+
+        // 只显示一次用户提示
+        if (!validationErrorState.notificationShown) {
+            showNotification('⚠️ 检测到提交规则错误，请根据提示修改后重试', 'warning', false, 4000);
+            validationErrorState.notificationShown = true;
+        }
+
+        // 设置自动清除状态（5秒后自动重置，以防页面状态变化）
+        setTimeout(() => {
+            if (validationErrorState.errorElement === errorElement) {
+                log(LOG_LEVEL.DEBUG, '验证错误状态自动重置');
+                resetValidationErrorState();
+            }
+        }, 5000);
+    }
+
+    // 检查是否为用户操作触发的检测（避免页面加载时的自动检测）
+    let lastUserActionTime = 0;
+    function isUserActionTriggered() {
+        const currentTime = Date.now();
+        return (currentTime - lastUserActionTime) < 5000; // 5秒内有用户操作
+    }
+
+    // 记录用户操作时间
+    function recordUserAction() {
+        lastUserActionTime = Date.now();
+    }
+
+    // 检查是否为真正的错误弹窗（不是静态模板或隐藏元素）
+    function isRealErrorDialog(element) {
+        // 检查是否为modal类型
+        if (!element.classList.contains('ant-modal') &&
+            !element.classList.contains('ant-modal-confirm')) {
+            return false;
+        }
+
+        // 检查是否包含OK按钮（真正的错误弹窗应该有确认按钮）
+        const okButton = element.querySelector('button span, .ant-btn-primary');
+        if (!okButton || !okButton.textContent.includes('OK')) {
+            return false;
+        }
+
+        // 检查是否有错误图标
+        const errorIcon = element.querySelector('.anticon-close-circle, .anticon-exclamation-circle');
+        if (!errorIcon) {
+            return false;
+        }
+
+        return true;
+    }
+
+    // 检查页面当前是否已存在验证错误
+    function checkExistingValidationErrors() {
+        try {
+            // 增加页面状态检查，避免在页面刚加载时误报
+            // 只有在页面完全加载后1秒才检查现有错误
+            setTimeout(() => {
+                const allElements = document.querySelectorAll('*');
+                let foundError = false;
+
+                for (const element of allElements) {
+                    if (isValidationErrorElement(element) && isTopLevelErrorContainer(element)) {
+                        // 额外检查：确保错误元素是可见的（避免检测隐藏的模板元素）
+                        const isVisible = element.offsetParent !== null ||
+                                        window.getComputedStyle(element).display !== 'none';
+
+                        // 额外检查：确保错误元素是在页面主要内容区域
+                        const isInMainContent = isElementInMainContent(element);
+
+                        if (isVisible && isInMainContent) {
+                            handleValidationErrorDetected(element);
+                            foundError = true;
+                            break; // 找到一个即可
+                        }
+                    }
+                }
+
+                if (!foundError) {
+                    log(LOG_LEVEL.DEBUG, '页面初始化检查：未发现活跃的验证错误提示');
+                }
+            }, 1000); // 延迟1秒检查，确保页面完全加载
+
+        } catch (error) {
+            log(LOG_LEVEL.DEBUG, '检查现有验证错误时出错:', error);
+        }
+    }
+
+    // 检查元素是否在页面主要内容区域（避免检测页头、页脚等区域的元素）
+    function isElementInMainContent(element) {
+        // 检查元素是否在modal中（这是我们想要的）
+        if (element.classList.contains('ant-modal') ||
+            element.classList.contains('ant-modal-confirm')) {
+            return true;
+        }
+
+        // 检查是否在主要内容区域
+        const mainSelectors = [
+            'main',
+            '[role="main"]',
+            '.main-content',
+            '.content',
+            '.app-content',
+            '#app',
+            '#root'
+        ];
+
+        for (const selector of mainSelectors) {
+            const parent = element.closest(selector);
+            if (parent) {
+                return true;
+            }
+        }
+
+        // 如果元素是body的直接子元素，且不是header/footer，也认为是主要内容
+        const parent = element.parentElement;
+        if (parent && parent.tagName === 'BODY') {
+            const tagName = element.tagName.toLowerCase();
+            const isNotLayoutElement = !['header', 'footer', 'nav', 'aside'].includes(tagName);
+            return isNotLayoutElement;
+        }
+
+        return false;
     }
 
     function recordCompletionOnConfirm() {
@@ -3818,20 +4089,21 @@
         const isConfirmCompleteButton = buttonText.includes('确认完成');
         if (isConfirmCompleteButton) {
             log(LOG_LEVEL.DEBUG, '检测到"确认完成"按钮点击');
-            
-            // 延迟检查是否出现验证错误提示
-            // 如果有错误提示，则不执行后续操作（不记录完成，不发送数据）
+
+            // 重置验证错误状态，准备检测新的错误提示
+            resetValidationErrorState();
+
+            // 简化检测逻辑：延迟1秒检查，基于事件监听的结果
             setTimeout(() => {
                 if (!hasValidationError()) {
-                    // 没有验证错误，执行正常流程
+                    // 没有检测到验证错误，执行正常流程
                     log(LOG_LEVEL.DEBUG, '未检测到验证错误，执行数据记录和推送');
                     recordCompletionOnConfirm();
                 } else {
-                    // 检测到验证错误，显示警告但不执行推送
-                    log(LOG_LEVEL.WARN, '检测到验证规则错误提示，取消所有后续操作');
-                    showNotification('⚠️ 检测到提交规则错误，请根据提示修改后重试', 'warning', false, 3000);
+                    // 检测到验证错误，阻止推送
+                    log(LOG_LEVEL.WARN, '检测到验证规则错误提示，取消数据推送');
                 }
-            }, 500);
+            }, 1000);
         }
     }
 
