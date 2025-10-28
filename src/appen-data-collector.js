@@ -1018,10 +1018,11 @@
         }
     }
 
-    function addSubmissionLog(request, response, success, error = null) {
+    function addSubmissionLog(request, response, success, error = null, logType = 'data') {
         const logEntry = {
             id: Date.now(),
             timestamp: Date.now(),
+            logType: logType,
             request: {
                 url: CONFIG.API_ENDPOINT,
                 method: 'POST',
@@ -1041,6 +1042,46 @@
             } : null,
             success: success,
             duration: response?.duration || 0
+        };
+
+        // 添加到日志开头（最新的在前面）
+        submissionLogs.unshift(logEntry);
+
+        // 限制日志数量
+        if (submissionLogs.length > MAX_SUBMISSION_LOGS) {
+            submissionLogs = submissionLogs.slice(0, MAX_SUBMISSION_LOGS);
+        }
+
+        saveSubmissionLogs();
+
+        // 如果当前在提交日志tab，刷新显示
+        const logsTab = document.querySelector('.tab-content[data-tab="logs"]');
+        if (logsTab && logsTab.style.display !== 'none') {
+            renderSubmissionLogs();
+        }
+    }
+
+    function addAuthSyncLog(success, data = null, error = null) {
+        const logEntry = {
+            id: Date.now(),
+            timestamp: Date.now(),
+            logType: 'authSync',
+            operation: '同步认证信息',
+            request: {
+                action: 'syncAuth',
+                timestamp: new Date().toLocaleString('zh-CN')
+            },
+            response: success ? {
+                status: 200,
+                statusText: 'OK',
+                data: data || {}
+            } : null,
+            error: error ? {
+                message: error.message || '未知错误',
+                stack: error.stack || ''
+            } : null,
+            success: success,
+            duration: 0
         };
 
         // 添加到日志开头（最新的在前面）
@@ -1206,7 +1247,104 @@
             const statusColor = log.success ? '#4CAF50' : '#f44336';
             const statusText = log.success ? '✅ 成功' : '❌ 失败';
             const statusBg = log.success ? '#e8f5e9' : '#ffebee';
+            
+            // 根据日志类型渲染不同的内容
+            let logTypeLabel = '📤 数据提交';
+            if (log.logType === 'authSync') {
+                logTypeLabel = '🔐 认证同步';
+            }
 
+            // 对于认证同步日志，显示简化的信息
+            if (log.logType === 'authSync') {
+                return `
+                    <div style="
+                        margin-bottom: 15px;
+                        border: 1px solid #e0e0e0;
+                        border-radius: 4px;
+                        background: ${statusBg};
+                        overflow: hidden;
+                    ">
+                        <div style="
+                            padding: 10px 15px;
+                            background: ${statusColor};
+                            color: white;
+                            font-weight: bold;
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: center;
+                        ">
+                            <span>${logTypeLabel} - ${statusText}</span>
+                            <span style="font-size: 12px; opacity: 0.9;">${timestamp}</span>
+                        </div>
+
+                        <div style="padding: 15px;">
+                            <div style="margin-bottom: 10px;">
+                                <strong>操作信息:</strong>
+                                <div style="margin-left: 10px; margin-top: 5px;">
+                                    <div><strong>操作:</strong> ${log.operation || '同步认证信息'}</div>
+                                    <div><strong>执行时间:</strong> ${log.request.timestamp}</div>
+                                </div>
+                            </div>
+
+                            ${log.response ? `
+                                <div style="margin-bottom: 10px;">
+                                    <strong>响应信息:</strong>
+                                    <div style="margin-left: 10px; margin-top: 5px;">
+                                        <div><strong>状态:</strong> ${log.response.status} ${log.response.statusText}</div>
+                                        ${log.response.data && Object.keys(log.response.data).length > 0 ? `
+                                            <details style="margin-top: 5px;">
+                                                <summary style="cursor: pointer; color: #4CAF50; font-weight: bold;">
+                                                    📥 响应数据 (点击展开/收起)
+                                                </summary>
+                                                <pre style="
+                                                    background: #f5f5f5;
+                                                    padding: 10px;
+                                                    border-radius: 3px;
+                                                    margin: 5px 0;
+                                                    font-size: 11px;
+                                                    overflow-x: auto;
+                                                    white-space: pre-wrap;
+                                                    word-wrap: break-word;
+                                                ">${JSON.stringify(log.response.data, null, 2)}</pre>
+                                            </details>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            ` : ''}
+
+                            ${log.error ? `
+                                <div style="margin-bottom: 10px;">
+                                    <strong>错误信息:</strong>
+                                    <div style="
+                                        margin-left: 10px;
+                                        margin-top: 5px;
+                                        padding: 8px;
+                                        background: #ffebee;
+                                        border-radius: 3px;
+                                        color: #c62828;
+                                        font-size: 12px;
+                                    ">
+                                        <div><strong>错误:</strong> ${log.error.message}</div>
+                                        ${log.error.stack ? `<details style="margin-top: 5px;">
+                                            <summary style="cursor: pointer; font-weight: bold;">堆栈信息</summary>
+                                            <pre style="
+                                                background: #f5f5f5;
+                                                padding: 8px;
+                                                border-radius: 3px;
+                                                margin: 5px 0;
+                                                font-size: 10px;
+                                                overflow-x: auto;
+                                            ">${log.error.stack}</pre>
+                                        </details>` : ''}
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+
+            // 对于数据提交日志，显示原有的详细信息
             return `
                 <div style="
                     margin-bottom: 15px;
@@ -1224,7 +1362,7 @@
                         justify-content: space-between;
                         align-items: center;
                     ">
-                        <span>${statusText}</span>
+                        <span>${logTypeLabel} - ${statusText}</span>
                         <span style="font-size: 12px; opacity: 0.9;">${timestamp}</span>
                     </div>
 
@@ -5485,15 +5623,18 @@ ${JSON.stringify(dataToSend, null, 2)}`;
 
                     if (response.success) {
                         log(LOG_LEVEL.DEBUG, '认证信息同步成功:', response.result);
+                        addAuthSyncLog(true, response.result);
                         resolve(response.result);
                     } else {
                         log(LOG_LEVEL.ERROR, 'background script同步认证信息失败:', response.error);
+                        addAuthSyncLog(false, null, new Error(response.error));
                         reject(new Error(response.error));
                     }
                 });
             });
         } catch (error) {
             log(LOG_LEVEL.ERROR, '同步认证信息时出错:', error);
+            addAuthSyncLog(false, null, error);
             throw error;
         }
     }
