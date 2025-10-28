@@ -1120,16 +1120,26 @@
 
         try {
             log(LOG_LEVEL.DEBUG, '开始定时同步认证信息');
+
+            // 显示定时任务触发提示
+            showNotification('⏰ 正在执行定时认证同步...', 'loading', false, 2000);
+
             const cookies = await getAuthCookies();
             if (cookies) {
                 await syncAuthToServer(cookies);
                 log(LOG_LEVEL.DEBUG, '定时认证同步完成');
+
+                // 显示同步成功提示
+                showNotification('✅ 定时认证同步完成', 'success', false, 2000);
             } else {
                 log(LOG_LEVEL.DEBUG, '未获取到认证cookie，跳过认证同步');
+                showNotification('⚠️ 未获取到认证信息，跳过本次同步', 'warning', false, 2000);
             }
         } catch (error) {
             log(LOG_LEVEL.WARN, '定时认证同步失败:', error.message);
-            // 定时任务的错误不显示用户通知，避免频繁打扰
+
+            // 显示同步失败提示
+            showNotification('❌ 定时认证同步失败: ' + error.message, 'error', false, 3000);
         }
     }
 
