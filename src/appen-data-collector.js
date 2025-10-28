@@ -984,6 +984,11 @@
     const AUTH_SYNC_INTERVAL = 10 * 60 * 1000; // 10分钟（毫秒）
     let isAuthSyncEnabled = true; // 是否启用自动同步
 
+    // 缓存刷新配置
+    let cacheRefreshInterval = null;
+    const CACHE_REFRESH_INTERVAL = 10 * 60 * 1000; // 10分钟（毫秒），与数据服务器同步
+    let isCacheRefreshEnabled = true; // 是否启用缓存自动刷新
+
     // 清除localStorage中的待处理通知状态
             try {
                 localStorage.removeItem("auxis_pending_notification");
@@ -1211,6 +1216,99 @@
             log(LOG_LEVEL.WARN, '加载认证同步设置失败:', error);
         }
     }
+
+    // ============ 缓存刷新功能 ============
+    function startCacheRefreshTimer() {
+        if (cacheRefreshInterval) {
+            log(LOG_LEVEL.DEBUG, '缓存自动刷新定时任务已在运行');
+            return;
+        }
+
+        if (!isCacheRefreshEnabled) {
+            log(LOG_LEVEL.DEBUG, '缓存自动刷新已禁用，不启动定时任务');
+            return;
+        }
+
+        log(LOG_LEVEL.INFO, '启动缓存自动刷新定时任务，间隔', CACHE_REFRESH_INTERVAL / 1000 / 60, '分钟');
+
+        // 立即执行一次，加载初始缓存数据
+        scheduleCacheRefresh();
+
+        // 设置定时任务，每 10 分钟刷新一次
+        cacheRefreshInterval = setInterval(() => {
+            scheduleCacheRefresh();
+        }, CACHE_REFRESH_INTERVAL);
+    }
+
+    function stopCacheRefreshTimer() {
+        if (cacheRefreshInterval) {
+            clearInterval(cacheRefreshInterval);
+            cacheRefreshInterval = null;
+            log(LOG_LEVEL.INFO, '缓存自动刷新定时任务已停止');
+        }
+    }
+
+    async function scheduleCacheRefresh() {
+        if (!isCacheRefreshEnabled) {
+            log(LOG_LEVEL.DEBUG, '缓存自动刷新已禁用，跳过本次刷新');
+            return;
+        }
+
+        try {
+            log(LOG_LEVEL.DEBUG, '开始执行定时缓存刷新');
+
+            const now = Date.now();
+            const lastRefresh = localStorage.getItem('appen_cache_refresh_timestamp');
+
+            // 检查是否在 10 分钟间隔内，防止过于频繁的刷新
+            if (lastRefresh && now - parseInt(lastRefresh) < CACHE_REFRESH_INTERVAL - 1000) {
+                log(LOG_LEVEL.DEBUG, '距离上次刷新时间不足 10 分钟，跳过本次刷新');
+                return;
+            }
+
+            // 更新缓存刷新时间戳
+            localStorage.setItem('appen_cache_refresh_timestamp', now.toString());
+
+            // 触发缓存更新事件 - UI 层监听此事件并刷新数据显示
+            const refreshEvent = new CustomEvent('statsDataRefreshed', {
+                detail: {
+                    timestamp: now,
+                    reason: '定时缓存刷新'
+                }
+            });
+            window.dispatchEvent(refreshEvent);
+
+            log(LOG_LEVEL.DEBUG, '缓存刷新完成，已触发 statsDataRefreshed 事件');
+        } catch (error) {
+            log(LOG_LEVEL.WARN, '缓存刷新失败:', error.message);
+        }
+    }
+
+    function enableCacheRefresh() {
+        isCacheRefreshEnabled = true;
+        localStorage.setItem('appen_cache_refresh_enabled', 'true');
+        startCacheRefreshTimer();
+        log(LOG_LEVEL.INFO, '缓存自动刷新已启用');
+    }
+
+    function disableCacheRefresh() {
+        isCacheRefreshEnabled = false;
+        localStorage.setItem('appen_cache_refresh_enabled', 'false');
+        stopCacheRefreshTimer();
+        log(LOG_LEVEL.INFO, '缓存自动刷新已禁用');
+    }
+
+    function loadCacheRefreshSettings() {
+        try {
+            const saved = localStorage.getItem('appen_cache_refresh_enabled');
+            if (saved !== null) {
+                isCacheRefreshEnabled = saved === 'true';
+            }
+        } catch (error) {
+            log(LOG_LEVEL.WARN, '加载缓存刷新设置失败:', error);
+        }
+    }
+
 
     function updateAuthSyncStatusUI() {
         const statusIcon = document.getElementById('sync-status-icon-header');
@@ -2561,6 +2659,12 @@
             startAuthSyncTimer(false); // 初始化时不显示通知，避免函数未定义错误
         }
 
+        // 加载缓存刷新设置并启动定时任务
+        loadCacheRefreshSettings();
+        if (isCacheRefreshEnabled) {
+            startCacheRefreshTimer(); // 启动 10 分钟自动缓存刷新
+        }
+
         // 显示测试提示，确认数据收集器已加载
         showTestNotification();
 
@@ -2568,6 +2672,9 @@
         setTimeout(() => {
             if (isAuthSyncEnabled && authSyncInterval) {
                 showNotification('⏰ 认证自动同步已启动，每10分钟同步一次', 'success', false, 3000);
+            }
+            if (isCacheRefreshEnabled && cacheRefreshInterval) {
+                showNotification('📊 数据缓存自动刷新已启动，每10分钟刷新一次', 'success', false, 3000);
             }
         }, 2000); // 延迟2秒显示，避免与其他通知冲突
 

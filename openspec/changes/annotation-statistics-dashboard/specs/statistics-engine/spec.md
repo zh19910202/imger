@@ -113,18 +113,59 @@ function saveDailyStats(date, stats) {
 
 ### Requirement: Data Caching
 #### Scenario:
-频繁查询同一时间范围的报表时，使用缓存避免重复计算。
+频繁查询同一时间范围的报表时，使用缓存避免重复计算。同时支持 10 分钟自动刷新机制以保持数据与服务器同步。
 - **缓存策略**: 
-  - 日粒度: 实时数据，不缓存
-  - 周粒度: 缓存 7 天
-  - 月粒度: 缓存 30 天
+  - 日粒度: 实时数据，每 10 分钟刷新一次
+  - 周粒度: 缓存 7 天，每 10 分钟检查更新
+  - 月粒度: 缓存 30 天，每 10 分钟检查更新
 - **缓存失效**: 当有新数据写入时，清除相关缓存
+- **自动刷新**: 每 10 分钟检查是否需要更新缓存数据
 
 **缓存键格式**:
 ```
 appen_cache_week_YYYY-Www
 appen_cache_month_YYYY-MM
 appen_cache_range_YYYYMMDD_YYYYMMDD
+appen_cache_refresh_timestamp  // 记录上次刷新时间
+```
+
+**10 分钟自动刷新实现**:
+```javascript
+// 在应用启动时初始化
+const CACHE_REFRESH_INTERVAL = 10 * 60 * 1000; // 10 分钟
+
+let cacheRefreshTimer = null;
+
+function initializeCacheRefresh() {
+  // 应用启动时立即加载一次
+  refreshAllCaches();
+  
+  // 每 10 分钟自动刷新一次
+  cacheRefreshTimer = setInterval(() => {
+    refreshAllCaches();
+  }, CACHE_REFRESH_INTERVAL);
+}
+
+function refreshAllCaches() {
+  const now = Date.now();
+  const lastRefresh = localStorage.getItem('appen_cache_refresh_timestamp');
+  
+  // 检查是否需要刷新（10 分钟间隔）
+  if (lastRefresh && now - lastRefresh < CACHE_REFRESH_INTERVAL) {
+    return;
+  }
+  
+  // 重新计算所有缓存数据
+  updateDailyCaches();
+  updateWeeklyCaches();
+  updateMonthlyCaches();
+  
+  // 更新最后刷新时间
+  localStorage.setItem('appen_cache_refresh_timestamp', now.toString());
+  
+  // 触发缓存更新事件（UI 监听并刷新显示）
+  window.dispatchEvent(new CustomEvent('statsDataRefreshed', { detail: { timestamp: now } }));
+}
 ```
 
 ### Requirement: Data Cleanup
