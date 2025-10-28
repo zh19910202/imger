@@ -13,7 +13,7 @@
         // 数据推送的API端点
         API_ENDPOINT: 'http://192.168.31.74:1145/api/Task/apple/add', //http://192.168.31.74:1145/api/Task/apple/add  http://www.skytree.ink/api/Task/add
         // 认证信息同步的API端点
-        AUTH_SYNC_ENDPOINT: 'http://192.168.31.74:1145/api/Task/apple/sync', //http://www.skytree.ink/api/Task/apple/sync
+        AUTH_SYNC_ENDPOINT: 'http://192.168.31.74:1145/api/task/apple/sync', //http://www.skytree.ink/api/task/apple/sync
         // 最大重试次数
         MAX_RETRY_ATTEMPTS: 3,
         // 重试间隔（毫秒）
@@ -974,7 +974,17 @@
     let currentNotificationController = null;
     let pendingNotificationState = null;
     let isPushingData = false;
-            // 清除localStorage中的待处理通知状态
+
+    // 提交日志相关变量
+    let submissionLogs = [];
+    const MAX_SUBMISSION_LOGS = 50; // 最多保存50条提交日志
+
+    // 定时同步认证信息相关变量
+    let authSyncInterval = null;
+    const AUTH_SYNC_INTERVAL = 10 * 60 * 1000; // 10分钟（毫秒）
+    let isAuthSyncEnabled = true; // 是否启用自动同步
+
+    // 清除localStorage中的待处理通知状态
             try {
                 localStorage.removeItem("auxis_pending_notification");
                 pendingNotificationState = null;
@@ -986,6 +996,322 @@
     let lastSpecifiedElementId = null;
     let currentPageUrl = null;
     let specifiedElementIdAsTopicId = null; // 用于存储指定元素 ID 作为题目 ID
+
+    // 提交日志管理函数
+    function saveSubmissionLogs() {
+        try {
+            localStorage.setItem('auxis_submission_logs', JSON.stringify(submissionLogs));
+        } catch (error) {
+            log(LOG_LEVEL.WARN, '保存提交日志失败:', error);
+        }
+    }
+
+    function loadSubmissionLogs() {
+        try {
+            const saved = localStorage.getItem('auxis_submission_logs');
+            if (saved) {
+                submissionLogs = JSON.parse(saved);
+            }
+        } catch (error) {
+            log(LOG_LEVEL.WARN, '加载提交日志失败:', error);
+            submissionLogs = [];
+        }
+    }
+
+    function addSubmissionLog(request, response, success, error = null) {
+        const logEntry = {
+            id: Date.now(),
+            timestamp: Date.now(),
+            request: {
+                url: CONFIG.API_ENDPOINT,
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: request
+            },
+            response: success ? {
+                status: 200,
+                statusText: 'OK',
+                data: response
+            } : null,
+            error: error ? {
+                message: error.message,
+                stack: error.stack
+            } : null,
+            success: success,
+            duration: response?.duration || 0
+        };
+
+        // 添加到日志开头（最新的在前面）
+        submissionLogs.unshift(logEntry);
+
+        // 限制日志数量
+        if (submissionLogs.length > MAX_SUBMISSION_LOGS) {
+            submissionLogs = submissionLogs.slice(0, MAX_SUBMISSION_LOGS);
+        }
+
+        saveSubmissionLogs();
+
+        // 如果当前在提交日志tab，刷新显示
+        const logsTab = document.querySelector('.tab-content[data-tab="logs"]');
+        if (logsTab && logsTab.style.display !== 'none') {
+            renderSubmissionLogs();
+        }
+    }
+
+    function clearSubmissionLogs() {
+        submissionLogs = [];
+        saveSubmissionLogs();
+    }
+
+    // 定时同步认证信息的管理函数
+    function startAuthSyncTimer(showNotification = true) {
+        if (authSyncInterval) {
+            log(LOG_LEVEL.DEBUG, '认证同步定时任务已在运行');
+            return;
+        }
+
+        if (!isAuthSyncEnabled) {
+            log(LOG_LEVEL.DEBUG, '认证同步已禁用，不启动定时任务');
+            return;
+        }
+
+        log(LOG_LEVEL.INFO, '启动认证同步定时任务，间隔', AUTH_SYNC_INTERVAL / 1000 / 60, '分钟');
+
+        // 显示系统通知（可选）
+        if (showNotification) {
+            showNotification('⏰ 认证自动同步已启动，每10分钟同步一次', 'success', false, 3000);
+        }
+
+        // 立即执行一次
+        scheduleAuthSync();
+
+        // 设置定时任务
+        authSyncInterval = setInterval(() => {
+            scheduleAuthSync();
+        }, AUTH_SYNC_INTERVAL);
+    }
+
+    function stopAuthSyncTimer(showNotification = false) {
+        if (authSyncInterval) {
+            clearInterval(authSyncInterval);
+            authSyncInterval = null;
+            log(LOG_LEVEL.INFO, '认证同步定时任务已停止');
+
+            // 显示系统通知（可选）
+            if (showNotification) {
+                showNotification('⏸️ 认证自动同步已停止', 'info', false, 2000);
+            }
+        }
+    }
+
+    async function scheduleAuthSync() {
+        if (!isAuthSyncEnabled) {
+            log(LOG_LEVEL.DEBUG, '认证同步已禁用，跳过本次同步');
+            return;
+        }
+
+        // 检查是否在目标页面
+        if (!isTargetPage()) {
+            log(LOG_LEVEL.DEBUG, '非目标页面，跳过认证同步');
+            return;
+        }
+
+        try {
+            log(LOG_LEVEL.DEBUG, '开始定时同步认证信息');
+            const cookies = await getAuthCookies();
+            if (cookies) {
+                await syncAuthToServer(cookies);
+                log(LOG_LEVEL.DEBUG, '定时认证同步完成');
+            } else {
+                log(LOG_LEVEL.DEBUG, '未获取到认证cookie，跳过认证同步');
+            }
+        } catch (error) {
+            log(LOG_LEVEL.WARN, '定时认证同步失败:', error.message);
+            // 定时任务的错误不显示用户通知，避免频繁打扰
+        }
+    }
+
+    function enableAuthSync() {
+        isAuthSyncEnabled = true;
+        localStorage.setItem('auxis_auth_sync_enabled', 'true');
+        startAuthSyncTimer(false); // 手动启用时不显示启动通知，由按钮事件处理
+        log(LOG_LEVEL.INFO, '认证同步已启用');
+    }
+
+    function disableAuthSync() {
+        isAuthSyncEnabled = false;
+        localStorage.setItem('auxis_auth_sync_enabled', 'false');
+        stopAuthSyncTimer(false); // 手动禁用时不显示停止通知，由按钮事件处理
+        log(LOG_LEVEL.INFO, '认证同步已禁用');
+    }
+
+    function loadAuthSyncSettings() {
+        try {
+            const saved = localStorage.getItem('auxis_auth_sync_enabled');
+            if (saved !== null) {
+                isAuthSyncEnabled = saved === 'true';
+            }
+        } catch (error) {
+            log(LOG_LEVEL.WARN, '加载认证同步设置失败:', error);
+        }
+    }
+
+    function updateAuthSyncStatusUI() {
+        const statusIcon = document.getElementById('sync-status-icon-header');
+        const statusText = document.getElementById('sync-status-text-header');
+        const toggleBtn = document.getElementById('toggle-auth-sync-btn-header');
+
+        if (!statusIcon || !statusText || !toggleBtn) return;
+
+        if (isAuthSyncEnabled) {
+            statusIcon.textContent = '⏰';
+            statusText.textContent = '自动同步: 启用';
+            toggleBtn.textContent = '禁用';
+            toggleBtn.style.background = '#4CAF50';
+        } else {
+            statusIcon.textContent = '⏸️';
+            statusText.textContent = '自动同步: 禁用';
+            toggleBtn.textContent = '启用';
+            toggleBtn.style.background = '#f44336';
+        }
+    }
+
+    function renderSubmissionLogs() {
+        const container = document.getElementById('submission-logs-container');
+        if (!container) return;
+
+        if (submissionLogs.length === 0) {
+            container.innerHTML = `
+                <div style="padding: 20px; text-align: center; color: #999;">
+                    暂无提交日志
+                </div>
+            `;
+            return;
+        }
+
+        const logsHTML = submissionLogs.map(log => {
+            const timestamp = new Date(log.timestamp).toLocaleString('zh-CN');
+            const statusColor = log.success ? '#4CAF50' : '#f44336';
+            const statusText = log.success ? '✅ 成功' : '❌ 失败';
+            const statusBg = log.success ? '#e8f5e9' : '#ffebee';
+
+            return `
+                <div style="
+                    margin-bottom: 15px;
+                    border: 1px solid #e0e0e0;
+                    border-radius: 4px;
+                    background: ${statusBg};
+                    overflow: hidden;
+                ">
+                    <div style="
+                        padding: 10px 15px;
+                        background: ${statusColor};
+                        color: white;
+                        font-weight: bold;
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                    ">
+                        <span>${statusText}</span>
+                        <span style="font-size: 12px; opacity: 0.9;">${timestamp}</span>
+                    </div>
+
+                    <div style="padding: 15px;">
+                        <div style="margin-bottom: 10px;">
+                            <strong>请求信息:</strong>
+                            <div style="margin-left: 10px; margin-top: 5px;">
+                                <div><strong>URL:</strong> ${log.request.url}</div>
+                                <div><strong>方法:</strong> ${log.request.method}</div>
+                                <details style="margin-top: 5px;">
+                                    <summary style="cursor: pointer; color: #2196F3; font-weight: bold;">
+                                        📤 请求体 (点击展开/收起)
+                                    </summary>
+                                    <pre style="
+                                        background: #f5f5f5;
+                                        padding: 10px;
+                                        border-radius: 3px;
+                                        margin: 5px 0;
+                                        font-size: 11px;
+                                        overflow-x: auto;
+                                        white-space: pre-wrap;
+                                        word-wrap: break-word;
+                                    ">${JSON.stringify(log.request.body, null, 2)}</pre>
+                                </details>
+                            </div>
+                        </div>
+
+                        ${log.response ? `
+                            <div style="margin-bottom: 10px;">
+                                <strong>响应信息:</strong>
+                                <div style="margin-left: 10px; margin-top: 5px;">
+                                    <div><strong>状态:</strong> ${log.response.status} ${log.response.statusText}</div>
+                                    <details style="margin-top: 5px;">
+                                        <summary style="cursor: pointer; color: #4CAF50; font-weight: bold;">
+                                            📥 响应数据 (点击展开/收起)
+                                        </summary>
+                                        <pre style="
+                                            background: #f5f5f5;
+                                            padding: 10px;
+                                            border-radius: 3px;
+                                            margin: 5px 0;
+                                            font-size: 11px;
+                                            overflow-x: auto;
+                                            white-space: pre-wrap;
+                                            word-wrap: break-word;
+                                        ">${JSON.stringify(log.response.data, null, 2)}</pre>
+                                    </details>
+                                </div>
+                            </div>
+                        ` : ''}
+
+                        ${log.error ? `
+                            <div style="margin-bottom: 10px;">
+                                <strong>错误信息:</strong>
+                                <div style="
+                                    margin-left: 10px;
+                                    margin-top: 5px;
+                                    padding: 8px;
+                                    background: #ffebee;
+                                    border-radius: 3px;
+                                    color: #c62828;
+                                    font-size: 12px;
+                                ">
+                                    <div><strong>错误:</strong> ${log.error.message}</div>
+                                    ${log.error.stack ? `<details style="margin-top: 5px;">
+                                        <summary style="cursor: pointer; font-weight: bold;">堆栈信息</summary>
+                                        <pre style="
+                                            background: #f5f5f5;
+                                            padding: 8px;
+                                            border-radius: 3px;
+                                            margin: 5px 0;
+                                            font-size: 10px;
+                                            overflow-x: auto;
+                                        ">${log.error.stack}</pre>
+                                    </details>` : ''}
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        container.innerHTML = logsHTML;
+
+        // 添加折叠/展开的交互功能
+        container.querySelectorAll('details').forEach(detail => {
+            detail.addEventListener('toggle', function() {
+                if (this.open) {
+                    // 关闭其他已展开的details（可选的手风琴效果）
+                    // container.querySelectorAll('details').forEach(other => {
+                    //     if (other !== this) other.open = false;
+                    // });
+                }
+            });
+        });
+    }
 
     // 从缓存获取任务开始时间
     async function getCachedStartTime() {
@@ -1887,8 +2213,24 @@
 
         await loadCompletionStats();
 
+        // 加载提交日志
+        loadSubmissionLogs();
+
+        // 加载认证同步设置并启动定时任务
+        loadAuthSyncSettings();
+        if (isAuthSyncEnabled) {
+            startAuthSyncTimer(false); // 初始化时不显示通知，避免函数未定义错误
+        }
+
         // 显示测试提示，确认数据收集器已加载
         showTestNotification();
+
+        // 延迟显示定时任务启动通知，确保页面已稳定
+        setTimeout(() => {
+            if (isAuthSyncEnabled && authSyncInterval) {
+                showNotification('⏰ 认证自动同步已启动，每10分钟同步一次', 'success', false, 3000);
+            }
+        }, 2000); // 延迟2秒显示，避免与其他通知冲突
 
         // 检查是否为欢迎页面
         if (isWelcomePage()) {
@@ -2898,6 +3240,9 @@
 
                     log(LOG_LEVEL.DEBUG, '数据推送成功:', response);
 
+                    // 记录提交日志
+                    addSubmissionLog(dataToSend, response, true);
+
                     // 推送成功后清除缓存的开始时间
                     await clearCachedStartTime();
 
@@ -2919,6 +3264,9 @@
             }
 
             log(LOG_LEVEL.ERROR, '数据推送最终失败，已达到最大重试次数');
+
+            // 记录提交日志（失败）
+            addSubmissionLog(dataToSend, null, false, error);
 
             // 停止流动水动画并显示失败通知
             if (notificationController) {
@@ -3267,6 +3615,35 @@
                     flex: 0 0 auto;
                 ">
                     <h2 style="margin: 0; font-size: 18px; color: #333;">Appen数据收集信息</h2>
+
+                    <!-- 定时任务控制组件 -->
+                    <div id="auth-sync-status-header" style="
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                        padding: 6px 10px;
+                        background: #e8f5e9;
+                        border: 1px solid #c8e6c9;
+                        border-radius: 4px;
+                        font-size: 11px;
+                        color: #2e7d32;
+                        margin-left: 15px;
+                    ">
+                        <span id="sync-status-icon-header">⏰</span>
+                        <span id="sync-status-text-header">自动同步: 启用</span>
+                        <button id="toggle-auth-sync-btn-header" style="
+                            background: #4CAF50;
+                            color: white;
+                            border: none;
+                            padding: 3px 6px;
+                            border-radius: 3px;
+                            cursor: pointer;
+                            font-size: 10px;
+                            margin-left: 4px;
+                            transition: background-color 0.2s;
+                        ">禁用</button>
+                    </div>
+
                     <button id="close-modal-btn" style="
                         background: #ff4444;
                         color: white;
@@ -3318,6 +3695,17 @@
                         font-weight: normal;
                         color: #666;
                     ">历史统计</button>
+                    <button class="modal-tab" data-tab="logs" style="
+                        flex: 1;
+                        padding: 10px 5px;
+                        background: #f5f5f5;
+                        border: none;
+                        border-bottom: 2px solid transparent;
+                        cursor: pointer;
+                        font-size: 14px;
+                        font-weight: normal;
+                        color: #666;
+                    ">提交日志</button>
                 </div>
 
                 <!-- 标签页内容区域 -->
@@ -3510,6 +3898,48 @@
                         </div>
                 </div>
 
+                    <!-- 提交日志 标签页 -->
+                    <div class="tab-content" data-tab="logs" style="
+                        background: #fce4ec;
+                        padding: 15px;
+                        border-radius: 4px;
+                        line-height: 1.6;
+                        font-size: 14px;
+                        display: none;
+                    ">
+                        <div style="
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: center;
+                            margin-bottom: 15px;
+                        ">
+                            <h3 style="margin: 0; color: #c2185b; font-size: 16px;">
+                                📋 数据提交日志
+                            </h3>
+                            <button id="clear-logs-btn" style="
+                                background: #f44336;
+                                color: white;
+                                border: none;
+                                padding: 6px 12px;
+                                border-radius: 3px;
+                                cursor: pointer;
+                                font-size: 12px;
+                            ">清空日志</button>
+                        </div>
+
+                        <div id="submission-logs-container" style="
+                            max-height: 400px;
+                            overflow-y: auto;
+                            border: 1px solid #f8bbd9;
+                            border-radius: 4px;
+                            background: white;
+                        ">
+                            <div style="padding: 20px; text-align: center; color: #999;">
+                                暂无提交日志
+                            </div>
+                        </div>
+                    </div>
+
                 <!-- 底部Footer区域：全局操作按钮栏
 
                     功能说明：
@@ -3612,6 +4042,21 @@
 
             #appen-data-modal .modal-header:active {
                 cursor: grabbing;
+            }
+
+            /* 定时任务控制按钮样式 */
+            #appen-data-modal #auth-sync-status-header {
+                transition: all 0.2s ease;
+            }
+
+            #appen-data-modal #auth-sync-status-header:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+
+            #appen-data-modal #toggle-auth-sync-btn-header:hover {
+                opacity: 0.8;
+                transform: scale(1.05);
             }
 
             #appen-data-modal .resize-handle {
@@ -3778,6 +4223,11 @@
                 content.style.display = content.dataset.tab === targetTab ? 'block' : 'none';
             });
 
+            // 如果切换到提交日志tab，渲染日志内容
+            if (targetTab === 'logs') {
+                renderSubmissionLogs();
+            }
+
             // 标签页切换后重新调整高度
             setTimeout(adjustModalHeight, 50);
         }
@@ -3788,6 +4238,37 @@
                 switchTab(this.dataset.tab);
             });
         });
+
+        // 绑定清空日志按钮事件
+        const clearLogsBtn = document.getElementById('clear-logs-btn');
+        if (clearLogsBtn) {
+            clearLogsBtn.addEventListener('click', function() {
+                if (confirm('确定要清空所有提交日志吗？此操作不可恢复。')) {
+                    clearSubmissionLogs();
+                    renderSubmissionLogs(); // 重新渲染日志显示
+                    showNotification('🗑️ 提交日志已清空', 'success', false, 2000);
+                }
+            });
+        }
+
+        // 绑定定时同步切换按钮事件
+        const toggleAuthSyncBtn = document.getElementById('toggle-auth-sync-btn-header');
+        if (toggleAuthSyncBtn) {
+            toggleAuthSyncBtn.addEventListener('click', function() {
+                if (isAuthSyncEnabled) {
+                    disableAuthSync();
+                } else {
+                    enableAuthSync();
+                }
+                updateAuthSyncStatusUI();
+
+                const action = isAuthSyncEnabled ? '启用' : '禁用';
+                showNotification(`⏰ 认证自动同步已${action}`, 'success', false, 2000);
+            });
+        }
+
+        // 更新认证同步状态UI
+        updateAuthSyncStatusUI();
 
         // 默认显示实时状态标签页
         switchTab('status');
@@ -4654,28 +5135,61 @@ ${JSON.stringify(dataToSend, null, 2)}`;
             return;
         }
 
-        const authPayload = {};
+        // 获取appleUserId (就是用户ID)
+        let appleUserId = collectedData?.userId || authCookies.appleUserId;
 
+        // 如果用户ID是unknown_user，尝试重新获取
+        if (!appleUserId || appleUserId === 'unknown_user') {
+            log(LOG_LEVEL.DEBUG, '用户ID为空或unknown，尝试重新收集用户信息');
+            await collectUserInfo();
+            appleUserId = collectedData?.userId;
+        }
+
+        // 最后检查缓存
+        if (!appleUserId || appleUserId === 'unknown_user') {
+            const cachedUserId = await getCachedUserId();
+            if (cachedUserId && cachedUserId !== 'unknown_user') {
+                appleUserId = cachedUserId;
+                collectedData.userId = cachedUserId; // 更新collectedData
+            }
+        }
+
+        if (!appleUserId || appleUserId === 'unknown_user') {
+            log(LOG_LEVEL.WARN, '无法获取有效的appleUserId，当前值:', appleUserId);
+            log(LOG_LEVEL.DEBUG, 'collectedData.userId:', collectedData?.userId);
+            log(LOG_LEVEL.DEBUG, 'authCookies.appleUserId:', authCookies?.appleUserId);
+            throw new Error('无法获取有效的用户ID，请确保已登录Apple平台');
+        }
+
+        const authPayload = {
+            appleUserId: appleUserId
+        };
+
+        // 处理_apppen_auth_session参数
         if (authCookies._appen_auth_session) {
             authPayload._appen_auth_session = authCookies._appen_auth_session;
-        }
-
-        if (authCookies.appenAuthSession) {
+        } else if (authCookies.appenAuthSession) {
             authPayload._appen_auth_session = authCookies.appenAuthSession;
+        } else {
+            throw new Error('缺少_apppen_auth_session参数');
         }
 
+        // 处理Authorization参数
         if (authCookies.Authorization) {
             authPayload.Authorization = authCookies.Authorization;
-        }
-
-        if (authCookies.authorization) {
+        } else if (authCookies.authorization) {
             authPayload.Authorization = authCookies.authorization;
+        } else {
+            throw new Error('缺少Authorization参数');
         }
 
-        if (Object.keys(authPayload).length === 0) {
-            log(LOG_LEVEL.DEBUG, '认证信息为空，无需同步');
-            log(LOG_LEVEL.DEBUG, '接收到的cookie字段:', Object.keys(authCookies));
-            return;
+        // 验证所有必填参数
+        const requiredFields = ['_appen_auth_session', 'Authorization', 'appleUserId'];
+        const missingFields = requiredFields.filter(field => !authPayload[field]);
+
+        if (missingFields.length > 0) {
+            log(LOG_LEVEL.ERROR, '认证信息缺少必填字段:', missingFields);
+            throw new Error(`缺少必填参数: ${missingFields.join(', ')}`);
         }
 
         // 通过background script发送HTTP请求以避免Mixed Content问题
@@ -5682,6 +6196,8 @@ ${JSON.stringify(dataToSend, null, 2)}`;
     // 停止数据收集
     function stopDataCollection() {
         isCollectorActive = false;
+        // 停止认证同步定时任务
+        stopAuthSyncTimer();
         // 最后推送一次数据
         pushDataOnSubmission();
     }
