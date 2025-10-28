@@ -509,7 +509,7 @@
         },
 
         // 加载数据
-        loadData: function() {
+        loadData: async function() {
             console.log('[Dashboard Sidebar] 正在加载数据，时间范围:', this.state.currentTimeRange);
 
             // 显示加载状态
@@ -519,43 +519,107 @@
             if (chartPlaceholder) chartPlaceholder.innerHTML = '<div class="loading">加载中...</div>';
             if (tablePlaceholder) tablePlaceholder.innerHTML = '<div class="loading">加载中...</div>';
 
-            // 模拟数据加载（实际应用中会调用数据获取函数）
-            setTimeout(() => {
-                this.updateStats();
-                this.updateChart();
-                this.updateTable();
-            }, 500);
+            // 调用 updateStats 和其他更新方法
+            await this.updateStats();
+            this.updateChart();
+            this.updateTable();
         },
 
         // 更新统计卡片
-        updateStats: function() {
-            // 这里应该从 completionStats 或 localStorage 获取真实数据
-            // 目前使用模拟数据
+        updateStats: async function() {
+            try {
+                if (typeof window.DataService === 'undefined') {
+                    console.warn('[Dashboard Sidebar] 数据服务未加载');
+                    return;
+                }
 
-            const mockData = {
-                total: 45,
-                valid: 40,
-                invalid: 5,
-                validRate: 88.89,
-                avgTime: 80,
-                totalChange: '+12%',
-                validChange: '+5%',
-                invalidChange: '-2%',
-                timeChange: '-3s'
-            };
+                let reportData = null;
+                let previousReportData = null;
 
-            document.getElementById('stat-total').textContent = mockData.total;
-            document.getElementById('stat-valid').textContent = mockData.validRate.toFixed(2) + '%';
-            document.getElementById('stat-invalid').textContent = mockData.invalid;
-            document.getElementById('stat-time').textContent = mockData.avgTime + 's';
+                // 根据时间范围获取数据
+                switch (this.state.currentTimeRange) {
+                    case 'day':
+                        reportData = await window.DataService.getTodayReport();
+                        // 获取昨天的数据用于对比
+                        const yesterday = new Date();
+                        yesterday.setDate(yesterday.getDate() - 1);
+                        previousReportData = await window.DataService.getDayReport(
+                            window.DataService.formatDate(yesterday)
+                        );
+                        break;
+                    case 'week':
+                        reportData = await window.DataService.getCurrentWeekReport();
+                        // 获取上周的数据用于对比
+                        const lastWeekDate = new Date();
+                        lastWeekDate.setDate(lastWeekDate.getDate() - 7);
+                        previousReportData = await window.DataService.getCurrentWeekReport();
+                        break;
+                    case 'month':
+                        reportData = await window.DataService.getCurrentMonthReport();
+                        // 获取上月的数据用于对比
+                        const lastMonth = new Date();
+                        lastMonth.setMonth(lastMonth.getMonth() - 1);
+                        const lastMonthStr = window.DataService.formatYearMonth(lastMonth);
+                        previousReportData = await window.DataService.getMonthReport(lastMonthStr);
+                        break;
+                    default:
+                        reportData = await window.DataService.getTodayReport();
+                }
 
-            document.getElementById('stat-total-change').textContent = mockData.totalChange;
-            document.getElementById('stat-valid-change').textContent = mockData.validChange;
-            document.getElementById('stat-invalid-change').textContent = mockData.invalidChange;
-            document.getElementById('stat-time-change').textContent = mockData.timeChange;
+                if (!reportData || !reportData.statistics) {
+                    console.warn('[Dashboard Sidebar] 无法获取报表数据');
+                    return;
+                }
 
-            // 设置增长率颜色
-            document.getElementById('stat-total-change').className = 'stat-card-change positive';
+                // 提取统计数据
+                const stats = reportData.statistics || {};
+                const previousStats = (previousReportData && previousReportData.statistics) ? previousReportData.statistics : {};
+
+                // 计算对比增长率
+                const totalChange = this.calculateChange(stats.totalRecords, previousStats.totalRecords);
+                const validChange = this.calculateChange(
+                    (stats.validRate || 0) * 100,
+                    (previousStats.validRate || 0) * 100
+                );
+                const invalidChange = this.calculateChange(stats.invalidRecords, previousStats.invalidRecords);
+                const timeChange = this.calculateChange(stats.averageElapsedTime, previousStats.averageElapsedTime);
+
+                // 更新 DOM
+                document.getElementById('stat-total').textContent = stats.totalRecords || 0;
+                document.getElementById('stat-valid').textContent = ((stats.validRate || 0) * 100).toFixed(2) + '%';
+                document.getElementById('stat-invalid').textContent = stats.invalidRecords || 0;
+                document.getElementById('stat-time').textContent = Math.round(stats.averageElapsedTime || 0) + 's';
+
+                // 更新对比信息
+                const setChangeElement = (elementId, change, isPositiveGood = true) => {
+                    const element = document.getElementById(elementId);
+                    if (element) {
+                        element.textContent = change;
+                        element.className = 'stat-card-change';
+                        
+                        // 判断是否为正增长
+                        const isPositive = change.includes('+');
+                        const isNegative = change.includes('-') && !change.startsWith('-') === false;
+                        
+                        if (isPositiveGood && isPositive) {
+                            element.classList.add('positive');
+                        } else if (!isPositiveGood && isNegative) {
+                            element.classList.add('positive'); // 负增长是好的（如无效数减少）
+                        } else if (isNegative || (isPositiveGood && !isPositive)) {
+                            element.classList.add('negative');
+                        }
+                    }
+                };
+
+                setChangeElement('stat-total-change', totalChange, true);     // 总数越多越好
+                setChangeElement('stat-valid-change', validChange, true);      // 有效率越高越好
+                setChangeElement('stat-invalid-change', invalidChange, false); // 无效数越少越好
+                setChangeElement('stat-time-change', timeChange, false);       // 耗时越少越好
+
+                console.log('[Dashboard Sidebar] 统计卡片已更新:', stats);
+            } catch (error) {
+                console.error('[Dashboard Sidebar] 更新统计卡片失败:', error);
+            }
         },
 
         // 更新图表（未来实现，需要集成 Chart.js 或 ECharts）
@@ -568,6 +632,17 @@
                     </div>
                 `;
             }
+        },
+
+        // 计算增长率
+        calculateChange: function(current, previous) {
+            if (previous === 0 || previous === undefined || previous === null) {
+                return current > 0 ? '+' + current.toFixed(0) : '0';
+            }
+            const change = current - previous;
+            const changePercent = (change / previous * 100).toFixed(0);
+            const sign = change >= 0 ? '+' : '';
+            return sign + changePercent + '%';
         },
 
         // 更新数据表

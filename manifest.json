@@ -48,6 +48,8 @@
       "js": [
         "src/cardkey-validator.js",
         "src/content.js",
+        "src/data-service.js",
+        "src/stats-engine.js",
         "src/appen-data-collector.js",
         "src/dashboard-sidebar.js"
       ]

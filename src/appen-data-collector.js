@@ -3444,6 +3444,15 @@
 
             saveCompletionStats();
 
+            // 使用统计引擎保存日粒度统计数据
+            if (typeof window.StatsEngine !== 'undefined') {
+                const today = new Date();
+                const dateStr = window.StatsEngine.formatDate(today);
+                const dailyStats = window.StatsEngine.calculateDailyStatsFromCompletionStats(completionStats, dateStr);
+                window.StatsEngine.saveDailyStats(dateStr, dailyStats);
+                log(LOG_LEVEL.DEBUG, '已保存今日统计数据:', dateStr, dailyStats);
+            }
+
             // 自动发送数据到服务器
             log(LOG_LEVEL.DEBUG, '确认完成记录完成，自动发送数据到服务器');
             pendingNotificationState = {
