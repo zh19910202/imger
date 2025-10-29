@@ -27,17 +27,16 @@
     // 数据服务对象
     const DataService = {
         /**
-         * 获取用户ID（从 localStorage 或其他来源）
-         * @returns {string|null} 用户ID
+         * 获取用户ID（异步，从 localStorage、URL 参数或 chrome.storage）
+         * @returns {Promise<string|null>} 用户ID
          */
-        getUserId: function() {
+        getUserIdAsync: async function() {
             try {
-                // 尝试从多个地方获取用户ID
                 // 1. 从 localStorage
                 let userId = localStorage.getItem('appen_user_id');
                 if (userId) return userId;
 
-                // 2. 从页面 URL 参数（优先级更高，因为可能是当前页面的用户）
+                // 2. 从页面 URL 参数
                 const urlParams = new URLSearchParams(window.location.search);
                 userId = urlParams.get('userId') || urlParams.get('appleUserId');
                 if (userId) {
@@ -45,9 +44,25 @@
                     return userId;
                 }
 
-                // 3. 从 chrome.storage（异步，这里无法使用）
-                if (typeof chrome !== 'undefined' && chrome.storage) {
-                    console.warn('[DataService] getUserId 在同步调用中无法访问 chrome.storage，请使用异步版本');
+                // 3. 从 chrome.storage（异步）
+                if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                    try {
+                        const result = await new Promise((resolve, reject) => {
+                            chrome.storage.local.get(['appen_user_id'], (result) => {
+                                if (chrome.runtime.lastError) {
+                                    reject(chrome.runtime.lastError);
+                                } else {
+                                    resolve(result);
+                                }
+                            });
+                        });
+                        if (result && result.appen_user_id) {
+                            localStorage.setItem('appen_user_id', result.appen_user_id);
+                            return result.appen_user_id;
+                        }
+                    } catch (error) {
+                        console.warn('[DataService] 从 chrome.storage 获取用户ID失败:', error);
+                    }
                 }
 
                 console.warn('[DataService] 无法获取用户ID');
@@ -67,7 +82,7 @@
          */
         getReportData: async function(timeRange, timeValue = null, includeDetails = false) {
             try {
-                const userId = this.getUserId();
+                const userId = await this.getUserIdAsync();
                 if (!userId) {
                     throw new Error('无法获取用户ID');
                 }

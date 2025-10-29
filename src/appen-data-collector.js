@@ -3014,13 +3014,20 @@
     // 保存用户ID到缓存
     async function saveCachedUserId(userId) {
         try {
+            log(LOG_LEVEL.DEBUG, '========== 保存用户ID到缓存 ==========');
+            log(LOG_LEVEL.DEBUG, '准备保存的用户ID:', userId);
             const result = await ChromeStorage.set({ appen_user_id: userId });
             if (result) {
-                log(LOG_LEVEL.DEBUG, '用户ID已保存到缓存:', userId);
+                log(LOG_LEVEL.DEBUG, '✓✓✓ 用户ID已成功保存到chrome.storage:', userId);
+                // 同时保存到localStorage作为备份
+                localStorage.setItem('appen_user_id', userId);
+                log(LOG_LEVEL.DEBUG, '✓ 用户ID已同步保存到localStorage:', userId);
                 return true;
             }
+            log(LOG_LEVEL.WARN, '✗ 保存用户ID到chrome.storage失败');
             return false;
         } catch (error) {
+            log(LOG_LEVEL.ERROR, '✗✗✗ 保存用户ID异常:', error);
             return ErrorHandler.handleStorageError(error, '保存用户ID异常', false);
         }
     }
@@ -3098,17 +3105,20 @@
 
         // 检查是否为欢迎页面
         if (isWelcomePage()) {
+            log(LOG_LEVEL.DEBUG, '========== 检测到welcome页面 ==========');
             log(LOG_LEVEL.DEBUG, 'welcome页面，从页面提取用户ID并保存到缓存');
+            log(LOG_LEVEL.DEBUG, '当前URL:', window.location.href);
             waitForAccountElement();
         } else {
             // 其他页面，只从缓存读取用户ID
             log(LOG_LEVEL.DEBUG, '非welcome页面，从缓存读取用户ID');
+            log(LOG_LEVEL.DEBUG, '当前URL:', window.location.href);
             const cachedUserId = await getCachedUserId();
             if (cachedUserId) {
-                log(LOG_LEVEL.DEBUG, '从缓存读取用户ID:', cachedUserId);
+                log(LOG_LEVEL.DEBUG, '✓ 从缓存读取用户ID:', cachedUserId);
                 collectedData.userId = cachedUserId;
             } else {
-                log(LOG_LEVEL.DEBUG, '缓存中无用户ID');
+                log(LOG_LEVEL.DEBUG, '✗ 缓存中无用户ID');
                 collectedData.userId = 'unknown_user';
             }
         }
@@ -3207,83 +3217,77 @@
         // window.addEventListener('beforeunload', pushDataOnSubmission);
     }
 
-    // 收集用户信息（完全复制验证过的脚本逻辑）
-    function collectUserInfo() {
+    // 收集用户信息（从账户文本提取用户ID）
+    function collectUserInfo(textContent = null) {
         try {
-            log(LOG_LEVEL.DEBUG, '开始收集用户信息...');
+            log(LOG_LEVEL.DEBUG, '========== 开始收集用户信息 ==========');
 
-            // 找到账户元素
-            const accountElement = ElementSelector.select([
-                '.ant-dropdown-trigger.antd-pro-components-global-header-index-action.antd-pro-components-global-header-index-account',
-                '.ant-dropdown-trigger.antd-pro-components-global-header-index-action',
-                '.account-info',
-                '[data-account]'
-            ]);
+            // 如果没有传入文本，尝试查找元素获取
+            if (!textContent) {
+                const accountElement = ElementSelector.select([
+                    '.ant-dropdown-trigger.antd-pro-components-global-header-index-action.antd-pro-components-global-header-index-account',
+                    '.ant-dropdown-trigger.antd-pro-components-global-header-index-action',
+                    '.account-info',
+                    '[data-account]'
+                ]);
 
-            if (accountElement) {
-                log(LOG_LEVEL.DEBUG, '✓ 找到账户元素');
-
-                // 完全按照验证过的脚本逻辑来
-                // 获取完整HTML
-                const innerHTML = accountElement.innerHTML;
-                const textContent = accountElement.textContent.trim();
-
-                log(LOG_LEVEL.DEBUG, '完整HTML:', innerHTML.substring(0, 200));
-                log(LOG_LEVEL.DEBUG, '完整文本:', textContent);
-
-                // 获取所有子元素
-                const children = accountElement.children;
-                log(LOG_LEVEL.DEBUG, '子元素数量:', children.length);
-
-                Array.from(children).forEach((child, index) => {
-                    log(LOG_LEVEL.DEBUG, `[${index}] ${child.tagName} - Class: ${child.className}`);
-                    log(LOG_LEVEL.DEBUG, `       文本: ${child.textContent.trim().substring(0, 50)}`);
-                });
-
-                // 查找所有span元素
-                log(LOG_LEVEL.DEBUG, '所有span元素:');
-                const spans = accountElement.querySelectorAll('span');
-
-                for (let i = 0; i < spans.length; i++) {
-                    const spanText = spans[i].textContent.trim();
-                    log(LOG_LEVEL.DEBUG, `span[${i}]: "${spanText}" - Class: ${spans[i].className}`);
-
-                    // 如果这个span看起来像用户ID（不是图标，不是"Appen"，不是"/"）
-                    if (spanText &&
-                        spanText !== 'Appen' &&
-                        spanText !== '/' &&
-                        spanText.match(/^[a-zA-Z0-9_-]{5,30}$/) &&
-                        !spans[i].className.includes('anticon') &&
-                        !spans[i].className.includes('avatar')) {
-
-                        log(LOG_LEVEL.DEBUG, `✓ 找到用户ID: ${spanText}`);
-                        collectedData.userId = spanText;
-                        saveCachedUserId(spanText);
-                        return;
-                    }
+                if (!accountElement) {
+                    log(LOG_LEVEL.DEBUG, '✗ 未找到账户元素');
+                    collectedData.userId = 'unknown_user';
+                    log(LOG_LEVEL.WARN, '========== 使用默认值 unknown_user ==========');
+                    return;
                 }
+                
+                textContent = accountElement.textContent;
+            }
+            
+            // 统一进行 trim 处理
+            textContent = textContent.trim();
+            log(LOG_LEVEL.DEBUG, '账户元素文本:', textContent);
 
-                log(LOG_LEVEL.DEBUG, '✗ 在span中未找到用户ID');
-            } else {
-                log(LOG_LEVEL.DEBUG, '✗ 未找到账户元素');
+            // 直接从文本内容中提取用户ID
+            // 格式通常是: "图标 Appen / userId" 或类似格式
+            const parts = textContent.split('/').map(p => p.trim());
+            log(LOG_LEVEL.DEBUG, '分割后的部分:', parts);
+
+            for (let i = 0; i < parts.length; i++) {
+                const part = parts[i];
+                log(LOG_LEVEL.DEBUG, `检查部分[${i}]: "${part}"`);
+                
+                // 检查是否符合用户ID格式
+                if (part && 
+                    part !== 'Appen' && 
+                    part.match(/^[a-zA-Z0-9_-]{5,30}$/)) {
+                    
+                    log(LOG_LEVEL.DEBUG, `✓✓✓ 找到用户ID: ${part} ✓✓✓`);
+                    collectedData.userId = part;
+                    saveCachedUserId(part);
+                    log(LOG_LEVEL.DEBUG, '========== 用户信息收集成功 ==========');
+                    return;
+                }
             }
 
+            log(LOG_LEVEL.DEBUG, '✗ 未能从文本中提取用户ID');
             collectedData.userId = 'unknown_user';
-            log(LOG_LEVEL.WARN, '使用默认值');
+            log(LOG_LEVEL.WARN, '========== 使用默认值 unknown_user ==========');
 
         } catch (error) {
             ErrorHandler.handle(error, '无法收集用户信息', null, LOG_LEVEL.WARN);
             collectedData.userId = 'unknown_user';
+            log(LOG_LEVEL.DEBUG, '========== 用户信息收集失败 ==========');
         }
     }
 
     // 等待账户元素加载完成，然后重新收集用户信息
     function waitForAccountElement() {
+        log(LOG_LEVEL.DEBUG, '========== 开始等待账户元素 ==========');
         const maxAttempts = 120;  // 最多尝试120次（60秒）
         let attempts = 0;
 
         const checkInterval = setInterval(() => {
             attempts++;
+            log(LOG_LEVEL.DEBUG, `[尝试 ${attempts}/${maxAttempts}] 检查账户元素...`);
+            
             const accountElement = ElementSelector.select([
                 '.ant-dropdown-trigger.antd-pro-components-global-header-index-action',
                 '.ant-dropdown-trigger.antd-pro-components-global-header-index-account',
@@ -3291,18 +3295,22 @@
                 '[data-account]'
             ]);
 
-            if (accountElement && accountElement.textContent.includes('/')) {
-                log(LOG_LEVEL.DEBUG, `✓ 账户元素已加载 (第${attempts}次尝试)`);
+            if (accountElement) {
+                const textContent = accountElement.textContent.trim();
+                log(LOG_LEVEL.DEBUG, `✓ 找到账户元素 (第${attempts}次尝试)`);
+                log(LOG_LEVEL.DEBUG, `账户元素文本内容: "${textContent}"`);
+                log(LOG_LEVEL.DEBUG, '========== 账户元素已找到，立��收集用户信息 ==========');
                 clearInterval(checkInterval);
-
-                // 重新收集用户信息
-                collectUserInfo();
+                
+                // 直接传递文本内容，避免重复查找DOM和获取textContent
+                collectUserInfo(textContent);
             } else {
-                if (attempts % 20 === 0) {
+                if (attempts % 5 === 0) {
                     log(LOG_LEVEL.DEBUG, `等待账户元素加载... (${attempts}/${maxAttempts})`);
                 }
 
                 if (attempts >= maxAttempts) {
+                    log(LOG_LEVEL.WARN, '========== 账户元素加载超时 ==========');
                     log(LOG_LEVEL.WARN, '账户元素加载超时，尝试直接提取');
                     clearInterval(checkInterval);
                     // 即使超时也尝试提取一次
