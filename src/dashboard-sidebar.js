@@ -651,25 +651,46 @@
         },
 
         // 加载 Chart.js 库
-        loadChartJS: function() {
-            return new Promise((resolve, reject) => {
-                // 如果已经加载，直接返回
-                if (typeof Chart !== 'undefined') {
-                    resolve();
+        loadChartJS: async function() {
+            // Chart.js 现在作为 content script 预加载，只需要检查是否可用
+            console.log('[Dashboard Sidebar] 检查 Chart.js 可用性...');
+            console.log('[Dashboard Sidebar] window.Chart 类型:', typeof window.Chart);
+
+            if (typeof window.Chart !== 'undefined') {
+                console.log('[Dashboard Sidebar] Chart.js 已可用');
+                return;
+            }
+
+            // 如果主window中没有，尝试从页面上下文获取
+            try {
+                const chartFromPage = document.defaultView.Chart;
+                if (chartFromPage) {
+                    window.Chart = chartFromPage;
+                    console.log('[Dashboard Sidebar] 从页面上下文获取 Chart 成功');
                     return;
                 }
+            } catch (e) {
+                console.log('[Dashboard Sidebar] 无法从页面上下文获取 Chart:', e);
+            }
 
-                // 动态加载 Chart.js
-                const script = document.createElement('script');
-                script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
-                script.onload = () => {
-                    console.log('[Dashboard Sidebar] Chart.js 加载成功');
-                    resolve();
-                };
-                script.onerror = () => {
-                    reject(new Error('Chart.js 加载失败'));
-                };
-                document.head.appendChild(script);
+            // 等待一小段时间，以防Chart.js还在初始化
+            return new Promise((resolve, reject) => {
+                let attempts = 0;
+                const maxAttempts = 50; // 最多等待5秒
+
+                const checkInterval = setInterval(() => {
+                    attempts++;
+
+                    if (typeof window.Chart !== 'undefined') {
+                        clearInterval(checkInterval);
+                        console.log('[Dashboard Sidebar] Chart.js 加载成功');
+                        resolve();
+                    } else if (attempts >= maxAttempts) {
+                        clearInterval(checkInterval);
+                        console.error('[Dashboard Sidebar] Chart.js 加载超时');
+                        reject(new Error('Chart.js 加载失败: 请确保扩展已正确重新加载'));
+                    }
+                }, 100);
             });
         },
 
@@ -763,7 +784,7 @@
             }
 
             // 创建新图表
-            this.chartInstance = new Chart(ctx, {
+            this.chartInstance = new window.Chart(ctx, {
                 type: 'line',
                 data: chartData,
                 options: {

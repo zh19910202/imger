@@ -46,13 +46,15 @@
         "file://*/*"
       ],
       "js": [
+        "lib/chart.umd.min.js",
         "src/cardkey-validator.js",
         "src/content.js",
         "src/data-service.js",
         "src/stats-engine.js",
         "src/appen-data-collector.js",
         "src/dashboard-sidebar.js"
-      ]
+      ],
+      "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
@@ -60,7 +62,8 @@
       "resources": [
         "config/runninghub-config.json",
         "config/t8-config.json",
-        "config/platform-config.json"
+        "config/platform-config.json",
+        "lib/chart.umd.min.js"
       ],
       "matches": [
         "https://qlabel.tencent.com/*",
