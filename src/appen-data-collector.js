@@ -985,6 +985,33 @@
     let isAuthSyncEnabled = true; // 是否启用自动同步
     let lastAuthSyncTime = 0; // 上次同步时间戳，用于防止频繁同步
 
+    // 从浏览器缓存加载上次同步时间
+    async function loadLastAuthSyncTime() {
+        try {
+            const result = await ChromeStorage.get(['last_auth_sync_time']);
+            if (result && result.last_auth_sync_time) {
+                lastAuthSyncTime = result.last_auth_sync_time;
+                log(LOG_LEVEL.DEBUG, '从缓存加载上次认证同步时间:', new Date(lastAuthSyncTime).toLocaleString());
+            } else {
+                log(LOG_LEVEL.DEBUG, '缓存中无上次认证同步时间，初始化为0');
+                lastAuthSyncTime = 0;
+            }
+        } catch (error) {
+            log(LOG_LEVEL.WARN, '加载上次认证同步时间失败:', error);
+            lastAuthSyncTime = 0;
+        }
+    }
+
+    // 保存上次同步时间到浏览器缓存
+    async function saveLastAuthSyncTime(timestamp) {
+        try {
+            await ChromeStorage.set({ last_auth_sync_time: timestamp });
+            log(LOG_LEVEL.DEBUG, '上次认证同步时间已保存到缓存:', new Date(timestamp).toLocaleString());
+        } catch (error) {
+            log(LOG_LEVEL.WARN, '保存上次认证同步时间失败:', error);
+        }
+    }
+
     // 缓存刷新配置
     let cacheRefreshInterval = null;
     const CACHE_REFRESH_INTERVAL = 10 * 60 * 1000; // 10分钟（毫秒），与数据服务器同步
@@ -1191,6 +1218,7 @@
                 
                 // 更新上次同步时间
                 lastAuthSyncTime = Date.now();
+                await saveLastAuthSyncTime(lastAuthSyncTime);
                 
                 log(LOG_LEVEL.DEBUG, '定时认证同步完成');
 
@@ -3067,6 +3095,9 @@
 
         // 加载提交日志
         loadSubmissionLogs();
+
+        // 加载上次认证同步时间
+        await loadLastAuthSyncTime();
 
         // 加载认证同步设置并启动定时任务
         loadAuthSyncSettings();
