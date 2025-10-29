@@ -9,11 +9,7 @@
 
     // 配置
     const DataServiceConfig = {
-        // 根据当前页面协议自动选择API协议
-        get API_BASE_URL() {
-            const protocol = window.location.protocol === 'https:' ? 'https' : 'http';
-            return `${protocol}://www.skytree.ink`;
-        },
+        API_BASE_URL: 'http://www.skytree.ink',
         GET_USER_TASK_DETAILS_ENDPOINT: '/api/task/user/{userId}/details',
         CACHE_PREFIX: 'appen_report_cache_',
         CACHE_TTL: {

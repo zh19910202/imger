@@ -24,7 +24,9 @@
         state: {
             isOpen: false,
             currentTimeRange: 'day', // day, week, month, range
-            selectedDate: null
+            selectedDate: null,
+            customStartDate: null,
+            customEndDate: null
         },
 
         // 初始化
@@ -622,16 +624,239 @@
             }
         },
 
-        // 更新图表（未来实现，需要集成 Chart.js 或 ECharts）
-        updateChart: function() {
+        // 更新图表
+        updateChart: async function() {
             const chartPlaceholder = document.getElementById('dashboard-chart-placeholder');
-            if (chartPlaceholder) {
-                chartPlaceholder.innerHTML = `
-                    <div style="text-align: center; padding: 20px; color: #999;">
-                        📈 图表功能（待实现）
-                    </div>
-                `;
+            if (!chartPlaceholder) return;
+
+            try {
+                // 确保 Chart.js 已加载
+                await this.loadChartJS();
+
+                // 获取图表数据
+                let chartData = await this.getChartData();
+                
+                if (!chartData || chartData.labels.length === 0) {
+                    chartPlaceholder.innerHTML = '<div style="text-align: center; padding: 20px; color: #999;">暂无图表数据</div>';
+                    return;
+                }
+
+                // 创建或更新图表
+                this.renderChart(chartPlaceholder, chartData);
+
+            } catch (error) {
+                console.error('[Dashboard Sidebar] 更新图表失败:', error);
+                chartPlaceholder.innerHTML = '<div style="text-align: center; padding: 20px; color: #f44336;">图表加载失败</div>';
             }
+        },
+
+        // 加载 Chart.js 库
+        loadChartJS: function() {
+            return new Promise((resolve, reject) => {
+                // 如果已经加载，直接返回
+                if (typeof Chart !== 'undefined') {
+                    resolve();
+                    return;
+                }
+
+                // 动态加载 Chart.js
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
+                script.onload = () => {
+                    console.log('[Dashboard Sidebar] Chart.js 加载成功');
+                    resolve();
+                };
+                script.onerror = () => {
+                    reject(new Error('Chart.js 加载失败'));
+                };
+                document.head.appendChild(script);
+            });
+        },
+
+        // 获取图表数据
+        getChartData: async function() {
+            if (typeof window.DataService === 'undefined') {
+                return null;
+            }
+
+            let labels = [];
+            let totalRecordsData = [];
+            let validRateData = [];
+
+            try {
+                // 根据时间范围获取不同维度的数据
+                switch (this.state.currentTimeRange) {
+                    case 'day': {
+                        // 最近7天
+                        const daysData = await this.getRecentDaysData(7);
+                        daysData.reverse(); // 从旧到新排序
+                        labels = daysData.map(d => d.label.substring(5)); // 只显示 MM-DD
+                        totalRecordsData = daysData.map(d => d.totalRecords);
+                        validRateData = daysData.map(d => parseFloat(d.validRate) || 0);
+                        break;
+                    }
+                    case 'week': {
+                        // 最近4周
+                        const weeksData = await this.getRecentWeeksData(4);
+                        weeksData.reverse();
+                        labels = weeksData.map(d => d.label.length > 15 ? d.label.substring(5, 15) : d.label);
+                        totalRecordsData = weeksData.map(d => d.totalRecords);
+                        validRateData = weeksData.map(d => parseFloat(d.validRate) || 0);
+                        break;
+                    }
+                    case 'month': {
+                        // 最近6个月
+                        const monthsData = await this.getRecentMonthsData(6);
+                        monthsData.reverse();
+                        labels = monthsData.map(d => d.label);
+                        totalRecordsData = monthsData.map(d => d.totalRecords);
+                        validRateData = monthsData.map(d => parseFloat(d.validRate) || 0);
+                        break;
+                    }
+                    default: {
+                        const daysData = await this.getRecentDaysData(7);
+                        daysData.reverse();
+                        labels = daysData.map(d => d.label.substring(5));
+                        totalRecordsData = daysData.map(d => d.totalRecords);
+                        validRateData = daysData.map(d => parseFloat(d.validRate) || 0);
+                    }
+                }
+
+                return {
+                    labels,
+                    datasets: [
+                        {
+                            label: '完成数',
+                            data: totalRecordsData,
+                            borderColor: '#2196F3',
+                            backgroundColor: 'rgba(33, 150, 243, 0.1)',
+                            yAxisID: 'y',
+                            tension: 0.3
+                        },
+                        {
+                            label: '有效率 (%)',
+                            data: validRateData,
+                            borderColor: '#4CAF50',
+                            backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                            yAxisID: 'y1',
+                            tension: 0.3
+                        }
+                    ]
+                };
+
+            } catch (error) {
+                console.error('[Dashboard Sidebar] 获取图表数据失败:', error);
+                return null;
+            }
+        },
+
+        // 渲染图表
+        renderChart: function(container, chartData) {
+            // 清空容器并创建 canvas
+            container.innerHTML = '<canvas id="dashboard-chart" style="max-height: 250px;"></canvas>';
+            const canvas = document.getElementById('dashboard-chart');
+            const ctx = canvas.getContext('2d');
+
+            // 销毁旧图表实例
+            if (this.chartInstance) {
+                this.chartInstance.destroy();
+            }
+
+            // 创建新图表
+            this.chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: chartData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                font: {
+                                    size: 11
+                                },
+                                boxWidth: 12
+                            }
+                        },
+                        tooltip: {
+                            enabled: true,
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        label += context.parsed.y.toFixed(2);
+                                        if (context.datasetIndex === 1) {
+                                            label += '%';
+                                        }
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            display: true,
+                            title: {
+                                display: false
+                            },
+                            ticks: {
+                                font: {
+                                    size: 10
+                                }
+                            }
+                        },
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: '完成数',
+                                font: {
+                                    size: 11
+                                }
+                            },
+                            ticks: {
+                                font: {
+                                    size: 10
+                                }
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: '有效率 (%)',
+                                font: {
+                                    size: 11
+                                }
+                            },
+                            ticks: {
+                                font: {
+                                    size: 10
+                                }
+                            },
+                            grid: {
+                                drawOnChartArea: false,
+                            },
+                        },
+                    }
+                }
+            });
+
+            console.log('[Dashboard Sidebar] 图表渲染完成');
         },
 
         // 计算增长率
@@ -646,39 +871,174 @@
         },
 
         // 更新数据表
-        updateTable: function() {
+        updateTable: async function() {
             const tablePlaceholder = document.getElementById('dashboard-table-placeholder');
-            if (tablePlaceholder) {
-                const mockTableData = `
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>日期</th>
-                                <th>完成数</th>
-                                <th>有效率</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>2024-10-28</td>
-                                <td>45</td>
-                                <td>88.89%</td>
-                            </tr>
-                            <tr>
-                                <td>2024-10-27</td>
-                                <td>52</td>
-                                <td>88.46%</td>
-                            </tr>
-                            <tr>
-                                <td>2024-10-26</td>
-                                <td>48</td>
-                                <td>89.58%</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                `;
-                tablePlaceholder.innerHTML = mockTableData;
+            if (!tablePlaceholder) return;
+
+            if (typeof window.DataService === 'undefined') {
+                tablePlaceholder.innerHTML = '<div style="text-align: center; padding: 20px; color: #999;">数据服务未加载</div>';
+                return;
             }
+
+            try {
+                let tableData = [];
+
+                // 根据时间范围获取不同维度的数据
+                switch (this.state.currentTimeRange) {
+                    case 'day':
+                        // 获取最近7天的数据
+                        tableData = await this.getRecentDaysData(7);
+                        break;
+                    case 'week':
+                        // 获取最近4周的数据
+                        tableData = await this.getRecentWeeksData(4);
+                        break;
+                    case 'month':
+                        // 获取最近6个月的数据
+                        tableData = await this.getRecentMonthsData(6);
+                        break;
+                    default:
+                        tableData = await this.getRecentDaysData(7);
+                }
+
+                // 生成表格HTML
+                if (tableData.length === 0) {
+                    tablePlaceholder.innerHTML = '<div style="text-align: center; padding: 20px; color: #999;">暂无历史数据</div>';
+                    return;
+                }
+
+                const tableHTML = this.generateTableHTML(tableData);
+                tablePlaceholder.innerHTML = tableHTML;
+
+            } catch (error) {
+                console.error('[Dashboard Sidebar] 更新数据表失败:', error);
+                tablePlaceholder.innerHTML = '<div style="text-align: center; padding: 20px; color: #f44336;">加载失败</div>';
+            }
+        },
+
+        // 获取最近N天的数据
+        getRecentDaysData: async function(days) {
+            const data = [];
+            const today = new Date();
+
+            for (let i = 0; i < days; i++) {
+                const date = new Date(today);
+                date.setDate(date.getDate() - i);
+                const dateStr = window.DataService.formatDate(date);
+
+                try {
+                    const reportData = await window.DataService.getDayReport(dateStr);
+                    if (reportData && reportData.statistics) {
+                        const stats = reportData.statistics;
+                        data.push({
+                            label: dateStr,
+                            totalRecords: stats.totalRecords || 0,
+                            validRate: ((stats.validRate || 0) * 100).toFixed(2) + '%',
+                            validRecords: stats.validRecords || 0,
+                            invalidRecords: stats.invalidRecords || 0,
+                            avgTime: Math.round(stats.averageElapsedTime || 0) + 's'
+                        });
+                    }
+                } catch (error) {
+                    console.warn(`[Dashboard Sidebar] 获取 ${dateStr} 数据失败:`, error);
+                }
+            }
+
+            return data;
+        },
+
+        // 获取最近N周的数据
+        getRecentWeeksData: async function(weeks) {
+            const data = [];
+            const today = new Date();
+
+            for (let i = 0; i < weeks; i++) {
+                const date = new Date(today);
+                date.setDate(date.getDate() - (i * 7));
+
+                try {
+                    const reportData = await window.DataService.getCurrentWeekReport();
+                    if (reportData && reportData.statistics) {
+                        const stats = reportData.statistics;
+                        const weekLabel = reportData.week || window.DataService.calculateWeekNumber(date);
+                        const dateRange = reportData.startDate && reportData.endDate
+                            ? `${reportData.startDate} ~ ${reportData.endDate}`
+                            : weekLabel;
+
+                        data.push({
+                            label: dateRange,
+                            totalRecords: stats.totalRecords || 0,
+                            validRate: ((stats.validRate || 0) * 100).toFixed(2) + '%',
+                            validRecords: stats.validRecords || 0,
+                            invalidRecords: stats.invalidRecords || 0,
+                            avgTime: Math.round(stats.averageElapsedTime || 0) + 's'
+                        });
+                    }
+                } catch (error) {
+                    console.warn(`[Dashboard Sidebar] 获取第 ${i + 1} 周数据失败:`, error);
+                }
+            }
+
+            return data;
+        },
+
+        // 获取最近N个月的数据
+        getRecentMonthsData: async function(months) {
+            const data = [];
+            const today = new Date();
+
+            for (let i = 0; i < months; i++) {
+                const date = new Date(today);
+                date.setMonth(date.getMonth() - i);
+                const monthStr = window.DataService.formatYearMonth(date);
+
+                try {
+                    const reportData = await window.DataService.getMonthReport(monthStr);
+                    if (reportData && reportData.statistics) {
+                        const stats = reportData.statistics;
+                        data.push({
+                            label: monthStr,
+                            totalRecords: stats.totalRecords || 0,
+                            validRate: ((stats.validRate || 0) * 100).toFixed(2) + '%',
+                            validRecords: stats.validRecords || 0,
+                            invalidRecords: stats.invalidRecords || 0,
+                            avgTime: Math.round(stats.averageElapsedTime || 0) + 's'
+                        });
+                    }
+                } catch (error) {
+                    console.warn(`[Dashboard Sidebar] 获取 ${monthStr} 数据失败:`, error);
+                }
+            }
+
+            return data;
+        },
+
+        // 生成表格HTML
+        generateTableHTML: function(tableData) {
+            const rows = tableData.map(item => `
+                <tr>
+                    <td>${item.label}</td>
+                    <td>${item.totalRecords}</td>
+                    <td>${item.validRate}</td>
+                    <td>${item.avgTime}</td>
+                </tr>
+            `).join('');
+
+            return `
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>时间</th>
+                            <th>完成数</th>
+                            <th>有效率</th>
+                            <th>平均耗时</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rows}
+                    </tbody>
+                </table>
+            `;
         },
 
         // 刷新数据
@@ -688,11 +1048,117 @@
         },
 
         // 导出数据
-        exportData: function() {
+        exportData: async function() {
             console.log('[Dashboard Sidebar] 导出数据为 CSV');
-            // 待实现：生成 CSV 并下载
+            
+            try {
+                if (typeof window.DataService === 'undefined') {
+                    alert('数据服务未加载，无法导出');
+                    return;
+                }
 
-            alert('导出功能待实现');
+                // 获取当前视图的数据
+                let exportData = [];
+                let filename = '';
+
+                switch (this.state.currentTimeRange) {
+                    case 'day':
+                        exportData = await this.getRecentDaysData(30); // 导出最近30天
+                        filename = `标注统计_日报表_${this.formatDateForFilename(new Date())}.csv`;
+                        break;
+                    case 'week':
+                        exportData = await this.getRecentWeeksData(12); // 导出最近12周
+                        filename = `标注统计_周报表_${this.formatDateForFilename(new Date())}.csv`;
+                        break;
+                    case 'month':
+                        exportData = await this.getRecentMonthsData(12); // 导出最近12个月
+                        filename = `标注统计_月报表_${this.formatDateForFilename(new Date())}.csv`;
+                        break;
+                    default:
+                        exportData = await this.getRecentDaysData(30);
+                        filename = `标注统计_${this.formatDateForFilename(new Date())}.csv`;
+                }
+
+                if (exportData.length === 0) {
+                    alert('暂无数据可导出');
+                    return;
+                }
+
+                // 生成 CSV 内容
+                const csvContent = this.generateCSV(exportData);
+
+                // 下载 CSV 文件
+                this.downloadCSV(csvContent, filename);
+
+                console.log('[Dashboard Sidebar] CSV 导出成功:', filename);
+
+            } catch (error) {
+                console.error('[Dashboard Sidebar] 导出数据失败:', error);
+                alert('导出失败，请稍后重试');
+            }
+        },
+
+        // 生成 CSV 内容
+        generateCSV: function(data) {
+            // CSV 表头
+            const headers = ['时间', '完成数', '有效记录数', '无效记录数', '有效率', '平均耗时'];
+            const csvRows = [];
+
+            // 添加 UTF-8 BOM，确保 Excel 正确识别中文
+            csvRows.push('\uFEFF');
+
+            // 添加表头
+            csvRows.push(headers.join(','));
+
+            // 添加数据行
+            data.forEach(item => {
+                const row = [
+                    item.label,
+                    item.totalRecords,
+                    item.validRecords,
+                    item.invalidRecords,
+                    item.validRate,
+                    item.avgTime
+                ];
+                csvRows.push(row.join(','));
+            });
+
+            return csvRows.join('\n');
+        },
+
+        // 下载 CSV 文件
+        downloadCSV: function(content, filename) {
+            const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            
+            if (navigator.msSaveBlob) {
+                // IE 10+
+                navigator.msSaveBlob(blob, filename);
+            } else {
+                // 现代浏览器
+                link.href = URL.createObjectURL(blob);
+                link.download = filename;
+                link.style.display = 'none';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                // 释放 URL 对象
+                setTimeout(() => {
+                    URL.revokeObjectURL(link.href);
+                }, 100);
+            }
+        },
+
+        // 格式化日期用于文件名
+        formatDateForFilename: function(date) {
+            const d = new Date(date);
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            const hour = String(d.getHours()).padStart(2, '0');
+            const minute = String(d.getMinutes()).padStart(2, '0');
+            return `${year}${month}${day}_${hour}${minute}`;
         }
     };
 

@@ -3,6 +3,10 @@
 ## 接口概述
 用户详细题目数据查询接口，根据Apple用户ID查询指定时间范围内的任务统计数据和详细信息。
 
+
+## 服务器域名
+www.skytree.ink
+
 ## 接口信息
 - **接口路径**: `/api/task/user/{appleUserId}/details`
 - **请求方法**: `GET`
