@@ -899,70 +899,7 @@
         pageCompletionCounts: {}
     };
 
-    // 通知队列管理系统 - 已废弃，统一使用 showNotification
-    // const notificationManager = {
-    //     queue: [],  // 待显示的通知队列
-    //     activeNotifications: [],  // 当前显示中的通知
-    //     maxVisible: 3,  // 最多同时显示3个通知
-    //     notificationHeight: 80,  // 每个通知的高度（像素），增加以适应多行文本
-    //     spacing: 15,  // 通知之间的间距，增加以提供更好的视觉分离
-    //     
-    //     // 添加通知到队列
-    //     add: function(message, type = 'info', duration = 5000) {
-    //         const notification = {
-    //             message,
-    //             type,
-    //             duration,
-    //             id: Date.now() + Math.random(),
-    //             element: null
-    //         };
-    //         this.queue.push(notification);
-    //         this.processQueue();
-    //     },
-    //     
-    //     // 处理队列中的通知
-    //     processQueue: function() {
-    //         while (this.queue.length > 0 && this.activeNotifications.length < this.maxVisible) {
-    //             const notification = this.queue.shift();
-    //             this.display(notification);
-    //         }
-    //     },
-    //     
-    //     // 显示通知
-    //     display: function(notification) {
-    //         const element = createSystemNotification(notification.message, notification.type, notification.duration);
-    //         if (element) {
-    //             notification.element = element;
-    //             this.activeNotifications.push(notification);
-    //             this.updatePositions();
-    //             
-    //             // 通知显示完毕后从活动列表移除
-    //             setTimeout(() => {
-    //                 const index = this.activeNotifications.indexOf(notification);
-    //                 if (index > -1) {
-    //                     this.activeNotifications.splice(index, 1);
-    //                     this.updatePositions();
-    //                 }
-    //                 this.processQueue();
-    //             }, notification.duration);
-    //         } else {
-    //             this.processQueue();
-    //         }
-    //     },
-    //     
-    //     // 更新所有通知的位置
-    //     updatePositions: function() {
-    //         let topOffset = 20;
-    //         this.activeNotifications.forEach((notification) => {
-    //             if (notification.element) {
-    //                 notification.element.style.top = topOffset + 'px';
-    //                 // 使用通知的实际高度而不是固定高度
-    //                 const actualHeight = notification.element.offsetHeight || this.notificationHeight;
-    //                 topOffset += actualHeight + this.spacing;
-    //             }
-    //         });
-    //     }
-    // };
+    
 
     // 用于跟踪上一个任务ID以检测任务变化
     let lastTaskId = null;
