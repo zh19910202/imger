@@ -1093,10 +1093,10 @@
 
         log(LOG_LEVEL.INFO, '启动认证同步定时任务，间隔', AUTH_SYNC_INTERVAL / 1000 / 60, '分钟');
 
-        // 显示系统通知（可选）
-        if (showNotification) {
-            showNotification('⏰ 认证自动同步已启动，每10分钟同步一次', 'success', false, 3000);
-        }
+        // // 显示系统通知（可选）
+        // if (showNotification) {
+        //     showNotification('⏰ 认证自动同步已启动，每10分钟同步一次', 'success', false, 3000);
+        // }
 
         // 设置定时任务
         authSyncInterval = setInterval(() => {
@@ -3062,6 +3062,8 @@
         showTestNotification();
 
         // 延迟显示定时任务启动通知，确保页面已稳定
+        // 注释掉：每次页面跳转都会显示通知，影响用户体验
+        /*
         setTimeout(() => {
             if (isAuthSyncEnabled && authSyncInterval) {
                 showNotification('⏰ 认证自动同步已启动，每10分钟同步一次', 'success', false, 3000);
@@ -3070,6 +3072,7 @@
                 showNotification('📊 数据缓存自动刷新已启动，每10分钟刷新一次', 'success', false, 3000);
             }
         }, 2000); // 延迟2秒显示，避免与其他通知冲突
+        */
 
         // 检查是否为欢迎页面
         if (isWelcomePage()) {
