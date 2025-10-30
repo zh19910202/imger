@@ -6469,14 +6469,13 @@ ${JSON.stringify(dataToSend, null, 2)}`;
             appleUserId: appleUserId
         };
 
-        // 处理_apppen_auth_session参数
+        // 处理_apppen_auth_session参数（可选）
         if (authCookies._appen_auth_session) {
             authPayload._appen_auth_session = authCookies._appen_auth_session;
         } else if (authCookies.appenAuthSession) {
             authPayload._appen_auth_session = authCookies.appenAuthSession;
-        } else {
-            throw new Error('缺少_apppen_auth_session参数');
         }
+        // appenAuthSession 现在是可选的，不再抛出错误
 
         // 处理Authorization参数
         if (authCookies.Authorization) {
@@ -6487,8 +6486,8 @@ ${JSON.stringify(dataToSend, null, 2)}`;
             throw new Error('缺少Authorization参数');
         }
 
-        // 验证所有必填参数
-        const requiredFields = ['_appen_auth_session', 'Authorization', 'appleUserId'];
+        // 验证所有必填参数（_appen_auth_session 现在是可选的）
+        const requiredFields = ['Authorization', 'appleUserId'];
         const missingFields = requiredFields.filter(field => !authPayload[field]);
 
         if (missingFields.length > 0) {
