@@ -914,7 +914,7 @@
 
     // 提交日志相关变量
     let submissionLogs = [];
-    const MAX_SUBMISSION_LOGS = 50; // 最多保存50条提交日志
+    const MAX_SUBMISSION_LOGS = 200; // 最多保存200条提交日志
 
     // 定时同步认证信息相关变量
     let authSyncInterval = null;
@@ -988,34 +988,81 @@
         }
     }
 
-    function addSubmissionLog(request, response, success, error = null, logType = 'data') {
-        const logEntry = {
-            id: Date.now(),
-            timestamp: Date.now(),
-            logType: logType,
-            request: {
-                url: CONFIG.API_ENDPOINT,
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
+    function addSubmissionLog(request, response, success, error = null, logType = 'data', logId = null) {
+        let logEntry;
+        
+        if (logId) {
+            const existingIndex = submissionLogs.findIndex(log => log.id === logId);
+            if (existingIndex !== -1) {
+                logEntry = submissionLogs[existingIndex];
+                logEntry.response = success ? {
+                    status: 200,
+                    statusText: 'OK',
+                    data: response
+                } : null;
+                logEntry.error = error ? {
+                    message: error.message,
+                    stack: error.stack
+                } : null;
+                logEntry.success = success;
+                logEntry.duration = response?.duration || 0;
+                logEntry.updateTime = Date.now();
+            } else {
+                logEntry = {
+                    id: logId,
+                    timestamp: Date.now(),
+                    updateTime: Date.now(),
+                    logType: logType,
+                    request: {
+                        url: CONFIG.API_ENDPOINT,
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: request
+                    },
+                    response: success ? {
+                        status: 200,
+                        statusText: 'OK',
+                        data: response
+                    } : null,
+                    error: error ? {
+                        message: error.message,
+                        stack: error.stack
+                    } : null,
+                    success: success,
+                    duration: response?.duration || 0
+                };
+                submissionLogs.unshift(logEntry);
+            }
+        } else {
+            logEntry = {
+                id: Date.now(),
+                timestamp: Date.now(),
+                updateTime: Date.now(),
+                logType: logType,
+                request: {
+                    url: CONFIG.API_ENDPOINT,
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: request
                 },
-                body: request
-            },
-            response: success ? {
-                status: 200,
-                statusText: 'OK',
-                data: response
-            } : null,
-            error: error ? {
-                message: error.message,
-                stack: error.stack
-            } : null,
-            success: success,
-            duration: response?.duration || 0
-        };
-
-        // 添加到日志开头（最新的在前面）
-        submissionLogs.unshift(logEntry);
+                response: success ? {
+                    status: 200,
+                    statusText: 'OK',
+                    data: response
+                } : null,
+                error: error ? {
+                    message: error.message,
+                    stack: error.stack
+                } : null,
+                success: success,
+                duration: response?.duration || 0
+            };
+            submissionLogs.unshift(logEntry);
+        }
 
         // 限制日志数量
         if (submissionLogs.length > MAX_SUBMISSION_LOGS) {
@@ -1029,6 +1076,8 @@
         if (logsTab && logsTab.style.display !== 'none') {
             renderSubmissionLogs();
         }
+        
+        return logEntry.id;
     }
 
     function addAuthSyncLog(success, data = null, error = null) {
@@ -1810,11 +1859,23 @@
             return;
         }
 
-        const logsHTML = filteredLogs.map(log => {
+        const logsHTML = filteredLogs.map((log, index) => {
             const timestamp = new Date(log.timestamp).toLocaleString('zh-CN');
-            const statusColor = log.success ? '#4CAF50' : '#f44336';
-            const statusText = log.success ? '✅ 成功' : '❌ 失败';
-            const statusBg = log.success ? '#e8f5e9' : '#ffebee';
+            const logNumber = index + 1; // 序号从1开始
+            let statusColor, statusText, statusBg;
+            if (log.success === true) {
+                statusColor = '#4CAF50';
+                statusText = '✅ 成功';
+                statusBg = '#e8f5e9';
+            } else if (log.success === false) {
+                statusColor = '#f44336';
+                statusText = '❌ 失败';
+                statusBg = '#ffebee';
+            } else {
+                statusColor = '#FF9800';
+                statusText = '⏳ 处理中';
+                statusBg = '#fff3e0';
+            }
             
             // 根据日志类型渲染不同的内容
             let logTypeLabel = '📤 数据提交';
@@ -1841,7 +1902,7 @@
                             justify-content: space-between;
                             align-items: center;
                         ">
-                            <span>${logTypeLabel} - ${statusText}</span>
+                            <span>【${logNumber}】${logTypeLabel} - ${statusText}</span>
                             <span style="font-size: 12px; opacity: 0.9;">${timestamp}</span>
                         </div>
 
@@ -1930,7 +1991,7 @@
                         justify-content: space-between;
                         align-items: center;
                     ">
-                        <span>${logTypeLabel} - ${statusText}</span>
+                        <span>【${logNumber}】${logTypeLabel} - ${statusText}</span>
                         <span style="font-size: 12px; opacity: 0.9;">${timestamp}</span>
                     </div>
 
@@ -2007,27 +2068,30 @@
                                         ">${log.error.stack}</pre>
                                     </details>` : ''}
                                 </div>
-                                <button 
-                                    class="resend-log-btn" 
-                                    data-log-id="${log.id}"
-                                    style="
-                                        margin-top: 10px;
-                                        padding: 8px 16px;
-                                        background: #2196F3;
-                                        color: white;
-                                        border: none;
-                                        border-radius: 4px;
-                                        cursor: pointer;
-                                        font-weight: bold;
-                                        font-size: 12px;
-                                        transition: background 0.3s;
-                                    "
-                                    onmouseover="this.style.background='#1976D2'"
-                                    onmouseout="this.style.background='#2196F3'"
-                                >
-                                    🔄 重新发送
-                                </button>
                             </div>
+                        ` : ''}
+
+                        ${log.success === false ? `
+                            <button
+                                class="resend-log-btn"
+                                data-log-id="${log.id}"
+                                style="
+                                    margin-top: 10px;
+                                    padding: 8px 16px;
+                                    background: #2196F3;
+                                    color: white;
+                                    border: none;
+                                    border-radius: 4px;
+                                    cursor: pointer;
+                                    font-weight: bold;
+                                    font-size: 12px;
+                                    transition: background 0.3s;
+                                "
+                                onmouseover="this.style.background='#1976D2'"
+                                onmouseout="this.style.background='#2196F3'"
+                            >
+                                🔄 重新发送
+                            </button>
                         ` : ''}
                     </div>
                 </div>
@@ -4499,12 +4563,13 @@
         
         let notificationController = currentNotificationController;
         if (!notificationController || !notificationController.element || !document.body.contains(notificationController.element)) {
-            notificationController = showNotification('⏳ 数据正在发送...', 'loading', true);
+            notificationController = showNotification('⏳ 数���正在发送...', 'loading', true);
             currentNotificationController = notificationController;
         }
 
         let lastError = null;
         const dataToSend = buildDataToSend();
+        let logId = null;
 
         try {
             log(LOG_LEVEL.DEBUG, '准备推送数据:', dataToSend);
@@ -4523,6 +4588,10 @@
             console.log('  isValid:', dataToSend.isValid);
             console.log('  recordState:', dataToSend.recordState);
             console.log('========== 请求体输出完成 ==========');
+
+            // 立即保存日志到localStorage（初始状态：待处理，不使用Error对象）
+            logId = addSubmissionLog(dataToSend, null, null, null, 'data');
+            log(LOG_LEVEL.DEBUG, '已创建初始日志记录，logId:', logId);
 
             let attempts = 0;
             while (attempts < CONFIG.MAX_RETRY_ATTEMPTS) {
@@ -4546,8 +4615,8 @@
 
                     log(LOG_LEVEL.DEBUG, '数据推送成功:', response);
 
-                    // 记录提交日志
-                    addSubmissionLog(dataToSend, response, true);
+                    // 更新日志（覆盖原有的日志记录为成功状态）
+                    addSubmissionLog(dataToSend, response, true, null, 'data', logId);
 
                     // 推送成功后清除缓存的开始时间
                     await clearCachedStartTime();
@@ -4572,8 +4641,8 @@
 
             log(LOG_LEVEL.ERROR, '数据推送最终失败，已达到最大重试次数');
 
-            // 记录提交日志（失败）
-            addSubmissionLog(dataToSend, null, false, lastError);
+            // 更新日志（覆盖原有的日志记录为失败状态）
+            addSubmissionLog(dataToSend, null, false, lastError, 'data', logId);
 
             // 停止流动水动画并显示失败通知
             if (notificationController) {
