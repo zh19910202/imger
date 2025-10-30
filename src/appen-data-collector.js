@@ -995,6 +995,28 @@
             const existingIndex = submissionLogs.findIndex(log => log.id === logId);
             if (existingIndex !== -1) {
                 logEntry = submissionLogs[existingIndex];
+
+                // 保存重发历史记录
+                if (logEntry.resentAt || logEntry.resendCount > 0) {
+                    if (!logEntry.resendHistory) {
+                        logEntry.resendHistory = [];
+                    }
+
+                    // 添加当前状态到历史记录
+                    logEntry.resendHistory.push({
+                        timestamp: logEntry.updateTime || logEntry.timestamp,
+                        success: logEntry.success,
+                        error: logEntry.error,
+                        response: logEntry.response,
+                        resentAt: logEntry.resentAt
+                    });
+
+                    // 限制历史记录数量
+                    if (logEntry.resendHistory.length > 5) {
+                        logEntry.resendHistory = logEntry.resendHistory.slice(-5);
+                    }
+                }
+
                 logEntry.response = success ? {
                     status: 200,
                     statusText: 'OK',
@@ -1867,10 +1889,18 @@
                 statusColor = '#4CAF50';
                 statusText = '✅ 成功';
                 statusBg = '#e8f5e9';
+                // 如果有重发次数，显示在状态后面
+                if (log.resendCount > 0) {
+                    statusText += ` (重发${log.resendCount}次)`;
+                }
             } else if (log.success === false) {
                 statusColor = '#f44336';
                 statusText = '❌ 失败';
                 statusBg = '#ffebee';
+                // 如果有重发次数，显示在状态后面
+                if (log.resendCount > 0) {
+                    statusText += ` (重发${log.resendCount}次)`;
+                }
             } else {
                 statusColor = '#FF9800';
                 statusText = '⏳ 处理中';
@@ -1910,8 +1940,44 @@
                             <div style="margin-bottom: 10px;">
                                 <strong>操作信息:</strong>
                                 <div style="margin-left: 10px; margin-top: 5px;">
-                                    <div><strong>操作:</strong> ${log.operation || '同步认证信息'}</div>
-                                    <div><strong>执行时间:</strong> ${log.request.timestamp}</div>
+                                    <div><strong>操作:</strong> ${log.operation || '数据提交'}</div>
+                                    <div><strong>执行时间:</strong> ${log.request.timestamp || new Date(log.timestamp).toLocaleString('zh-CN')}</div>
+                                    ${log.updateTime && log.updateTime !== log.timestamp ?
+                                        `<div><strong>最后更新:</strong> ${new Date(log.updateTime).toLocaleString('zh-CN')}</div>` : ''
+                                    }
+                                    ${log.error && log.error.resentAt ?
+                                        `<div><strong>最后重发:</strong> ${new Date(log.error.resentAt).toLocaleString('zh-CN')}</div>` : ''
+                                    }
+                                    ${log.resendHistory && log.resendHistory.length > 0 ?
+                                        `<details style="margin-top: 8px;">
+                                            <summary style="cursor: pointer; font-weight: bold; color: #1976D2;">
+                                                📋 重发历史 (${log.resendHistory.length}次)
+                                            </summary>
+                                            <div style="margin-top: 8px; max-height: 200px; overflow-y: auto;">
+                                                ${log.resendHistory.map((history, index) => `
+                                                    <div style="
+                                                        margin-bottom: 8px;
+                                                        padding: 8px;
+                                                        background: ${history.success ? '#e8f5e9' : '#ffebee'};
+                                                        border-radius: 4px;
+                                                        border-left: 3px solid ${history.success ? '#4CAF50' : '#f44336'};
+                                                    ">
+                                                        <div style="font-weight: bold; margin-bottom: 4px;">
+                                                            第${index + 1}次重发 - ${history.success ? '✅ 成功' : '❌ 失败'}
+                                                        </div>
+                                                        <div style="font-size: 11px; color: #666;">
+                                                            时间: ${new Date(history.timestamp).toLocaleString('zh-CN')}
+                                                        </div>
+                                                        ${history.error ? `
+                                                            <div style="font-size: 11px; color: #c62828; margin-top: 4px;">
+                                                                错误: ${history.error.message}
+                                                            </div>
+                                                        ` : ''}
+                                                    </div>
+                                                `).join('')}
+                                            </div>
+                                        </details>` : ''
+                                    }
                                 </div>
                             </div>
 
@@ -1953,7 +2019,16 @@
                                         color: #c62828;
                                         font-size: 12px;
                                     ">
+                                        ${log.error.isResend ? '<div style="color: #d32f2f; font-weight: bold; margin-bottom: 5px;">🔄 重发失败</div>' : ''}
                                         <div><strong>错误:</strong> ${log.error.message}</div>
+                                        ${log.error.originalError ? `
+                                            <details style="margin-top: 8px;">
+                                                <summary style="cursor: pointer; font-weight: bold;">原始错误信息</summary>
+                                                <div style="margin-top: 5px; padding: 5px; background: #fff3e0; border-radius: 3px;">
+                                                    <div><strong>原始错误:</strong> ${log.error.originalError.message}</div>
+                                                </div>
+                                            </details>
+                                        ` : ''}
                                         ${log.error.stack ? `<details style="margin-top: 5px;">
                                             <summary style="cursor: pointer; font-weight: bold;">堆栈信息</summary>
                                             <pre style="
@@ -1996,6 +2071,50 @@
                     </div>
 
                     <div style="padding: 15px;">
+                        <div style="margin-bottom: 10px;">
+                            <strong>操作信息:</strong>
+                            <div style="margin-left: 10px; margin-top: 5px;">
+                                <div><strong>操作:</strong> ${log.operation || '数据提交'}</div>
+                                <div><strong>执行时间:</strong> ${log.request.timestamp || new Date(log.timestamp).toLocaleString('zh-CN')}</div>
+                                ${log.updateTime && log.updateTime !== log.timestamp ?
+                                    `<div><strong>最后更新:</strong> ${new Date(log.updateTime).toLocaleString('zh-CN')}</div>` : ''
+                                }
+                                ${log.error && log.error.resentAt ?
+                                    `<div><strong>最后重发:</strong> ${new Date(log.error.resentAt).toLocaleString('zh-CN')}</div>` : ''
+                                }
+                                ${log.resendHistory && log.resendHistory.length > 0 ?
+                                    `<details style="margin-top: 8px;">
+                                        <summary style="cursor: pointer; font-weight: bold; color: #1976D2;">
+                                            📋 重发历史 (${log.resendHistory.length}次)
+                                        </summary>
+                                        <div style="margin-top: 8px; max-height: 200px; overflow-y: auto;">
+                                            ${log.resendHistory.map((history, index) => `
+                                                <div style="
+                                                    margin-bottom: 8px;
+                                                    padding: 8px;
+                                                    background: ${history.success ? '#e8f5e9' : '#ffebee'};
+                                                    border-radius: 4px;
+                                                    border-left: 3px solid ${history.success ? '#4CAF50' : '#f44336'};
+                                                ">
+                                                    <div style="font-weight: bold; margin-bottom: 4px;">
+                                                        第${index + 1}次重发 - ${history.success ? '✅ 成功' : '❌ 失败'}
+                                                    </div>
+                                                    <div style="font-size: 11px; color: #666;">
+                                                        时间: ${new Date(history.timestamp).toLocaleString('zh-CN')}
+                                                    </div>
+                                                    ${history.error ? `
+                                                        <div style="font-size: 11px; color: #c62828; margin-top: 4px;">
+                                                            错误: ${history.error.message}
+                                                        </div>
+                                                    ` : ''}
+                                                </div>
+                                            `).join('')}
+                                        </div>
+                                    </details>` : ''
+                                }
+                            </div>
+                        </div>
+
                         <div style="margin-bottom: 10px;">
                             <strong>请求信息:</strong>
                             <div style="margin-left: 10px; margin-top: 5px;">
@@ -2055,7 +2174,16 @@
                                     color: #c62828;
                                     font-size: 12px;
                                 ">
+                                    ${log.error.isResend ? '<div style="color: #d32f2f; font-weight: bold; margin-bottom: 5px;">🔄 重发失败</div>' : ''}
                                     <div><strong>错误:</strong> ${log.error.message}</div>
+                                    ${log.error.originalError ? `
+                                        <details style="margin-top: 8px;">
+                                            <summary style="cursor: pointer; font-weight: bold;">原始错误信息</summary>
+                                            <div style="margin-top: 5px; padding: 5px; background: #fff3e0; border-radius: 3px;">
+                                                <div><strong>原始错误:</strong> ${log.error.originalError.message}</div>
+                                            </div>
+                                        </details>
+                                    ` : ''}
                                     ${log.error.stack ? `<details style="margin-top: 5px;">
                                         <summary style="cursor: pointer; font-weight: bold;">堆栈信息</summary>
                                         <pre style="
@@ -2162,6 +2290,11 @@
                         data: response
                     };
                     log.timestamp = Date.now();
+                    log.updateTime = Date.now();
+
+                    // 增加重发计数并设置重发标记
+                    log.resendCount = (log.resendCount || 0) + 1;
+                    log.resentAt = Date.now();
 
                     // 保存更新后的日志
                     saveSubmissionLogs();
@@ -2171,6 +2304,26 @@
                 } catch (error) {
                     log(LOG_LEVEL.ERROR, '数据重新发送失败:', error);
                     showNotification('❌ 数据重新发送失败，请重试', 'error', false, 3000);
+
+                    // 更新日志记录 - 记录重发失败信息
+                    log.success = false;
+                    log.error = {
+                        message: error.message,
+                        stack: error.stack,
+                        resentAt: Date.now(),
+                        isResend: true,
+                        originalError: log.error // 保留原始错误信息
+                    };
+                    log.response = null;
+                    log.updateTime = Date.now();
+
+                    // 增加重发计数并设置重发标记
+                    log.resendCount = (log.resendCount || 0) + 1;
+                    log.resentAt = Date.now();
+
+                    // 保存并重新渲染
+                    saveSubmissionLogs();
+                    renderSubmissionLogs();
 
                     // 恢复按钮状态
                     this.disabled = false;
